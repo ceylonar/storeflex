@@ -24,15 +24,12 @@ import {
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths } from 'date-fns';
-import { getAuthenticatedAppForUser } from './firebase-admin';
 
-// Helper to get current user ID
+// Helper to get a mock user ID
+// In a real app with authentication, this would come from the user's session
+const MOCK_USER_ID = 'user-123-abc';
 async function getCurrentUserId() {
-    const authData = await getAuthenticatedAppForUser();
-    if (!authData || !authData.auth.currentUser) {
-        throw new Error('User not authenticated.');
-    }
-    return authData.auth.currentUser.uid;
+    return MOCK_USER_ID;
 }
 
 
@@ -188,6 +185,12 @@ export async function fetchStores() {
             id: doc.id,
             ...doc.data()
         })) as Store[];
+        
+        if (stores.length === 0) {
+            const defaultStore = { id: 'store-1', name: 'My Store', userId };
+            return [defaultStore];
+        }
+
         return stores;
     } catch (error) {
         console.error('Database Error:', error);
@@ -235,18 +238,12 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
     const userId = await getCurrentUserId();
     if (!userId) return null;
     
-    const { db } = getFirebaseServices();
-    try {
-        const userRef = doc(db, 'users', userId);
-        const docSnap = await getDoc(userRef);
-
-        if (docSnap.exists()) {
-            return docSnap.data() as UserProfile;
-        }
-        return null;
-    } catch(e) {
-        console.error("Failed to fetch user profile", e);
-        throw new Error("Failed to fetch user profile");
+    // Return mock data since there's no auth
+    return {
+        id: userId,
+        email: 'user@example.com',
+        name: 'Demo User',
+        businessName: "Demo Store",
     }
 }
 

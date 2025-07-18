@@ -1,7 +1,6 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -17,20 +16,19 @@ let app;
 if (!firebaseConfig.apiKey) {
     console.warn('Firebase API Key is not set. The app will not connect to Firebase.');
     // We don't initialize if the key is missing.
-    // Functions trying to use db or auth will fail.
+    // Functions trying to use db will fail.
 } else {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 }
 
 const db = app ? getFirestore(app) : null;
-const auth = app ? getAuth(app) : null;
 
 function getFirebaseServices() {
-    if (!app || !db || !auth) {
+    if (!app || !db) {
         throw new Error('Firebase is not initialized. Please check your environment variables.');
     }
-    return { db, auth };
+    return { db };
 }
 
 
-export { db, auth, getFirebaseServices };
+export { db, getFirebaseServices };

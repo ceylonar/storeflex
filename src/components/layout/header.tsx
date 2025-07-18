@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   Avatar,
   AvatarFallback,
@@ -30,9 +30,6 @@ import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
-import { signOut } from 'firebase/auth';
-import { getFirebaseServices } from '@/lib/firebase';
-import { useAuth } from '../auth-provider';
 
 
 const navigation = [
@@ -45,24 +42,10 @@ const navigation = [
 
 export function Header() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user } = useAuth();
   const [stores, setStores] = useState<StoreType[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-
-  const handleLogout = async () => {
-    try {
-        const { auth } = getFirebaseServices();
-        await signOut(auth);
-        router.push('/login');
-    } catch(e) {
-        console.error("Logout failed:", e);
-    }
-  };
-
   useEffect(() => {
-    if (!user) return;
     async function getData() {
         try {
             const [fetchedStores, fetchedProfile] = await Promise.all([
@@ -76,7 +59,7 @@ export function Header() {
         }
     }
     getData();
-  }, [user]);
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
@@ -135,17 +118,17 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className='h-8 w-8'>
-                <AvatarImage src={user?.photoURL || "https://placehold.co/40x40.png"} alt="User avatar" data-ai-hint="user avatar" />
-                <AvatarFallback>{userProfile?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                <AvatarImage src={"https://placehold.co/40x40.png"} alt="User avatar" data-ai-hint="user avatar" />
+                <AvatarFallback>{userProfile?.name?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{userProfile?.name || user?.email || 'My Account'}</DropdownMenuLabel>
+            <DropdownMenuLabel>{userProfile?.name || 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+            <DropdownMenuItem>Logout</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
