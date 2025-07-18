@@ -25,12 +25,16 @@ export async function getAuthenticatedAppForUser() {
   const email = headers().get('X-Goog-Authenticated-User-Email');
 
   if (!GID) {
-    throw new Error('User not authenticated.');
+    // Instead of throwing an error, return null when no user is authenticated on the server.
+    // The client-side AuthProvider will handle redirection.
+    return null;
   }
 
   const uid = GID.startsWith('auth-id-') ? GID.substring('auth-id-'.length) : GID;
   const app = getAppForUser(uid);
   const auth = getAuth(app);
+  
+  // Mock the currentUser object for server-side context
   auth.currentUser = {
       uid,
       email: email || undefined,

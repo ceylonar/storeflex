@@ -28,9 +28,10 @@ import { getAuthenticatedAppForUser } from './firebase-admin';
 
 // Helper to get current user ID
 async function getCurrentUserId() {
-    const { auth } = await getAuthenticatedAppForUser();
-    const user = auth.currentUser;
-    if (!user) throw new Error('User not authenticated.');
+    const authData = await getAuthenticatedAppForUser();
+    if (!authData) return null; // Return null if no authenticated user
+    const user = authData.auth.currentUser;
+    if (!user) return null;
     return user.uid;
 }
 
@@ -69,6 +70,8 @@ const UserProfileSchema = z.object({
 export async function createProduct(formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error('User not authenticated.');
+
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -117,8 +120,10 @@ export async function createProduct(formData: FormData) {
 // READ
 export async function fetchProducts() {
   noStore();
-  const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) return []; // Return empty array if no user
+
+  const { db } = getFirebaseServices();
   try {
     const productsCollection = collection(db, 'products');
     const q = query(productsCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
@@ -141,8 +146,10 @@ export async function fetchProducts() {
 
 export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   noStore();
-  const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) return [];
+
+  const { db } = getFirebaseServices();
   try {
     const productsCollection = collection(db, 'products');
     const q = query(productsCollection, where('userId', '==', userId), orderBy('name', 'asc'));
@@ -164,8 +171,10 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
 
 export async function fetchStores() {
     noStore();
-    const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
     try {
         const storesCollection = collection(db, 'stores');
         const q = query(storesCollection, where('userId', '==', userId), orderBy('name'));
@@ -213,8 +222,10 @@ export async function createInitialStoreForUser(userId: string, email: string, p
 
 export async function fetchUserProfile(): Promise<UserProfile | null> {
     noStore();
-    const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return null;
+    
+    const { db } = getFirebaseServices();
     try {
         const userRef = doc(db, 'users', userId);
         const docSnap = await getDoc(userRef);
@@ -232,8 +243,18 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
 
 export async function fetchDashboardData() {
     noStore();
-    const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    const defaultData = {
+        inventoryValue: 0,
+        productCount: 0,
+        salesToday: 0,
+        totalSales: 0,
+        recentActivities: [],
+        lowStockProducts: [],
+    };
+    if (!userId) return defaultData;
+
+    const { db } = getFirebaseServices();
     try {
         const productsCollection = collection(db, 'products');
         const salesCollection = collection(db, 'sales');
@@ -308,8 +329,10 @@ export async function fetchDashboardData() {
 
 export async function fetchSalesData(): Promise<SalesData[]> {
     noStore();
-    const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
     try {
         const sixMonthsAgo = subMonths(new Date(), 6);
         const salesCollection = collection(db, 'sales');
@@ -349,8 +372,10 @@ export async function fetchSalesData(): Promise<SalesData[]> {
 
 export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     noStore();
-    const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
     try {
         const salesCollection = collection(db, 'sales');
         const salesQuery = query(salesCollection, where('userId', '==', userId));
@@ -381,8 +406,10 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
 
 export async function fetchAllActivities(): Promise<RecentActivity[]> {
     noStore();
-    const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
         const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'));
@@ -406,6 +433,8 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
 export async function updateProduct(id: string, formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error('User not authenticated.');
+
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -457,6 +486,8 @@ export async function updateProduct(id: string, formData: FormData) {
 export async function updateUserProfile(formData: FormData) {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error('User not authenticated.');
+    
     const validatedFields = UserProfileSchema.safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
@@ -484,6 +515,8 @@ export async function updateUserProfile(formData: FormData) {
 export async function deleteProduct(id: string) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error('User not authenticated.');
+
   try {
     const batch = writeBatch(db);
     const productRef = doc(db, 'products', id);
@@ -524,6 +557,8 @@ export async function deleteProduct(id: string) {
 export async function createSale(formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error('User not authenticated.');
+
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -589,8 +624,10 @@ export async function createSale(formData: FormData) {
 // READ SALES
 export async function fetchSales() {
   noStore();
-  const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) return [];
+
+  const { db } = getFirebaseServices();
   try {
     const salesCollection = collection(db, 'sales');
     const q = query(salesCollection, where('userId', '==', userId), orderBy('sale_date', 'desc'));
@@ -614,6 +651,8 @@ export async function fetchSales() {
 export async function updateSale(id: string, formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error('User not authenticated.');
+
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -685,6 +724,8 @@ export async function updateSale(id: string, formData: FormData) {
 export async function deleteSale(id: string) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error('User not authenticated.');
+  
   try {
     const saleRef = doc(db, 'sales', id);
     
