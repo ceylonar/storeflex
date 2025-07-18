@@ -36,17 +36,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isMounted) return;
-
     try {
         const { auth } = getFirebaseServices();
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -60,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await clearToken();
           }
           setLoading(false);
-          // Redirect logic is handled below to avoid race conditions
         });
         return () => unsubscribe();
     } catch (e) {
@@ -68,15 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError((e as Error).message);
         setLoading(false);
     }
-  }, [isMounted]);
+  }, []);
 
   useEffect(() => {
     if (!loading) {
+      const isAuthRoute = pathname === '/login';
       const isProtectedRoute = pathname.startsWith('/dashboard');
+
       if (!user && isProtectedRoute) {
         router.push('/login');
       }
-      if (user && pathname === '/login') {
+      if (user && isAuthRoute) {
         router.push('/dashboard');
       }
     }
@@ -103,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // Prevent dashboard flicker for unauthenticated users
+  // Prevent dashboard flicker for unauthenticated users on protected routes
   if (!user && pathname.startsWith('/dashboard')) {
       return (
         <div className="flex h-screen items-center justify-center">

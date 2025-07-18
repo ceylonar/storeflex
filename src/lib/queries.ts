@@ -29,11 +29,12 @@ import { getAuthenticatedAppForUser } from './firebase-admin';
 // Helper to get current user ID
 async function getCurrentUserId() {
     const authData = await getAuthenticatedAppForUser();
-    if (!authData) return null; // Return null if no authenticated user
-    const user = authData.auth.currentUser;
-    if (!user) return null;
-    return user.uid;
+    if (!authData || !authData.auth.currentUser) {
+        throw new Error('User not authenticated.');
+    }
+    return authData.auth.currentUser.uid;
 }
+
 
 // Form validation schemas
 const ProductSchema = z.object({
@@ -75,7 +76,6 @@ interface CreateUserArgs {
 export async function createProduct(formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error('User not authenticated.');
 
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
@@ -443,7 +443,6 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
 export async function updateProduct(id: string, formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error('User not authenticated.');
 
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
@@ -496,7 +495,6 @@ export async function updateProduct(id: string, formData: FormData) {
 export async function updateUserProfile(formData: FormData) {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error('User not authenticated.');
     
     const profileData = Object.fromEntries(formData.entries());
     const validatedFields = UserProfileSchema.partial().safeParse(profileData);
@@ -525,7 +523,6 @@ export async function updateUserProfile(formData: FormData) {
 export async function deleteProduct(id: string) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error('User not authenticated.');
 
   try {
     const batch = writeBatch(db);
@@ -567,7 +564,6 @@ export async function deleteProduct(id: string) {
 export async function createSale(formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error('User not authenticated.');
 
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
@@ -661,7 +657,6 @@ export async function fetchSales() {
 export async function updateSale(id: string, formData: FormData) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error('User not authenticated.');
 
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
@@ -734,7 +729,6 @@ export async function updateSale(id: string, formData: FormData) {
 export async function deleteSale(id: string) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error('User not authenticated.');
   
   try {
     const saleRef = doc(db, 'sales', id);
