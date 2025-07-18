@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -70,7 +69,7 @@ export function ActivityTable({ activities }: { activities: RecentActivity[] }) 
               <TableRow key={activity.id}>
                 <TableCell className="hidden sm:table-cell">
                    <Avatar className="h-9 w-9">
-                    <AvatarImage src={activity.product_image} alt={activity.product_name} data-ai-hint="product avatar" />
+                    <AvatarImage src={activity.product_image || 'https://placehold.co/40x40.png'} alt={activity.product_name} data-ai-hint="product avatar" />
                     <AvatarFallback>
                         {activity.product_name?.charAt(0).toUpperCase() || 'A'}
                     </AvatarFallback>

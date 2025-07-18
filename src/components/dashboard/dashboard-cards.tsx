@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -159,7 +158,7 @@ export function LowStockCard({ products }: { products: Product[] }) {
               <TableRow key={product.id}>
                 <TableCell className="hidden sm:table-cell">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={product.image} alt={product.name} data-ai-hint="product image" />
+                    <AvatarImage src={product.image || 'https://placehold.co/40x40.png'} alt={product.name} data-ai-hint="product image" />
                     <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                 </TableCell>
@@ -207,7 +206,7 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
         {activities.map((activity) => (
           <div key={activity.id} className="flex items-center gap-4">
             <Avatar className="hidden h-9 w-9 sm:flex">
-              <AvatarImage src={activity.product_image} alt={activity.product_name} data-ai-hint="product avatar" />
+              <AvatarImage src={activity.product_image || 'https://placehold.co/40x40.png'} alt={activity.product_name} data-ai-hint="product avatar" />
               <AvatarFallback>
                 {activity.product_name?.charAt(0).toUpperCase() || (activity.type === 'sale' ? 'S' : activity.type === 'update' ? 'U' : activity.type === 'new' ? 'N' : 'A')}
               </AvatarFallback>
