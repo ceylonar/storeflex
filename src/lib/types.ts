@@ -9,15 +9,22 @@ export type Product = {
   name: string;
   category: string;
   stock: number;
-  costPrice: number;
-  sellingPrice: number;
+  cost_price: number;
+  selling_price: number;
   image: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type RecentActivity = {
   id: string;
   type: 'sale' | 'update' | 'new';
-  productName: string;
+  product_name: string;
   details: string;
   timestamp: string;
 };
+
+export type SalesData = {
+    month: string;
+    sales: number;
+}

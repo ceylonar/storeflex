@@ -52,11 +52,11 @@ export function PriceOptimizerForm() {
   const form = useForm<PriceOptimizerFormValues>({
     resolver: zodResolver(PriceOptimizerFormSchema),
     defaultValues: {
-      productName: 'Wireless Headphones',
-      productCategory: 'Electronics',
-      costPrice: 80,
-      competitorPrices: '130, 145, 159, 119',
-      salesData: [{ date: '2023-05-15', quantitySold: 5, sellingPrice: 149 }],
+      productName: '',
+      productCategory: '',
+      costPrice: undefined,
+      competitorPrices: '',
+      salesData: [],
     },
   });
 

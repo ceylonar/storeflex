@@ -25,7 +25,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Boxes, LayoutDashboard, Lightbulb, Menu, Store } from 'lucide-react';
-import { stores } from '@/lib/data';
+import type { Store as StoreType } from '@/lib/types';
+import { useEffect, useState } from 'react';
+import { fetchStores } from '@/lib/queries';
+
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -35,6 +38,16 @@ const navigation = [
 
 export function Header() {
   const pathname = usePathname();
+  const [stores, setStores] = useState<StoreType[]>([]);
+
+  useEffect(() => {
+    async function getStores() {
+        const fetchedStores = await fetchStores();
+        setStores(fetchedStores);
+    }
+    getStores();
+  }, []);
+
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
       <Sheet>
@@ -72,18 +85,20 @@ export function Header() {
       </Sheet>
       <div className="flex flex-1 justify-end items-center gap-4">
         <div className="w-[200px]">
-          <Select defaultValue={stores[0].id}>
-            <SelectTrigger id="store-switcher" aria-label="Select Store">
-              <SelectValue placeholder="Select a store" />
-            </SelectTrigger>
-            <SelectContent>
-              {stores.map((store) => (
-                <SelectItem key={store.id} value={store.id}>
-                  {store.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {stores.length > 0 && (
+            <Select defaultValue={stores[0].id}>
+                <SelectTrigger id="store-switcher" aria-label="Select Store">
+                <SelectValue placeholder="Select a store" />
+                </SelectTrigger>
+                <SelectContent>
+                {stores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                    {store.name}
+                    </SelectItem>
+                ))}
+                </SelectContent>
+            </Select>
+          )}
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

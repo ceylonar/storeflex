@@ -1,6 +1,8 @@
 import { InventoryTable } from "@/components/inventory/inventory-table";
+import { fetchProducts } from "@/lib/queries";
 
-export default function InventoryPage() {
+export default async function InventoryPage() {
+  const products = await fetchProducts();
   return (
     <div className="space-y-4">
       <div>
@@ -9,7 +11,7 @@ export default function InventoryPage() {
           Manage your products and stock levels.
         </p>
       </div>
-      <InventoryTable />
+      <InventoryTable initialProducts={products} />
     </div>
   );
 }

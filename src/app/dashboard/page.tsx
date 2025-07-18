@@ -1,19 +1,22 @@
 import { StatCard, SalesChartCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
-import { inventoryValue } from '@/lib/data';
+import { fetchDashboardData, fetchSalesData } from '@/lib/queries';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const dashboardData = await fetchDashboardData();
+  const salesData = await fetchSalesData();
+
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <StatCard 
           title="Inventory Value" 
-          value={`$${inventoryValue.toLocaleString()}`} 
+          value={`$${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
           iconName="DollarSign" 
           description="Total cost of current stock" 
         />
         <StatCard 
           title="Total Products" 
-          value="256" 
+          value={dashboardData.productCount.toString()} 
           iconName="Package" 
           description="Across all categories" 
         />
@@ -33,15 +36,15 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
-            <SalesChartCard />
+            <SalesChartCard salesData={salesData} />
         </div>
         <div className="lg:col-span-1">
-            <RecentActivityCard />
+            <RecentActivityCard activities={dashboardData.recentActivities} />
         </div>
       </div>
 
       <div className="grid grid-cols-1">
-        <LowStockCard />
+        <LowStockCard products={dashboardData.lowStockProducts} />
       </div>
     </div>
   );

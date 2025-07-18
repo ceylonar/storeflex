@@ -19,13 +19,14 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { lowStockProducts, recentActivities, salesData } from '@/lib/data';
+import type { Product, RecentActivity, SalesData } from '@/lib/types';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 
-const icons: { [key: string]: LucideIcon } = {
+const icons = {
   DollarSign,
   Package,
   ShoppingCart,
@@ -55,12 +56,12 @@ export function StatCard({ title, value, iconName, description }: StatCardProps)
   );
 }
 
-export function SalesChartCard() {
+export function SalesChartCard({ salesData }: { salesData: SalesData[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Sales Overview</CardTitle>
-        <CardDescription>Monthly sales performance.</CardDescription>
+        <CardDescription>Last 6 months performance.</CardDescription>
       </CardHeader>
       <CardContent className="pl-2">
         <ResponsiveContainer width="100%" height={300}>
@@ -92,7 +93,7 @@ export function SalesChartCard() {
   );
 }
 
-export function LowStockCard() {
+export function LowStockCard({ products }: { products: Product[] }) {
   return (
     <Card>
       <CardHeader>
@@ -112,7 +113,7 @@ export function LowStockCard() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {lowStockProducts.map((product) => (
+            {products.map((product) => (
               <TableRow key={product.id}>
                 <TableCell className="hidden sm:table-cell">
                   <Avatar className="h-9 w-9">
@@ -134,7 +135,7 @@ export function LowStockCard() {
   );
 }
 
-export function RecentActivityCard() {
+export function RecentActivityCard({ activities }: { activities: RecentActivity[] }) {
   return (
     <Card>
       <CardHeader>
@@ -142,7 +143,7 @@ export function RecentActivityCard() {
         <CardDescription>What's been happening in your store.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-8">
-        {recentActivities.map((activity) => (
+        {activities.map((activity) => (
           <div key={activity.id} className="flex items-center gap-4">
             <Avatar className="hidden h-9 w-9 sm:flex">
               <AvatarImage src={`https://placehold.co/40x40.png`} alt="Avatar" data-ai-hint="product avatar" />
@@ -152,7 +153,7 @@ export function RecentActivityCard() {
             </Avatar>
             <div className="grid gap-1">
               <p className="text-sm font-medium leading-none">
-                {activity.productName}
+                {activity.product_name}
                 <span className={cn('ml-2 capitalize text-xs', 
                   activity.type === 'sale' && 'text-accent-foreground',
                   activity.type === 'update' && 'text-blue-500',
@@ -162,13 +163,13 @@ export function RecentActivityCard() {
               <p className="text-sm text-muted-foreground">{activity.details}</p>
             </div>
             <div className="ml-auto text-sm text-muted-foreground">
-              {activity.timestamp}
+              {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
             </div>
           </div>
         ))}
       </CardContent>
       <CardFooter>
-        <Button size="sm" className="w-full">
+        <Button size="sm" className="w-full" disabled>
             View All
             <ArrowUpRight className="h-4 w-4 ml-2" />
         </Button>

@@ -1,5 +1,9 @@
 import {Pool} from 'pg';
 
+if (!process.env.POSTGRES_URL) {
+  throw new Error('Missing POSTGRES_URL environment variable');
+}
+
 // This creates a "pool" of database connections that can be reused,
 // which is more efficient than creating a new connection for every query.
 const pool = new Pool({
