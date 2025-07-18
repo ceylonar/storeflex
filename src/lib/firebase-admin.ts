@@ -5,23 +5,26 @@ import { cookies } from 'next/headers';
 
 // This function initializes and returns the Firebase Admin App instance.
 // It ensures the app is initialized only once.
-export function getAdminApp(): App {
-    // If the app is already initialized, return it.
-    if (getApps().length) {
+function getAdminApp(): App {
+    if (getApps().length > 0) {
         return getApp();
     }
 
-    // Prepare credentials.
     const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    const credential = serviceAccountKey
-        ? cert(JSON.parse(serviceAccountKey))
-        : undefined;
+    if (!serviceAccountKey) {
+        throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY environment variable is not set.');
+    }
 
-    // Initialize the app.
-    return initializeApp({ credential });
+    try {
+        const credential = cert(JSON.parse(serviceAccountKey));
+        return initializeApp({ credential });
+    } catch(e) {
+        console.error("Failed to parse Firebase service account key", e);
+        throw new Error("Could not initialize Firebase Admin SDK. Check your FIREBASE_SERVICE_ACCOUNT_KEY.");
+    }
 }
 
-export async function verifyIdToken(token: string): Promise<DecodedIdToken> {
+async function verifyIdToken(token: string): Promise<DecodedIdToken> {
     const auth = getAuth(getAdminApp());
     return auth.verifyIdToken(token);
 }
@@ -48,7 +51,6 @@ export async function getAuthenticatedAppForUser() {
     const sessionCookie = cookies().get('__session')?.value;
 
     if (!sessionCookie) {
-        // This should not happen for protected routes if middleware is configured correctly.
         return { app: null, auth: { currentUser: null } };
     }
 
@@ -56,13 +58,11 @@ export async function getAuthenticatedAppForUser() {
         const decodedIdToken = await verifyIdToken(sessionCookie);
         const auth = getAuth(getAdminApp());
         
-        // Mock the currentUser object for server-side context
         const currentUser = createServerUser(decodedIdToken);
         
         return { app: getAdminApp(), auth: { currentUser } };
     } catch (error) {
         console.error('Error verifying session cookie in getAuthenticatedAppForUser:', error);
-        // Do not clear cookie here, middleware will handle it.
         return { app: null, auth: { currentUser: null } };
     }
 }
