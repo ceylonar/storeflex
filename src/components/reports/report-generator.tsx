@@ -27,11 +27,11 @@ import { Loader2, FileText, Download, Calendar as CalendarIcon } from 'lucide-re
 import type { Sale } from '@/lib/types';
 import { fetchSalesReport } from '@/lib/actions';
 import { format } from 'date-fns';
-import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 interface ReportData {
   sales: Sale[];
@@ -217,14 +217,10 @@ export function ReportGenerator() {
                   {reportData.sales.length > 0 ? reportData.sales.map((sale) => (
                     <TableRow key={sale.id}>
                       <TableCell className="hidden sm:table-cell">
-                        <Image
-                          alt={sale.product_name}
-                          className="aspect-square rounded-md object-cover"
-                          height="64"
-                          src={sale.product_image || 'https://placehold.co/64x64.png'}
-                          width="64"
-                          data-ai-hint="product image"
-                        />
+                        <Avatar className="h-16 w-16 rounded-md">
+                          <AvatarImage src={sale.product_image || 'https://placehold.co/64x64.png'} alt={sale.product_name} data-ai-hint="product image" className="aspect-square object-cover" />
+                          <AvatarFallback>{sale.product_name.charAt(0)}</AvatarFallback>
+                        </Avatar>
                       </TableCell>
                       <TableCell className="font-medium">{sale.product_name}</TableCell>
                       <TableCell>{format(new Date(sale.sale_date), 'PPP p')}</TableCell>

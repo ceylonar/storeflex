@@ -42,12 +42,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, PlusCircle, Trash2, Pencil } from 'lucide-react';
 import type { Product } from '@/lib/types';
-import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { createProduct, updateProduct, deleteProduct } from '@/lib/queries';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 type FormState = 'add' | 'edit';
 
@@ -153,14 +153,10 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
             {products.map((product) => (
               <TableRow key={product.id}>
                 <TableCell className="hidden sm:table-cell">
-                  <Image
-                    alt={product.name}
-                    className="aspect-square rounded-md object-cover"
-                    height="64"
-                    src={product.image || 'https://placehold.co/64x64.png'}
-                    width="64"
-                    data-ai-hint="product image"
-                  />
+                  <Avatar className="h-16 w-16 rounded-md">
+                    <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" className="aspect-square object-cover" />
+                    <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
                 <TableCell>{product.sku}</TableCell>

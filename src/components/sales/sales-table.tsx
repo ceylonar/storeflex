@@ -61,7 +61,7 @@ import { createSale, updateSale, deleteSale } from '@/lib/queries';
 import { format } from 'date-fns';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 type FormState = 'add' | 'edit';
 type LastEditedField = 'unit_price' | 'total_amount' | null;
@@ -214,14 +214,10 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
             {sales.map((sale) => (
               <TableRow key={sale.id}>
                  <TableCell className="hidden sm:table-cell">
-                  <Image
-                    alt={sale.product_name}
-                    className="aspect-square rounded-md object-cover"
-                    height="64"
-                    src={sale.product_image || 'https://placehold.co/64x64.png'}
-                    width="64"
-                    data-ai-hint="product image"
-                  />
+                  <Avatar className="h-16 w-16 rounded-md">
+                    <AvatarImage src={sale.product_image || 'https://placehold.co/64x64.png'} alt={sale.product_name} data-ai-hint="product image" className="aspect-square object-cover" />
+                    <AvatarFallback>{sale.product_name.charAt(0)}</AvatarFallback>
+                  </Avatar>
                 </TableCell>
                 <TableCell className="font-medium">{sale.product_name}</TableCell>
                 <TableCell>{format(new Date(sale.sale_date), 'PPP')}</TableCell>
