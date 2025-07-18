@@ -147,4 +147,3 @@ export function SettingsForm({ userProfile }: { userProfile: UserProfile | null 
         </Card>
     );
 }
-
