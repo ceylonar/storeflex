@@ -28,6 +28,7 @@ import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIc
 import type { Store as StoreType } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores } from '@/lib/queries';
+import { ModeToggle } from '../mode-toggle';
 
 
 const navigation = [
@@ -85,6 +86,7 @@ export function Header() {
         </SheetContent>
       </Sheet>
       <div className="flex flex-1 justify-end items-center gap-4">
+        <ModeToggle />
         <div className="w-[200px]">
           {stores.length > 0 && (
             <Select defaultValue={stores[0].id}>
