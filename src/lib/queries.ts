@@ -15,7 +15,6 @@ import {
   serverTimestamp,
   where,
   limit,
-  getCountFromServer,
   getDoc
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store } from './types';
@@ -78,10 +77,15 @@ export async function fetchProducts() {
     const productsCollection = collection(db, 'products');
     const q = query(productsCollection, orderBy('created_at', 'desc'));
     const querySnapshot = await getDocs(q);
-    const products = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Product[];
+    const products = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        created_at: data.created_at.toDate().toISOString(),
+        updated_at: data.updated_at.toDate().toISOString(),
+      }
+    }) as Product[];
     return products;
   } catch (error) {
     console.error('Database Error:', error);

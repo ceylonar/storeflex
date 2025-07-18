@@ -1,4 +1,3 @@
-import type { Timestamp } from "firebase/firestore";
 
 export type Store = {
   id: string;
@@ -14,8 +13,8 @@ export type Product = {
   cost_price: number;
   selling_price: number;
   image: string;
-  created_at: Timestamp;
-  updated_at: Timestamp;
+  created_at: string; // Changed from Timestamp to string
+  updated_at: string; // Changed from Timestamp to string
 };
 
 export type RecentActivity = {
