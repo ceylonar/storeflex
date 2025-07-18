@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -20,11 +21,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import type { Product, RecentActivity, SalesData } from '@/lib/types';
-import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useEffect, useState } from 'react';
 
 const icons = {
   DollarSign,
@@ -135,6 +136,16 @@ export function LowStockCard({ products }: { products: Product[] }) {
   );
 }
 
+function ActivityTime({ timestamp }: { timestamp: string }) {
+  const [timeAgo, setTimeAgo] = useState('');
+
+  useEffect(() => {
+    setTimeAgo(formatDistanceToNow(new Date(timestamp), { addSuffix: true }));
+  }, [timestamp]);
+
+  return <>{timeAgo}</>;
+}
+
 export function RecentActivityCard({ activities }: { activities: RecentActivity[] }) {
   return (
     <Card>
@@ -148,7 +159,7 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
             <Avatar className="hidden h-9 w-9 sm:flex">
               <AvatarImage src={`https://placehold.co/40x40.png`} alt="Avatar" data-ai-hint="product avatar" />
               <AvatarFallback>
-                {activity.type === 'sale' ? 'S' : activity.type === 'update' ? 'U' : 'N'}
+                {activity.type === 'sale' ? 'S' : activity.type === 'update' ? 'U' : activity.type === 'new' ? 'N' : 'A'}
               </AvatarFallback>
             </Avatar>
             <div className="grid gap-1">
@@ -157,13 +168,14 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
                 <span className={cn('ml-2 capitalize text-xs', 
                   activity.type === 'sale' && 'text-accent-foreground',
                   activity.type === 'update' && 'text-blue-500',
-                  activity.type === 'new' && 'text-purple-500'
+                  activity.type === 'new' && 'text-purple-500',
+                  activity.type === 'delete' && 'text-destructive',
                 )}>({activity.type})</span>
               </p>
               <p className="text-sm text-muted-foreground">{activity.details}</p>
             </div>
             <div className="ml-auto text-sm text-muted-foreground">
-              {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+               <ActivityTime timestamp={activity.timestamp} />
             </div>
           </div>
         ))}
