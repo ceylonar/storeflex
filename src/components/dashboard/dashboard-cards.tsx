@@ -181,8 +181,7 @@ function ActivityTime({ timestamp }: { timestamp: string }) {
   const [timeAgo, setTimeAgo] = useState('');
 
   useEffect(() => {
-    // Ensure timestamp is a valid string before creating a Date object
-    if (timestamp) {
+    if (timestamp && !isNaN(new Date(timestamp).getTime())) {
       try {
         setTimeAgo(formatDistanceToNow(new Date(timestamp), { addSuffix: true }));
       } catch (error) {

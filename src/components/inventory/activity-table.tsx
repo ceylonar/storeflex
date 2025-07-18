@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -26,13 +27,15 @@ function FormattedDate({ timestamp }: { timestamp: string }) {
     const [date, setDate] = React.useState('');
 
     React.useEffect(() => {
-        if(timestamp) {
+        if(timestamp && !isNaN(new Date(timestamp).getTime())) {
             try {
                 setDate(format(new Date(timestamp), 'PPP p'));
             } catch (error) {
                 console.error("Failed to format date:", error);
                 setDate("Invalid Date");
             }
+        } else {
+            setDate("Not available");
         }
     }, [timestamp]);
 
