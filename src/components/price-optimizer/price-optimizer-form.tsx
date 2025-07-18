@@ -133,7 +133,7 @@ export function PriceOptimizerForm() {
                   name="costPrice"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cost Price ($)</FormLabel>
+                      <FormLabel>Cost Price (LKR)</FormLabel>
                       <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -175,7 +175,7 @@ export function PriceOptimizerForm() {
                         control={form.control}
                         name={`salesData.${index}.sellingPrice`}
                         render={({ field }) => (
-                           <FormItem><FormLabel>Price ($)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
+                           <FormItem><FormLabel>Price (LKR)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
                         )}
                       />
                       <div className="flex items-end">
@@ -222,7 +222,7 @@ export function PriceOptimizerForm() {
               <div className="space-y-4">
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground">Suggested Price</h3>
-                  <p className="text-4xl font-bold text-accent-foreground">${result.suggestedPrice.toFixed(2)}</p>
+                  <p className="text-4xl font-bold text-accent-foreground">LKR {result.suggestedPrice.toFixed(2)}</p>
                 </div>
                 <div>
                   <h3 className="text-sm font-medium text-muted-foreground">Reasoning</h3>

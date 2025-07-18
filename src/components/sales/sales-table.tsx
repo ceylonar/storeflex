@@ -169,8 +169,8 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
                 <TableCell className="font-medium">{sale.product_name}</TableCell>
                 <TableCell>{format(new Date(sale.sale_date), 'PPP')}</TableCell>
                 <TableCell className="text-right">{sale.quantity}</TableCell>
-                <TableCell className="text-right">${Number(sale.price_per_unit).toFixed(2)}</TableCell>
-                <TableCell className="text-right">${Number(sale.total_amount).toFixed(2)}</TableCell>
+                <TableCell className="text-right">LKR {Number(sale.price_per_unit).toFixed(2)}</TableCell>
+                <TableCell className="text-right">LKR {Number(sale.total_amount).toFixed(2)}</TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -265,7 +265,7 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
                   <Input id="quantity" name="quantity" type="number" defaultValue={selectedSale.quantity} className="col-span-3" required />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="price_per_unit" className="text-right">Unit Price ($)</Label>
+                  <Label htmlFor="price_per_unit" className="text-right">Unit Price (LKR)</Label>
                   <Input id="price_per_unit" name="price_per_unit" type="number" step="0.01" defaultValue={selectedSale.price_per_unit} className="col-span-3" required />
                 </div>
               </div>

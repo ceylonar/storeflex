@@ -10,7 +10,7 @@ export default async function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
         <StatCard 
           title="Inventory Value" 
-          value={`$${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+          value={`LKR ${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
           iconName="DollarSign" 
           description="Total cost of current stock" 
         />
@@ -22,13 +22,13 @@ export default async function DashboardPage() {
         />
         <StatCard 
           title="Sales (Today)" 
-          value={`$${dashboardData.salesToday.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+          value={`LKR ${dashboardData.salesToday.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
           iconName="ShoppingCart" 
           description="Total sales for today" 
         />
         <StatCard 
           title="Total Sales" 
-          value={`$${dashboardData.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          value={`LKR ${dashboardData.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
           iconName="CreditCard"
           description="All-time total sales"
         />

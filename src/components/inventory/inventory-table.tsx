@@ -167,8 +167,8 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
                   <Badge variant="outline">{product.category}</Badge>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">{product.stock}</TableCell>
-                <TableCell className="hidden md:table-cell">${Number(product.cost_price).toFixed(2)}</TableCell>
-                <TableCell>${Number(product.selling_price).toFixed(2)}</TableCell>
+                <TableCell className="hidden md:table-cell">LKR {Number(product.cost_price).toFixed(2)}</TableCell>
+                <TableCell>LKR {Number(product.selling_price).toFixed(2)}</TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -237,11 +237,11 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
                   <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} className="col-span-3" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="cost_price" className="text-right">Cost Price</Label>
+                  <Label htmlFor="cost_price" className="text-right">Cost Price (LKR)</Label>
                   <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} className="col-span-3" />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="selling_price" className="text-right">Selling Price</Label>
+                  <Label htmlFor="selling_price" className="text-right">Selling Price (LKR)</Label>
                   <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} className="col-span-3" />
                 </div>
                  <div className="grid grid-cols-4 items-center gap-4">
