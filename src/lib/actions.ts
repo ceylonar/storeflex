@@ -4,9 +4,11 @@
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from './firebase';
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { endOfDay, startOfDay } from 'date-fns';
 import { z } from 'zod';
 import type { Sale } from './types';
+import type { DateRange } from 'react-day-picker';
+
 
 const FormSchema = z.object({
   productName: z.string().min(1, "Product name is required."),
@@ -52,33 +54,23 @@ export async function getPriceSuggestion(input: SuggestOptimalPriceInput): Promi
   }
 }
 
-type Period = 'daily' | 'weekly' | 'monthly';
 type ReportData = {
     sales: Sale[];
     totalSales: number;
     transactionCount: number;
 };
 
-export async function fetchSalesReport(period: Period): Promise<{ success: boolean; data: ReportData | null; message: string; }> {
+export async function fetchSalesReport(range: DateRange): Promise<{ success: boolean; data: ReportData | null; message: string; }> {
   try {
-    const now = new Date();
-    let startDate: Date;
-    let endDate: Date = endOfDay(now);
+    const { from, to } = range;
 
-    switch (period) {
-      case 'daily':
-        startDate = startOfDay(now);
-        break;
-      case 'weekly':
-        startDate = startOfWeek(now);
-        break;
-      case 'monthly':
-        startDate = startOfMonth(now);
-        break;
-      default:
-        throw new Error('Invalid period specified.');
+    if (!from || !to) {
+        throw new Error('A valid date range is required.');
     }
-    
+
+    const startDate = startOfDay(from);
+    const endDate = endOfDay(to);
+
     const salesCollection = collection(db, 'sales');
     const q = query(
       salesCollection,

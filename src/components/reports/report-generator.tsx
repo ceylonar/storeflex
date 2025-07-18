@@ -17,22 +17,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Loader2, FileText, Download } from 'lucide-react';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+
+import { Button } from '@/components/ui/button';
+import { Loader2, FileText, Download, Calendar as CalendarIcon } from 'lucide-react';
 import type { Sale } from '@/lib/types';
 import { fetchSalesReport } from '@/lib/actions';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-
-type Period = 'daily' | 'weekly' | 'monthly';
+import { DateRange } from 'react-day-picker';
+import { Calendar } from '../ui/calendar';
+import { cn } from '@/lib/utils';
 
 interface ReportData {
   sales: Sale[];
@@ -41,19 +41,30 @@ interface ReportData {
 }
 
 export function ReportGenerator() {
-  const [period, setPeriod] = useState<Period>('daily');
+  const [date, setDate] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  });
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   const handleGenerateReport = () => {
+    if (!date) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Please select a date range.',
+      });
+      return;
+    }
     startTransition(async () => {
-      const result = await fetchSalesReport(period);
+      const result = await fetchSalesReport(date);
       if (result.success) {
         setReportData(result.data!);
         toast({
             title: 'Report Generated',
-            description: `Successfully generated the ${period} sales report.`,
+            description: `Successfully generated the sales report.`,
         });
       } else {
         setReportData(null);
@@ -91,7 +102,7 @@ export function ReportGenerator() {
       URL.revokeObjectURL(link.href);
     }
     link.href = URL.createObjectURL(blob);
-    link.download = `sales_report_${period}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `sales_report_${format(date?.from || new Date(), 'yyyy-MM-dd')}_to_${format(date?.to || new Date(), 'yyyy-MM-dd')}.csv`;
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -103,19 +114,45 @@ export function ReportGenerator() {
       <Card>
         <CardHeader>
           <CardTitle>Report Options</CardTitle>
-          <CardDescription>Select a period and generate a sales report.</CardDescription>
+          <CardDescription>Select a date range and generate a sales report.</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center gap-4">
-          <Select value={period} onValueChange={(value: Period) => setPeriod(value)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-            </SelectContent>
-          </Select>
+           <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="date"
+                variant={"outline"}
+                className={cn(
+                  "w-[300px] justify-start text-left font-normal",
+                  !date && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {date?.from ? (
+                  date.to ? (
+                    <>
+                      {format(date.from, "LLL dd, y")} -{" "}
+                      {format(date.to, "LLL dd, y")}
+                    </>
+                  ) : (
+                    format(date.from, "LLL dd, y")
+                  )
+                ) : (
+                  <span>Pick a date</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={date?.from}
+                selected={date}
+                onSelect={setDate}
+                numberOfMonths={2}
+              />
+            </PopoverContent>
+          </Popover>
           <Button onClick={handleGenerateReport} disabled={isPending}>
             {isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -141,7 +178,7 @@ export function ReportGenerator() {
                     <CardTitle>Report Summary</CardTitle>
                     <CardDescription>Overview of the sales for the selected period.</CardDescription>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Button variant="outline" size="sm" onClick={handleDownload} disabled={reportData.sales.length === 0}>
                     <Download className="mr-2 h-4 w-4"/>
                     Download CSV
                 </Button>
@@ -178,7 +215,7 @@ export function ReportGenerator() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reportData.sales.map((sale) => (
+                  {reportData.sales.length > 0 ? reportData.sales.map((sale) => (
                     <TableRow key={sale.id}>
                       <TableCell className="hidden sm:table-cell">
                         <Image
@@ -196,7 +233,13 @@ export function ReportGenerator() {
                       <TableCell className="text-right">LKR {Number(sale.price_per_unit).toFixed(2)}</TableCell>
                       <TableCell className="text-right">LKR {Number(sale.total_amount).toFixed(2)}</TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                     <TableRow>
+                        <TableCell colSpan={6} className="h-24 text-center">
+                            No sales found for the selected period.
+                        </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
