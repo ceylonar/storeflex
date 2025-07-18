@@ -89,8 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!user && !pathname.startsWith('/login')) {
-    // While redirecting, show a loader to prevent flicker
+  // Allow rendering children on the login page without an authenticated user.
+  if (pathname.startsWith('/login')) {
+    return (
+       <AuthContext.Provider value={{ user, idToken, loading }}>
+        {children}
+      </AuthContext.Provider>
+    )
+  }
+
+  // If we are not loading and there's no user, show a loader while redirecting.
+  if (!user) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
