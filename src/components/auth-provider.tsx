@@ -9,12 +9,31 @@ import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
+  idToken: string | null;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null });
+const AuthContext = createContext<AuthContextType>({ user: null, idToken: null });
+
+async function setToken(token: string) {
+    await fetch('/api/auth/set-token', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+    });
+}
+
+async function clearToken() {
+    await fetch('/api/auth/clear-token', {
+        method: 'POST',
+    });
+}
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -30,8 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
         const { auth } = getFirebaseServices();
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
           setUser(currentUser);
+          if (currentUser) {
+            const token = await currentUser.getIdToken();
+            setIdToken(token);
+            await setToken(token);
+          } else {
+            setIdToken(null);
+            await clearToken();
+          }
           setLoading(false);
           if (!currentUser && pathname !== '/login' && pathname !== '/welcome') {
             router.push('/login');
@@ -68,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Allow unauthenticated access to login and welcome pages
   if (!user && (pathname === '/login' || pathname === '/welcome')) {
       return (
-         <AuthContext.Provider value={{ user }}>
+         <AuthContext.Provider value={{ user, idToken }}>
             {children}
          </AuthContext.Provider>
       )
@@ -77,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // If authenticated, render children (except on login page)
   if (user && pathname !== '/login') {
     return (
-        <AuthContext.Provider value={{ user }}>
+        <AuthContext.Provider value={{ user, idToken }}>
             {children}
         </AuthContext.Provider>
     );

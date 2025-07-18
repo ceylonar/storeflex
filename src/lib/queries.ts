@@ -62,7 +62,7 @@ const UserProfileSchema = z.object({
     businessName: z.string().min(1, 'Business name is required'),
     address: z.string().optional(),
     contactNumber: z.string().optional(),
-    googleSheetUrl: z.string().url().optional().or(z.literal('')),
+    googleSheetUrl: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
 });
 
 interface CreateUserArgs {
