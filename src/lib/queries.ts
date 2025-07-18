@@ -256,6 +256,26 @@ export async function fetchSalesData(): Promise<SalesData[]> {
     }
 }
 
+export async function fetchAllActivities(): Promise<RecentActivity[]> {
+    noStore();
+    try {
+        const activityCollection = collection(db, 'recent_activity');
+        const activityQuery = query(activityCollection, orderBy('timestamp', 'desc'));
+        const activitySnapshot = await getDocs(activityQuery);
+        const activities = activitySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
+            }
+        }) as RecentActivity[];
+        return activities;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch activities.');
+    }
+}
 
 // UPDATE
 export async function updateProduct(id: string, formData: FormData) {
