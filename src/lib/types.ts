@@ -13,9 +13,14 @@ export type Product = {
   cost_price: number;
   selling_price: number;
   image: string;
-  created_at: string; // Changed from Timestamp to string
-  updated_at: string; // Changed from Timestamp to string
+  created_at: string;
+  updated_at: string;
 };
+
+export type ProductSelect = {
+  id: string;
+  name: string;
+}
 
 export type RecentActivity = {
   id: string;
@@ -29,3 +34,13 @@ export type SalesData = {
     month: string;
     sales: number;
 }
+
+export type Sale = {
+  id: string;
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  price_per_unit: number;
+  total_amount: number;
+  sale_date: string; // Should be ISO string date
+};

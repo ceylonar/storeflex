@@ -15,9 +15,11 @@ import {
   serverTimestamp,
   where,
   limit,
-  getDoc
+  getDoc,
+  writeBatch,
+  Timestamp
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect } from './types';
 import { z } from 'zod';
 
 // Form validation schemas
@@ -32,6 +34,15 @@ const ProductSchema = z.object({
   image: z.string().url('Must be a valid image URL').optional().or(z.literal('')),
 });
 
+const SaleSchema = z.object({
+  id: z.string().optional(),
+  product_id: z.string().min(1, 'Product is required.'),
+  quantity: z.coerce.number().int().positive('Quantity must be a positive number'),
+  price_per_unit: z.coerce.number().positive('Unit price must be positive.'),
+  sale_date: z.string().min(1, 'Sale date is required'),
+});
+
+
 // CREATE
 export async function createProduct(formData: FormData) {
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
@@ -44,8 +55,11 @@ export async function createProduct(formData: FormData) {
   const { name, ...productData } = validatedFields.data;
 
   try {
+    const batch = writeBatch(db);
+    
     const productsCollection = collection(db, 'products');
-    await addDoc(productsCollection, {
+    const newProductRef = doc(productsCollection);
+    batch.set(newProductRef, {
       ...productData,
       name,
       created_at: serverTimestamp(),
@@ -54,12 +68,15 @@ export async function createProduct(formData: FormData) {
     });
     
     const activityCollection = collection(db, 'recent_activity');
-    await addDoc(activityCollection, {
+    const newActivityRef = doc(activityCollection);
+    batch.set(newActivityRef, {
       type: 'new',
       product_name: name,
       details: 'New product added to inventory',
       timestamp: serverTimestamp(),
     });
+
+    await batch.commit();
 
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard');
@@ -82,14 +99,31 @@ export async function fetchProducts() {
       return {
         id: doc.id,
         ...data,
-        created_at: data.created_at.toDate().toISOString(),
-        updated_at: data.updated_at.toDate().toISOString(),
+        created_at: data.created_at?.toDate().toISOString() || new Date().toISOString(),
+        updated_at: data.updated_at?.toDate().toISOString() || new Date().toISOString(),
       }
     }) as Product[];
     return products;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch products.');
+  }
+}
+
+export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
+  noStore();
+  try {
+    const productsCollection = collection(db, 'products');
+    const q = query(productsCollection, orderBy('name', 'asc'));
+    const querySnapshot = await getDocs(q);
+    const products = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().name as string,
+    }));
+    return products;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch products for select.');
   }
 }
 
@@ -143,7 +177,8 @@ export async function fetchDashboardData() {
         const lowStockSnapshot = await getDocs(lowStockQuery);
         const lowStockProducts = lowStockSnapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data()
+            ...doc.data(),
+            // No need to convert timestamp here as it's not used in the LowStockCard
         })) as Product[];
 
         return {
@@ -161,26 +196,42 @@ export async function fetchDashboardData() {
 export async function fetchSalesData() {
     noStore();
     try {
-        // Firestore doesn't support complex aggregations like SQL's GROUP BY on the server-side easily.
-        // This is a simplified example. For a real app, you'd likely use a separate analytics solution,
-        // a Cloud Function to aggregate data, or process the sales data client-side (not recommended for large datasets).
-        
-        // This mock data simulates the expected output format.
-        const mockSalesData: SalesData[] = [
-            { month: 'Jan', sales: 4000 },
-            { month: 'Feb', sales: 3000 },
-            { month: 'Mar', sales: 5000 },
-            { month: 'Apr', sales: 4500 },
-            { month: 'May', sales: 6000 },
-            { month: 'Jun', sales: 7500 },
-        ];
-        // In a real implementation, you would fetch raw sales documents from a 'sales' collection
-        // and perform the aggregation here or on the client.
-        // const salesCollection = collection(db, 'sales');
-        // const salesSnapshot = await getDocs(salesCollection);
-        // ... aggregation logic ...
+        const salesCollection = collection(db, 'sales');
+        const salesQuery = query(salesCollection, where('sale_date', '>=', new Date(new Date().setMonth(new Date().getMonth() - 6))));
+        const salesSnapshot = await getDocs(salesQuery);
 
-        return mockSalesData;
+        const salesByMonth = salesSnapshot.docs.reduce((acc, doc) => {
+            const sale = doc.data() as Omit<Sale, 'id'>;
+            const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+            const month = saleDate.toLocaleString('default', { month: 'short' });
+            
+            if (!acc[month]) {
+                acc[month] = { sales: 0, date: saleDate };
+            }
+            acc[month].sales += sale.total_amount;
+            return acc;
+        }, {} as Record<string, { sales: number, date: Date }>);
+
+        const sortedMonths = Object.keys(salesByMonth).sort((a, b) => salesByMonth[a].date.getTime() - salesByMonth[b].date.getTime());
+        
+        const salesData: SalesData[] = sortedMonths.map(month => ({
+            month: month,
+            sales: salesByMonth[month].sales,
+        }));
+        
+        if (salesData.length === 0) {
+             return [
+                { month: 'Jan', sales: 0 },
+                { month: 'Feb', sales: 0 },
+                { month: 'Mar', sales: 0 },
+                { month: 'Apr', sales: 0 },
+                { month: 'May', sales: 0 },
+                { month: 'Jun', sales: 0 },
+            ];
+        }
+
+        return salesData;
+
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch sales data.');
@@ -198,10 +249,11 @@ export async function updateProduct(id: string, formData: FormData) {
   }
 
   const { name, ...productData } = validatedFields.data;
-  const productRef = doc(db, 'products', id);
-
+  
   try {
-    await updateDoc(productRef, {
+    const batch = writeBatch(db);
+    const productRef = doc(db, 'products', id);
+    batch.update(productRef, {
       ...productData,
       name,
       updated_at: serverTimestamp(),
@@ -209,12 +261,15 @@ export async function updateProduct(id: string, formData: FormData) {
     });
     
     const activityCollection = collection(db, 'recent_activity');
-    await addDoc(activityCollection, {
+    const newActivityRef = doc(activityCollection);
+    batch.set(newActivityRef, {
         type: 'update',
         product_name: name,
         details: 'Product details updated',
         timestamp: serverTimestamp()
     });
+
+    await batch.commit();
 
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard');
@@ -227,21 +282,28 @@ export async function updateProduct(id: string, formData: FormData) {
 
 // DELETE
 export async function deleteProduct(id: string) {
-  const productRef = doc(db, 'products', id);
-
   try {
+    const batch = writeBatch(db);
+    const productRef = doc(db, 'products', id);
+
     const productDoc = await getDoc(productRef);
-    const productName = productDoc.exists() ? productDoc.data().name : `Product ID: ${id}`;
+    if (!productDoc.exists()) {
+        throw new Error('Product not found.');
+    }
+    const productName = productDoc.data().name;
     
-    await deleteDoc(productRef);
+    batch.delete(productRef);
     
     const activityCollection = collection(db, 'recent_activity');
-    await addDoc(activityCollection, {
+    const newActivityRef = doc(activityCollection);
+    batch.set(newActivityRef, {
         type: 'delete',
         product_name: productName,
         details: 'Product removed from inventory',
         timestamp: serverTimestamp()
     });
+
+    await batch.commit();
 
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard');
@@ -249,5 +311,162 @@ export async function deleteProduct(id: string) {
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to delete product.');
+  }
+}
+
+// --- SALES QUERIES ---
+
+// CREATE SALE
+export async function createSale(formData: FormData) {
+  const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
+    throw new Error('Invalid sale data.');
+  }
+  
+  const { product_id, quantity, price_per_unit, sale_date } = validatedFields.data;
+  const total_amount = quantity * price_per_unit;
+
+  try {
+    const batch = writeBatch(db);
+    const productRef = doc(db, 'products', product_id);
+    const productDoc = await getDoc(productRef);
+
+    if (!productDoc.exists()) {
+      throw new Error('Product not found.');
+    }
+    const productData = productDoc.data();
+    const newStock = (productData.stock || 0) - quantity;
+
+    if (newStock < 0) {
+      throw new Error('Not enough stock for this sale.');
+    }
+    
+    batch.update(productRef, { stock: newStock });
+
+    const salesCollection = collection(db, 'sales');
+    const newSaleRef = doc(salesCollection);
+    batch.set(newSaleRef, {
+      product_id,
+      product_name: productData.name,
+      quantity,
+      price_per_unit,
+      total_amount,
+      sale_date: new Date(sale_date),
+    });
+
+    const activityCollection = collection(db, 'recent_activity');
+    const newActivityRef = doc(activityCollection);
+    batch.set(newActivityRef, {
+      type: 'sale',
+      product_name: productData.name,
+      details: `Sold ${quantity} unit(s)`,
+      timestamp: serverTimestamp(),
+    });
+
+    await batch.commit();
+
+    revalidatePath('/dashboard/sales');
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/inventory');
+    return { success: true, message: 'Sale recorded successfully.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error((error as Error).message || 'Failed to record sale.');
+  }
+}
+
+// READ SALES
+export async function fetchSales() {
+  noStore();
+  try {
+    const salesCollection = collection(db, 'sales');
+    const q = query(salesCollection, orderBy('sale_date', 'desc'));
+    const querySnapshot = await getDocs(q);
+    const sales = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        sale_date: data.sale_date.toDate().toISOString(),
+      }
+    }) as Sale[];
+    return sales;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch sales.');
+  }
+}
+
+// UPDATE SALE
+export async function updateSale(id: string, formData: FormData) {
+  const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
+    throw new Error('Invalid sale data.');
+  }
+
+  const { product_id, quantity, price_per_unit, sale_date } = validatedFields.data;
+  const total_amount = quantity * price_per_unit;
+
+  try {
+    const batch = writeBatch(db);
+    const saleRef = doc(db, 'sales', id);
+    
+    // We don't adjust stock on update for simplicity, as it can get complex.
+    // A more robust solution might revert the original stock change and apply the new one.
+    
+    batch.update(saleRef, {
+      product_id,
+      quantity,
+      price_per_unit,
+      total_amount,
+      sale_date: new Date(sale_date),
+    });
+    
+    await batch.commit();
+
+    revalidatePath('/dashboard/sales');
+    revalidatePath('/dashboard');
+    return { success: true, message: 'Sale updated successfully.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to update sale.');
+  }
+}
+
+// DELETE SALE
+export async function deleteSale(id: string) {
+  try {
+    const saleRef = doc(db, 'sales', id);
+    const saleDoc = await getDoc(saleRef);
+    if (!saleDoc.exists()) {
+        throw new Error('Sale not found');
+    }
+
+    const { product_id, quantity } = saleDoc.data() as Sale;
+
+    const batch = writeBatch(db);
+
+    // Restore stock
+    const productRef = doc(db, 'products', product_id);
+    const productDoc = await getDoc(productRef);
+    if(productDoc.exists()) {
+        const newStock = (productDoc.data().stock || 0) + quantity;
+        batch.update(productRef, { stock: newStock });
+    }
+
+    batch.delete(saleRef);
+    await batch.commit();
+    
+    revalidatePath('/dashboard/sales');
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/inventory');
+    return { success: true, message: 'Sale deleted and stock restored.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to delete sale.');
   }
 }

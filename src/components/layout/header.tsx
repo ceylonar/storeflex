@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, Store } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIcon } from 'lucide-react';
 import type { Store as StoreType } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores } from '@/lib/queries';
@@ -33,6 +33,7 @@ import { fetchStores } from '@/lib/queries';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
 ];
 
