@@ -168,11 +168,9 @@ export function RecentActivityCard() {
         ))}
       </CardContent>
       <CardFooter>
-        <Button asChild size="sm" className="w-full">
-            <a href="#">
-              View All
-              <ArrowUpRight className="h-4 w-4 ml-2" />
-            </a>
+        <Button size="sm" className="w-full">
+            View All
+            <ArrowUpRight className="h-4 w-4 ml-2" />
         </Button>
       </CardFooter>
     </Card>
