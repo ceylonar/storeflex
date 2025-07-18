@@ -54,7 +54,7 @@ export type SalesData = {
 export type TopSellingProduct = {
   name: string;
   totalQuantity: number;
-}
+};
 
 export type Sale = {
   id: string;

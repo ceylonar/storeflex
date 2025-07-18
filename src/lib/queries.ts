@@ -21,9 +21,9 @@ import {
   runTransaction,
   setDoc
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct } from './types';
 import { z } from 'zod';
-import { startOfDay, endOfDay, subMonths } from 'date-fns';
+import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 
 // Helper to get a mock user ID
 // In a real app with authentication, this would come from the user's session
@@ -54,20 +54,6 @@ const SaleSchema = z.object({
   total_amount: z.coerce.number().positive('Total amount must be positive.'),
   sale_date: z.string().min(1, 'Sale date is required'),
 });
-
-const UserProfileSchema = z.object({
-    name: z.string().min(1, 'Name is required'),
-    businessName: z.string().min(1, 'Business name is required'),
-    address: z.string().optional(),
-    contactNumber: z.string().optional(),
-    googleSheetUrl: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
-});
-
-interface CreateUserArgs {
-    uid: string;
-    email: string;
-}
-
 
 // CREATE
 export async function createProduct(formData: FormData) {
@@ -128,7 +114,7 @@ export async function fetchProducts() {
   const { db } = getFirebaseServices();
   try {
     const productsCollection = collection(db, 'products');
-    const q = query(productsCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+    const q = query(productsCollection, where('userId', '==', userId));
     const querySnapshot = await getDocs(q);
     const products = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -198,41 +184,6 @@ export async function fetchStores() {
     }
 }
 
-export async function createInitialStoreForUser({ uid, email }: CreateUserArgs): Promise<{ success: boolean; message: string; }> {
-    const { db } = getFirebaseServices();
-
-    if (!uid) {
-        return { success: false, message: 'User is not authenticated. Please log in.' };
-    }
-
-    try {
-        const batch = writeBatch(db);
-
-        const userRef = doc(db, 'users', uid);
-        batch.set(userRef, {
-            email,
-            id: uid,
-            name: email.split('@')[0] || 'New User',
-            businessName: `${email.split('@')[0]}'s Store`,
-            created_at: serverTimestamp()
-        });
-        
-        const storesCollection = collection(db, 'stores');
-        const newStoreRef = doc(storesCollection);
-        batch.set(newStoreRef, {
-            name: `${email.split('@')[0]}'s Store`,
-            userId: uid,
-            created_at: serverTimestamp()
-        });
-
-        await batch.commit();
-        return { success: true, message: 'User profile and store created.' };
-    } catch (error) {
-        console.error('Failed to create initial user data:', error);
-        return { success: false, message: 'Failed to set up your profile.' };
-    }
-}
-
 export async function fetchUserProfile(): Promise<UserProfile | null> {
     noStore();
     const userId = await getCurrentUserId();
@@ -288,28 +239,26 @@ export async function fetchDashboardData() {
             .sort((a, b) => a.stock - b.stock)
             .slice(0, 5);
 
-        // Sales (Today)
-        const todayStart = startOfDay(new Date());
-        const todayEnd = endOfDay(new Date());
-        const todaySalesQuery = query(salesCollection, where('userId', '==', userId), where('sale_date', '>=', todayStart), where('sale_date', '<=', todayEnd));
-        const todaySalesSnapshot = await getDocs(todaySalesQuery);
-        let salesToday = 0;
-        todaySalesSnapshot.forEach(doc => {
-            salesToday += doc.data().total_amount;
-        });
-
-        // Total Sales
+        // Sales
         const allSalesQuery = query(salesCollection, where('userId', '==', userId));
         const allSalesSnapshot = await getDocs(allSalesQuery);
         let totalSales = 0;
-        allSalesSnapshot.forEach(doc => {
-          totalSales += doc.data().total_amount;
-        });
+        let salesToday = 0;
+        const todayStart = startOfDay(new Date());
+        const todayEnd = endOfDay(new Date());
 
+        allSalesSnapshot.forEach(doc => {
+            const sale = doc.data();
+            const saleDate = (sale.sale_date as Timestamp).toDate();
+            totalSales += sale.total_amount;
+            if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
+                salesToday += sale.total_amount;
+            }
+        });
 
         // Recent Activities
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
+        const activityQuery = query(activityCollection, where('userId', '==', userId), limit(5));
         const activitySnapshot = await getDocs(activityQuery);
         const recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
@@ -319,6 +268,9 @@ export async function fetchDashboardData() {
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
+
+        // Manual sort since we removed orderBy from the query
+        recentActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return {
             inventoryValue,
@@ -343,7 +295,7 @@ export async function fetchSalesData(): Promise<SalesData[]> {
     try {
         const sixMonthsAgo = subMonths(new Date(), 6);
         const salesCollection = collection(db, 'sales');
-        const salesQuery = query(salesCollection, where('userId', '==', userId), where('sale_date', '>=', sixMonthsAgo));
+        const salesQuery = query(salesCollection, where('userId', '==', userId));
         const salesSnapshot = await getDocs(salesQuery);
 
         // Initialize months
@@ -357,10 +309,13 @@ export async function fetchSalesData(): Promise<SalesData[]> {
         salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Omit<Sale, 'id'>;
             const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-            const month = saleDate.toLocaleString('default', { month: 'short' });
             
-            if (salesByMonth[month]) {
-                salesByMonth[month].sales += sale.total_amount;
+            // Manual date filtering
+            if (saleDate >= sixMonthsAgo) {
+                const month = saleDate.toLocaleString('default', { month: 'short' });
+                if (salesByMonth[month]) {
+                    salesByMonth[month].sales += sale.total_amount;
+                }
             }
         });
 
@@ -388,19 +343,18 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
         const salesQuery = query(salesCollection, where('userId', '==', userId));
         const salesSnapshot = await getDocs(salesQuery);
 
-        const productSales: Record<string, number> = {};
+        const productSales: Record<string, { name: string, totalQuantity: number }> = {};
 
         salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Omit<Sale, 'id'>;
             if (productSales[sale.product_name]) {
-                productSales[sale.product_name] += sale.quantity;
+                productSales[sale.product_name].totalQuantity += sale.quantity;
             } else {
-                productSales[sale.product_name] = sale.quantity;
+                productSales[sale.product_name] = { name: sale.product_name, totalQuantity: sale.quantity };
             }
         });
 
-        const sortedProducts = Object.entries(productSales)
-            .map(([name, totalQuantity]) => ({ name, totalQuantity }))
+        const sortedProducts = Object.values(productSales)
             .sort((a, b) => b.totalQuantity - a.totalQuantity);
             
         return sortedProducts.slice(0, 5);
@@ -411,6 +365,7 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     }
 }
 
+
 export async function fetchAllActivities(): Promise<RecentActivity[]> {
     noStore();
     const userId = await getCurrentUserId();
@@ -419,7 +374,7 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
     const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'));
+        const activityQuery = query(activityCollection, where('userId', '==', userId));
         const activitySnapshot = await getDocs(activityQuery);
         const activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -488,33 +443,6 @@ export async function updateProduct(id: string, formData: FormData) {
     throw new Error('Failed to update product.');
   }
 }
-
-export async function updateUserProfile(formData: FormData) {
-    const { db } = getFirebaseServices();
-    const userId = await getCurrentUserId();
-    
-    const profileData = Object.fromEntries(formData.entries());
-    const validatedFields = UserProfileSchema.partial().safeParse(profileData);
-
-    if (!validatedFields.success) {
-        console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
-        throw new Error('Invalid profile data.');
-    }
-    
-    try {
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, {
-            ...validatedFields.data,
-            updated_at: serverTimestamp(),
-        });
-        revalidatePath('/dashboard/settings');
-        return { success: true, message: 'Profile updated successfully.' };
-    } catch (e) {
-        console.error('Database Error:', e);
-        throw new Error('Failed to update profile.');
-    }
-}
-
 
 // DELETE
 export async function deleteProduct(id: string) {
