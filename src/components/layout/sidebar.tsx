@@ -1,14 +1,16 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, Store, ShoppingCart as SalesIcon } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Store, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
 ];
 
