@@ -25,11 +25,12 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
+import { Logo } from '../icons/logo';
 
 
 const navigation = [
@@ -76,7 +77,7 @@ export function Header() {
               href="/dashboard"
               className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary"
             >
-              <Store className="h-6 w-6" />
+              <Logo className="h-6 w-6" />
               <span className="text-foreground">StoreFlex Lite</span>
             </Link>
             {navigation.map((item) => (

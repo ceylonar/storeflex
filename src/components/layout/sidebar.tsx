@@ -3,8 +3,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, Store, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Logo } from '../icons/logo';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -21,7 +22,7 @@ export function Sidebar() {
     <aside className="hidden w-64 flex-col border-r bg-card sm:flex">
       <div className="flex h-16 shrink-0 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-primary">
-          <Store className="h-6 w-6" />
+          <Logo className="h-6 w-6" />
           <span className="text-lg text-foreground">StoreFlex Lite</span>
         </Link>
       </div>
