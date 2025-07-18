@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -38,20 +39,20 @@ const prompt = ai.definePrompt({
   name: 'suggestOptimalPricePrompt',
   input: {schema: SuggestOptimalPriceInputSchema},
   output: {schema: SuggestOptimalPriceOutputSchema},
-  prompt: `You are an AI pricing specialist helping store managers determine the optimal selling price for their products.
+  prompt: `You are an AI pricing specialist helping store managers determine the optimal selling price for their products. All monetary values are in Sri Lankan Rupees (LKR).
 
   Given the following information about a product, analyze competitor prices and sales data to suggest the optimal selling price that maximizes profitability.
 
   Product Name: {{{productName}}}
   Product Category: {{{productCategory}}}
-  Cost Price: {{{costPrice}}}
-  Competitor Prices: {{#each competitorPrices}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
+  Cost Price: LKR {{{costPrice}}}
+  Competitor Prices: {{#each competitorPrices}}LKR {{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
   Sales Data:
   {{#each salesData}}
-  - Date: {{{date}}}, Quantity Sold: {{{quantitySold}}}, Selling Price: {{{sellingPrice}}}
+  - Date: {{{date}}}, Quantity Sold: {{{quantitySold}}}, Selling Price: LKR {{{sellingPrice}}}
   {{/each}}
 
-  Based on this information, what is the optimal selling price for the product, and what is your reasoning behind this suggestion? Return the suggested price and reasoning in the JSON format. Make sure the suggestedPrice is a number and the reasoning is a string.
+  Based on this information, what is the optimal selling price for the product, and what is your reasoning behind this suggestion? Return the suggested price and reasoning in the JSON format. Make sure the suggestedPrice is a number and the reasoning is a string. Ensure your reasoning also uses "LKR" and not "$".
   `,
 });
 
