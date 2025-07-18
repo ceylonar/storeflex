@@ -96,9 +96,12 @@ export function Header() {
           </nav>
         </SheetContent>
       </Sheet>
-      <div className="flex flex-1 justify-end items-center gap-4">
+       <div className="flex-1">
+        <div className="animate-fade-in-up font-semibold text-muted-foreground">Let's Grow</div>
+      </div>
+      <div className="flex justify-end items-center gap-4">
         <ModeToggle />
-        <div className="w-[200px]">
+        <div className="w-[200px] hidden sm:block">
           {stores.length > 0 && (
             <Select defaultValue={stores[0].id}>
                 <SelectTrigger id="store-switcher" aria-label="Select Store">
