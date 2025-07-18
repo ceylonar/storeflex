@@ -60,9 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await clearToken();
           }
           setLoading(false);
-          if (!currentUser && pathname !== '/login' && pathname !== '/welcome') {
-            router.push('/login');
-          }
+          // Redirect logic is handled below to avoid race conditions
         });
         return () => unsubscribe();
     } catch (e) {
@@ -70,9 +68,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError((e as Error).message);
         setLoading(false);
     }
-  }, [router, pathname, isMounted]);
+  }, [isMounted]);
 
-  if (!isMounted || loading) {
+  useEffect(() => {
+    if (!loading) {
+      const isProtectedRoute = pathname.startsWith('/dashboard');
+      if (!user && isProtectedRoute) {
+        router.push('/login');
+      }
+      if (user && pathname === '/login') {
+        router.push('/dashboard');
+      }
+    }
+  }, [user, loading, pathname, router]);
+
+
+  if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -92,29 +103,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // Allow unauthenticated access to login and welcome pages
-  if (!user && (pathname === '/login' || pathname === '/welcome')) {
+  // Prevent dashboard flicker for unauthenticated users
+  if (!user && pathname.startsWith('/dashboard')) {
       return (
-         <AuthContext.Provider value={{ user, idToken }}>
-            {children}
-         </AuthContext.Provider>
-      )
+        <div className="flex h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      );
   }
 
-  // If authenticated, render children (except on login page)
-  if (user && pathname !== '/login') {
-    return (
-        <AuthContext.Provider value={{ user, idToken }}>
-            {children}
-        </AuthContext.Provider>
-    );
-  }
-  
-  // Fallback for unauthenticated users on protected pages (will show loader until redirect)
   return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+    <AuthContext.Provider value={{ user, idToken }}>
+        {children}
+    </AuthContext.Provider>
   );
 }
 
