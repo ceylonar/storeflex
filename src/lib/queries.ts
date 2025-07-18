@@ -140,7 +140,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   const { db } = getFirebaseServices();
   try {
     const productsCollection = collection(db, 'products');
-    const q = query(productsCollection, where('userId', '==', userId), orderBy('name', 'asc'));
+    const q = query(productsCollection, where('userId', '==', userId));
     const querySnapshot = await getDocs(q);
     const products = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -150,7 +150,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         selling_price: data.selling_price as number,
       }
     });
-    return products;
+    return products.sort((a,b) => a.name.localeCompare(b.name));
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch products for select.');
@@ -165,7 +165,7 @@ export async function fetchStores() {
     const { db } = getFirebaseServices();
     try {
         const storesCollection = collection(db, 'stores');
-        const q = query(storesCollection, where('userId', '==', userId), orderBy('name'));
+        const q = query(storesCollection, where('userId', '==', userId));
         const querySnapshot = await getDocs(q);
         const stores = querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -384,7 +384,7 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
-        return activities;
+        return activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch activities.');
@@ -561,7 +561,7 @@ export async function fetchSales() {
   const { db } = getFirebaseServices();
   try {
     const salesCollection = collection(db, 'sales');
-    const q = query(salesCollection, where('userId', '==', userId), orderBy('sale_date', 'desc'));
+    const q = query(salesCollection, where('userId', '==', userId));
     const querySnapshot = await getDocs(q);
     const sales = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -571,7 +571,7 @@ export async function fetchSales() {
         sale_date: data.sale_date.toDate().toISOString(),
       }
     }) as Sale[];
-    return sales;
+    return sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch sales.');

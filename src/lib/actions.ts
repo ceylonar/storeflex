@@ -81,8 +81,7 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
       salesCollection,
       where('userId', '==', userId),
       where('sale_date', '>=', startDate),
-      where('sale_date', '<=', endDate),
-      orderBy('sale_date', 'desc')
+      where('sale_date', '<=', endDate)
     );
 
     const querySnapshot = await getDocs(q);
@@ -99,6 +98,8 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     });
 
     const transactionCount = sales.length;
+    
+    sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
 
     return {
       success: true,
