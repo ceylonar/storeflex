@@ -505,7 +505,8 @@ export async function updateUserProfile(formData: FormData) {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('User not authenticated.');
     
-    const validatedFields = UserProfileSchema.safeParse(Object.fromEntries(formData.entries()));
+    // We only care about the googleSheetUrl for now, but keep the schema for future edits
+    const validatedFields = UserProfileSchema.partial().safeParse(Object.fromEntries(formData.entries()));
 
     if (!validatedFields.success) {
         console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -519,7 +520,6 @@ export async function updateUserProfile(formData: FormData) {
             updated_at: serverTimestamp(),
         });
         revalidatePath('/dashboard/settings');
-        revalidatePath('/dashboard'); // for header updates
         return { success: true, message: 'Profile updated successfully.' };
     } catch (e) {
         console.error('Database Error:', e);

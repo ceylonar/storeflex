@@ -13,7 +13,7 @@ export default async function SettingsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
           <p className="text-muted-foreground">
-            Manage your account and business settings.
+            Manage your account and integrations.
           </p>
         </div>
       </div>
