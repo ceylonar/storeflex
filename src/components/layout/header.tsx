@@ -25,10 +25,10 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
-import type { Store as StoreType } from '@/lib/types';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIcon, FileText, Settings } from 'lucide-react';
+import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { fetchStores } from '@/lib/queries';
+import { fetchStores, fetchUserProfile } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { signOut } from 'firebase/auth';
 import { getFirebaseServices } from '@/lib/firebase';
@@ -41,6 +41,7 @@ const navigation = [
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Header() {
@@ -48,6 +49,8 @@ export function Header() {
   const router = useRouter();
   const { user } = useAuth();
   const [stores, setStores] = useState<StoreType[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
 
   const handleLogout = async () => {
     try {
@@ -61,15 +64,19 @@ export function Header() {
 
   useEffect(() => {
     if (!user) return;
-    async function getStores() {
+    async function getData() {
         try {
-            const fetchedStores = await fetchStores();
+            const [fetchedStores, fetchedProfile] = await Promise.all([
+              fetchStores(),
+              fetchUserProfile()
+            ]);
             setStores(fetchedStores);
+            setUserProfile(fetchedProfile);
         } catch(e) {
-            console.error("Failed to fetch stores:", e)
+            console.error("Failed to fetch data:", e)
         }
     }
-    getStores();
+    getData();
   }, [user]);
 
   return (
@@ -113,7 +120,7 @@ export function Header() {
           {stores.length > 0 && (
             <Select defaultValue={stores[0].id}>
                 <SelectTrigger id="store-switcher" aria-label="Select Store">
-                <SelectValue placeholder="Select a store" />
+                <SelectValue placeholder={userProfile?.businessName || "Select a store"} />
                 </SelectTrigger>
                 <SelectContent>
                 {stores.map((store) => (
@@ -130,14 +137,16 @@ export function Header() {
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className='h-8 w-8'>
                 <AvatarImage src={user?.photoURL || "https://placehold.co/40x40.png"} alt="User avatar" data-ai-hint="user avatar" />
-                <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+                <AvatarFallback>{userProfile?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{user?.email || 'My Account'}</DropdownMenuLabel>
+            <DropdownMenuLabel>{userProfile?.name || user?.email || 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Settings</DropdownMenuItem>
+            <DropdownMenuItem asChild>
+                <Link href="/dashboard/settings">Settings</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>

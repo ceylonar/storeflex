@@ -18,10 +18,10 @@ import {
   getDoc,
   writeBatch,
   Timestamp,
-  runTransaction
+  runTransaction,
+  setDoc
 } from 'firebase/firestore';
-import { auth } from 'firebase-admin';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, TopSellingProduct } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, TopSellingProduct, UserProfile } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths } from 'date-fns';
 import { getAuthenticatedAppForUser } from './firebase-admin';
@@ -54,6 +54,14 @@ const SaleSchema = z.object({
   price_per_unit: z.coerce.number().positive('Unit price must be positive.'),
   total_amount: z.coerce.number().positive('Total amount must be positive.'),
   sale_date: z.string().min(1, 'Sale date is required'),
+});
+
+const UserProfileSchema = z.object({
+    name: z.string().min(1, 'Name is required'),
+    businessName: z.string().min(1, 'Business name is required'),
+    address: z.string().optional(),
+    contactNumber: z.string().optional(),
+    googleSheetUrl: z.string().url().optional().or(z.literal('')),
 });
 
 
@@ -173,18 +181,51 @@ export async function fetchStores() {
     }
 }
 
-export async function createInitialStoreForUser(userId: string) {
+export async function createInitialStoreForUser(userId: string, email: string, profileData: Omit<UserProfile, 'id' | 'email'>) {
     const { db } = getFirebaseServices();
     try {
+        const batch = writeBatch(db);
+
+        // Create user profile document
+        const userRef = doc(db, 'users', userId);
+        batch.set(userRef, {
+            ...profileData,
+            email,
+            id: userId,
+            created_at: serverTimestamp()
+        });
+        
+        // Create initial store
         const storesCollection = collection(db, 'stores');
-        await addDoc(storesCollection, {
-            name: 'My First Store',
+        const newStoreRef = doc(storesCollection);
+        batch.set(newStoreRef, {
+            name: profileData.businessName || 'My First Store',
             userId: userId,
             created_at: serverTimestamp()
         });
+
+        await batch.commit();
     } catch (error) {
-        console.error('Failed to create initial store:', error);
+        console.error('Failed to create initial user data:', error);
         // We don't throw here to not block the user creation flow
+    }
+}
+
+export async function fetchUserProfile(): Promise<UserProfile | null> {
+    noStore();
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    try {
+        const userRef = doc(db, 'users', userId);
+        const docSnap = await getDoc(userRef);
+
+        if (docSnap.exists()) {
+            return docSnap.data() as UserProfile;
+        }
+        return null;
+    } catch(e) {
+        console.error("Failed to fetch user profile", e);
+        throw new Error("Failed to fetch user profile");
     }
 }
 
@@ -412,6 +453,32 @@ export async function updateProduct(id: string, formData: FormData) {
     throw new Error('Failed to update product.');
   }
 }
+
+export async function updateUserProfile(formData: FormData) {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    const validatedFields = UserProfileSchema.safeParse(Object.fromEntries(formData.entries()));
+
+    if (!validatedFields.success) {
+        console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
+        throw new Error('Invalid profile data.');
+    }
+    
+    try {
+        const userRef = doc(db, 'users', userId);
+        await updateDoc(userRef, {
+            ...validatedFields.data,
+            updated_at: serverTimestamp(),
+        });
+        revalidatePath('/dashboard/settings');
+        revalidatePath('/dashboard'); // for header updates
+        return { success: true, message: 'Profile updated successfully.' };
+    } catch (e) {
+        console.error('Database Error:', e);
+        throw new Error('Failed to update profile.');
+    }
+}
+
 
 // DELETE
 export async function deleteProduct(id: string) {

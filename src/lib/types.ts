@@ -5,6 +5,16 @@ export type Store = {
   userId: string;
 };
 
+export type UserProfile = {
+    id: string;
+    email: string;
+    name: string;
+    businessName: string;
+    address?: string;
+    contactNumber?: string;
+    googleSheetUrl?: string;
+};
+
 export type Product = {
   id: string;
   userId: string;
