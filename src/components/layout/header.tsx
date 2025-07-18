@@ -2,7 +2,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Avatar,
   AvatarFallback,
@@ -30,6 +30,9 @@ import type { Store as StoreType } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useAuth } from '../auth-provider';
 
 
 const navigation = [
@@ -42,7 +45,14 @@ const navigation = [
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuth();
   const [stores, setStores] = useState<StoreType[]>([]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/login');
+  };
 
   useEffect(() => {
     async function getStores() {
@@ -109,18 +119,18 @@ export function Header() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <Avatar className='h-8 w-8'>
-                <AvatarImage src="https://placehold.co/40x40.png" alt="User avatar" data-ai-hint="user avatar" />
-                <AvatarFallback>U</AvatarFallback>
+                <AvatarImage src={user?.photoURL || "https://placehold.co/40x40.png"} alt="User avatar" data-ai-hint="user avatar" />
+                <AvatarFallback>{user?.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>{user?.email || 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Logout</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
