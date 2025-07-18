@@ -8,6 +8,7 @@ import { endOfDay, startOfDay } from 'date-fns';
 import { z } from 'zod';
 import type { Sale } from './types';
 import type { DateRange } from 'react-day-picker';
+import { getAuthenticatedAppForUser } from './firebase-admin';
 
 
 const FormSchema = z.object({
@@ -60,8 +61,16 @@ type ReportData = {
     transactionCount: number;
 };
 
+async function getCurrentUserId() {
+    const { auth } = await getAuthenticatedAppForUser();
+    const user = auth.currentUser;
+    if (!user) throw new Error('User not authenticated.');
+    return user.uid;
+}
+
 export async function fetchSalesReport(range: DateRange): Promise<{ success: boolean; data: ReportData | null; message: string; }> {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   try {
     const { from, to } = range;
 
@@ -75,6 +84,7 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     const salesCollection = collection(db, 'sales');
     const q = query(
       salesCollection,
+      where('userId', '==', userId),
       where('sale_date', '>=', startDate),
       where('sale_date', '<=', endDate),
       orderBy('sale_date', 'desc')

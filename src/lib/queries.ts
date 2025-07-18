@@ -20,9 +20,19 @@ import {
   Timestamp,
   runTransaction
 } from 'firebase/firestore';
+import { auth } from 'firebase-admin';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, TopSellingProduct } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths } from 'date-fns';
+import { getAuthenticatedAppForUser } from './firebase-admin';
+
+// Helper to get current user ID
+async function getCurrentUserId() {
+    const { auth } = await getAuthenticatedAppForUser();
+    const user = auth.currentUser;
+    if (!user) throw new Error('User not authenticated.');
+    return user.uid;
+}
 
 // Form validation schemas
 const ProductSchema = z.object({
@@ -50,6 +60,7 @@ const SaleSchema = z.object({
 // CREATE
 export async function createProduct(formData: FormData) {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -68,6 +79,7 @@ export async function createProduct(formData: FormData) {
       ...productData,
       name,
       image: image || '',
+      userId,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     });
@@ -79,6 +91,7 @@ export async function createProduct(formData: FormData) {
       product_name: name,
       product_image: image || '',
       details: 'New product added to inventory',
+      userId,
       timestamp: serverTimestamp(),
     });
 
@@ -97,9 +110,10 @@ export async function createProduct(formData: FormData) {
 export async function fetchProducts() {
   noStore();
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   try {
     const productsCollection = collection(db, 'products');
-    const q = query(productsCollection, orderBy('created_at', 'desc'));
+    const q = query(productsCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
     const querySnapshot = await getDocs(q);
     const products = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -120,9 +134,10 @@ export async function fetchProducts() {
 export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   noStore();
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   try {
     const productsCollection = collection(db, 'products');
-    const q = query(productsCollection, orderBy('name', 'asc'));
+    const q = query(productsCollection, where('userId', '==', userId), orderBy('name', 'asc'));
     const querySnapshot = await getDocs(q);
     const products = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -142,9 +157,10 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
 export async function fetchStores() {
     noStore();
     const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
     try {
         const storesCollection = collection(db, 'stores');
-        const q = query(storesCollection, orderBy('name'));
+        const q = query(storesCollection, where('userId', '==', userId), orderBy('name'));
         const querySnapshot = await getDocs(q);
         const stores = querySnapshot.docs.map(doc => ({
             id: doc.id,
@@ -157,14 +173,32 @@ export async function fetchStores() {
     }
 }
 
+export async function createInitialStoreForUser(userId: string) {
+    const { db } = getFirebaseServices();
+    try {
+        const storesCollection = collection(db, 'stores');
+        await addDoc(storesCollection, {
+            name: 'My First Store',
+            userId: userId,
+            created_at: serverTimestamp()
+        });
+    } catch (error) {
+        console.error('Failed to create initial store:', error);
+        // We don't throw here to not block the user creation flow
+    }
+}
+
+
 export async function fetchDashboardData() {
     noStore();
     const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
     try {
         const productsCollection = collection(db, 'products');
         const salesCollection = collection(db, 'sales');
 
-        const productsSnapshot = await getDocs(productsCollection);
+        const productQuery = query(productsCollection, where('userId', '==', userId));
+        const productsSnapshot = await getDocs(productQuery);
         let inventoryValue = 0;
         const allProducts: Product[] = [];
 
@@ -188,7 +222,7 @@ export async function fetchDashboardData() {
         // Sales (Today)
         const todayStart = startOfDay(new Date());
         const todayEnd = endOfDay(new Date());
-        const todaySalesQuery = query(salesCollection, where('sale_date', '>=', todayStart), where('sale_date', '<=', todayEnd));
+        const todaySalesQuery = query(salesCollection, where('userId', '==', userId), where('sale_date', '>=', todayStart), where('sale_date', '<=', todayEnd));
         const todaySalesSnapshot = await getDocs(todaySalesQuery);
         let salesToday = 0;
         todaySalesSnapshot.forEach(doc => {
@@ -196,7 +230,8 @@ export async function fetchDashboardData() {
         });
 
         // Total Sales
-        const allSalesSnapshot = await getDocs(salesCollection);
+        const allSalesQuery = query(salesCollection, where('userId', '==', userId));
+        const allSalesSnapshot = await getDocs(allSalesQuery);
         let totalSales = 0;
         allSalesSnapshot.forEach(doc => {
           totalSales += doc.data().total_amount;
@@ -205,7 +240,7 @@ export async function fetchDashboardData() {
 
         // Recent Activities
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, orderBy('timestamp', 'desc'), limit(5));
+        const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
         const activitySnapshot = await getDocs(activityQuery);
         const recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
@@ -233,10 +268,11 @@ export async function fetchDashboardData() {
 export async function fetchSalesData(): Promise<SalesData[]> {
     noStore();
     const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
     try {
         const sixMonthsAgo = subMonths(new Date(), 6);
         const salesCollection = collection(db, 'sales');
-        const salesQuery = query(salesCollection, where('sale_date', '>=', sixMonthsAgo));
+        const salesQuery = query(salesCollection, where('userId', '==', userId), where('sale_date', '>=', sixMonthsAgo));
         const salesSnapshot = await getDocs(salesQuery);
 
         // Initialize months
@@ -273,9 +309,11 @@ export async function fetchSalesData(): Promise<SalesData[]> {
 export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     noStore();
     const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
     try {
         const salesCollection = collection(db, 'sales');
-        const salesSnapshot = await getDocs(salesCollection);
+        const salesQuery = query(salesCollection, where('userId', '==', userId));
+        const salesSnapshot = await getDocs(salesQuery);
 
         const productSales: Record<string, number> = {};
 
@@ -303,9 +341,10 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
 export async function fetchAllActivities(): Promise<RecentActivity[]> {
     noStore();
     const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, orderBy('timestamp', 'desc'));
+        const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'));
         const activitySnapshot = await getDocs(activityQuery);
         const activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -325,6 +364,7 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
 // UPDATE
 export async function updateProduct(id: string, formData: FormData) {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -337,6 +377,13 @@ export async function updateProduct(id: string, formData: FormData) {
   try {
     const batch = writeBatch(db);
     const productRef = doc(db, 'products', id);
+
+    // Verify ownership before updating
+    const productDoc = await getDoc(productRef);
+    if (!productDoc.exists() || productDoc.data().userId !== userId) {
+        throw new Error('Product not found or access denied.');
+    }
+
     batch.update(productRef, {
       ...productData,
       name,
@@ -351,6 +398,7 @@ export async function updateProduct(id: string, formData: FormData) {
         product_name: name,
         product_image: image || '',
         details: 'Product details updated',
+        userId,
         timestamp: serverTimestamp()
     });
 
@@ -368,13 +416,14 @@ export async function updateProduct(id: string, formData: FormData) {
 // DELETE
 export async function deleteProduct(id: string) {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   try {
     const batch = writeBatch(db);
     const productRef = doc(db, 'products', id);
 
     const productDoc = await getDoc(productRef);
-    if (!productDoc.exists()) {
-        throw new Error('Product not found.');
+    if (!productDoc.exists() || productDoc.data().userId !== userId) {
+        throw new Error('Product not found or access denied.');
     }
     const { name, image } = productDoc.data();
     
@@ -387,6 +436,7 @@ export async function deleteProduct(id: string) {
         product_name: name,
         product_image: image || '',
         details: 'Product removed from inventory',
+        userId,
         timestamp: serverTimestamp()
     });
 
@@ -406,6 +456,7 @@ export async function deleteProduct(id: string) {
 // CREATE SALE
 export async function createSale(formData: FormData) {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -420,8 +471,8 @@ export async function createSale(formData: FormData) {
       const productRef = doc(db, 'products', product_id);
       const productDoc = await transaction.get(productRef);
 
-      if (!productDoc.exists()) {
-        throw new Error('Product not found.');
+      if (!productDoc.exists() || productDoc.data().userId !== userId) {
+        throw new Error('Product not found or access denied.');
       }
       
       const productData = productDoc.data();
@@ -443,6 +494,7 @@ export async function createSale(formData: FormData) {
         price_per_unit,
         total_amount: total_amount,
         sale_date: new Date(sale_date),
+        userId,
       });
 
       const activityCollection = collection(db, 'recent_activity');
@@ -453,6 +505,7 @@ export async function createSale(formData: FormData) {
         product_image: productData.image || '',
         details: `Sold ${quantity} unit(s)`,
         timestamp: serverTimestamp(),
+        userId,
       });
     });
 
@@ -470,9 +523,10 @@ export async function createSale(formData: FormData) {
 export async function fetchSales() {
   noStore();
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   try {
     const salesCollection = collection(db, 'sales');
-    const q = query(salesCollection, orderBy('sale_date', 'desc'));
+    const q = query(salesCollection, where('userId', '==', userId), orderBy('sale_date', 'desc'));
     const querySnapshot = await getDocs(q);
     const sales = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -492,6 +546,7 @@ export async function fetchSales() {
 // UPDATE SALE
 export async function updateSale(id: string, formData: FormData) {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -505,18 +560,17 @@ export async function updateSale(id: string, formData: FormData) {
     await runTransaction(db, async (transaction) => {
         const saleRef = doc(db, 'sales', id);
         const saleDoc = await transaction.get(saleRef);
-        if (!saleDoc.exists()) {
-            throw new Error('Sale not found');
+        if (!saleDoc.exists() || saleDoc.data().userId !== userId) {
+            throw new Error('Sale not found or access denied');
         }
 
         const oldSaleData = saleDoc.data() as Sale;
-        const quantityChange = quantity - oldSaleData.quantity;
-
+        
         // If the product changed, we need to revert stock on old product and decrement on new one
         if (oldSaleData.product_id !== product_id) {
           const oldProductRef = doc(db, 'products', oldSaleData.product_id);
           const oldProductDoc = await transaction.get(oldProductRef);
-          if (oldProductDoc.exists()) {
+          if (oldProductDoc.exists() && oldProductDoc.data().userId === userId) {
             transaction.update(oldProductRef, { stock: (oldProductDoc.data().stock || 0) + oldSaleData.quantity });
           }
         }
@@ -524,8 +578,8 @@ export async function updateSale(id: string, formData: FormData) {
         const productRef = doc(db, 'products', product_id);
         const productDoc = await transaction.get(productRef);
 
-        if (!productDoc.exists()) {
-            throw new Error('Product not found');
+        if (!productDoc.exists() || productDoc.data().userId !== userId) {
+            throw new Error('Product not found or access denied');
         }
         
         const currentStock = productDoc.data().stock || 0;
@@ -546,6 +600,7 @@ export async function updateSale(id: string, formData: FormData) {
             sale_date: new Date(sale_date),
             product_name: productDoc.data().name,
             product_image: productDoc.data().image || '',
+            userId,
         });
     });
 
@@ -562,20 +617,21 @@ export async function updateSale(id: string, formData: FormData) {
 // DELETE SALE
 export async function deleteSale(id: string) {
   const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
   try {
     const saleRef = doc(db, 'sales', id);
     
     await runTransaction(db, async (transaction) => {
         const saleDoc = await transaction.get(saleRef);
-        if (!saleDoc.exists()) {
-            throw new Error('Sale not found');
+        if (!saleDoc.exists() || saleDoc.data().userId !== userId) {
+            throw new Error('Sale not found or access denied');
         }
 
         const { product_id, quantity } = saleDoc.data() as Sale;
         const productRef = doc(db, 'products', product_id);
         const productDoc = await transaction.get(productRef);
 
-        if(productDoc.exists()) {
+        if(productDoc.exists() && productDoc.data().userId === userId) {
             const newStock = (productDoc.data().stock || 0) + quantity;
             transaction.update(productRef, { stock: newStock });
         }

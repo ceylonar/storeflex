@@ -2,10 +2,12 @@
 export type Store = {
   id: string;
   name: string;
+  userId: string;
 };
 
 export type Product = {
   id: string;
+  userId: string;
   sku: string;
   name: string;
   category: string;
@@ -26,6 +28,7 @@ export type ProductSelect = {
 
 export type RecentActivity = {
   id: string;
+  userId: string;
   type: 'sale' | 'update' | 'new' | 'delete';
   product_name: string;
   product_image?: string;
@@ -45,6 +48,7 @@ export type TopSellingProduct = {
 
 export type Sale = {
   id: string;
+  userId: string;
   product_id: string;
   product_name: string;
   product_image?: string;

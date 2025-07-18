@@ -60,6 +60,7 @@ export function Header() {
   };
 
   useEffect(() => {
+    if (!user) return;
     async function getStores() {
         try {
             const fetchedStores = await fetchStores();
@@ -69,7 +70,7 @@ export function Header() {
         }
     }
     getStores();
-  }, []);
+  }, [user]);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
