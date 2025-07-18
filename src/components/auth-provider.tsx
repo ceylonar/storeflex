@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
           setUser(currentUser);
           setLoading(false);
-          if (!currentUser && pathname !== '/login') {
+          if (!currentUser && pathname !== '/login' && pathname !== '/welcome') {
             router.push('/login');
           }
         });
@@ -65,7 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // Only render children if the user is authenticated and we are not on the login page
+  // Allow unauthenticated access to login and welcome pages
+  if (!user && (pathname === '/login' || pathname === '/welcome')) {
+      return (
+         <AuthContext.Provider value={{ user }}>
+            {children}
+         </AuthContext.Provider>
+      )
+  }
+
+  // If authenticated, render children (except on login page)
   if (user && pathname !== '/login') {
     return (
         <AuthContext.Provider value={{ user }}>
@@ -74,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
   
-  // If no user and not on login page, the loading spinner is shown until redirection happens
+  // Fallback for unauthenticated users on protected pages (will show loader until redirect)
   return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
