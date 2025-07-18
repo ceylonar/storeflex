@@ -1,26 +1,24 @@
 
 import { getApp, getApps, initializeApp, type App, cert } from 'firebase-admin/app';
-import { getAuth, type Auth, type DecodedIdToken } from 'firebase-admin/auth';
+import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import { cookies } from 'next/headers';
 
+// This function initializes and returns the Firebase Admin App instance.
+// It ensures the app is initialized only once.
 export function getAdminApp(): App {
-    if (getApps().length > 0) {
+    // If the app is already initialized, return it.
+    if (getApps().length) {
         return getApp();
     }
 
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-        try {
-            return initializeApp({
-                credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-            });
-        } catch (error) {
-            console.error('Error initializing Firebase Admin SDK with service account:', error);
-            throw new Error('Firebase Admin SDK initialization failed.');
-        }
-    }
+    // Prepare credentials.
+    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const credential = serviceAccountKey
+        ? cert(JSON.parse(serviceAccountKey))
+        : undefined;
 
-    // Fallback for environments without a service account key (e.g., App Hosting)
-    return initializeApp();
+    // Initialize the app.
+    return initializeApp({ credential });
 }
 
 export async function verifyIdToken(token: string): Promise<DecodedIdToken> {
