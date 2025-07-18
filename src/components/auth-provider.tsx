@@ -4,7 +4,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { getFirebaseServices } from '@/lib/firebase';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
@@ -36,8 +36,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [idToken, setIdToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     try {
@@ -62,21 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      const isAuthRoute = pathname === '/login';
-      const isProtectedRoute = pathname.startsWith('/dashboard');
-
-      if (!user && isProtectedRoute) {
-        router.push('/login');
-      }
-      if (user && isAuthRoute) {
-        router.push('/dashboard');
-      }
-    }
-  }, [user, loading, pathname, router]);
-
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -95,15 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        </div>
       </div>
     );
-  }
-
-  // Prevent dashboard flicker for unauthenticated users on protected routes
-  if (!user && pathname.startsWith('/dashboard')) {
-      return (
-        <div className="flex h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      );
   }
 
   return (

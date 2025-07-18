@@ -3,7 +3,7 @@ import { getApp, getApps, initializeApp, type App, cert } from 'firebase-admin/a
 import { getAuth, type Auth, type DecodedIdToken } from 'firebase-admin/auth';
 import { cookies } from 'next/headers';
 
-function getAdminApp(): App {
+export function getAdminApp(): App {
     if (getApps().length > 0) {
         return getApp();
     }
@@ -50,7 +50,8 @@ export async function getAuthenticatedAppForUser() {
     const sessionCookie = cookies().get('__session')?.value;
 
     if (!sessionCookie) {
-        return null;
+        // This should not happen for protected routes if middleware is configured correctly.
+        return { app: null, auth: { currentUser: null } };
     }
 
     try {
@@ -58,14 +59,12 @@ export async function getAuthenticatedAppForUser() {
         const auth = getAuth(getAdminApp());
         
         // Mock the currentUser object for server-side context
-        // This is a way to pass user info without exposing the full Admin SDK Auth object
         const currentUser = createServerUser(decodedIdToken);
         
         return { app: getAdminApp(), auth: { currentUser } };
     } catch (error) {
-        console.error('Error verifying session cookie:', error);
-        // Clear the invalid cookie
-        cookies().set('__session', '', { maxAge: -1 });
-        return null;
+        console.error('Error verifying session cookie in getAuthenticatedAppForUser:', error);
+        // Do not clear cookie here, middleware will handle it.
+        return { app: null, auth: { currentUser: null } };
     }
 }
