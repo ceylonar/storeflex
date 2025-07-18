@@ -16,12 +16,18 @@ const AuthContext = createContext<AuthContextType>({ user: null });
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const [error, setError] = useState<string | null>(null);
-
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
     try {
         const { auth } = getFirebaseServices();
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -37,9 +43,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError((e as Error).message);
         setLoading(false);
     }
-  }, [router, pathname]);
+  }, [router, pathname, isMounted]);
 
-  if (loading) {
+  if (!isMounted || loading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
