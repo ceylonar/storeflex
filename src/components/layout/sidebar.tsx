@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, Store, ShoppingCart as SalesIcon, FileText, Settings } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Store, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
@@ -12,7 +12,6 @@ const navigation = [
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Sidebar() {

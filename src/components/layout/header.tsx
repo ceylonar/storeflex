@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIcon, FileText, Settings } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, Store, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
@@ -41,7 +41,6 @@ const navigation = [
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Header() {
@@ -144,9 +143,6 @@ export function Header() {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{userProfile?.name || user?.email || 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-                <Link href="/dashboard/settings">Settings</Link>
-            </DropdownMenuItem>
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
