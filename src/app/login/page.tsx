@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { getFirebaseServices } from '@/lib/firebase';
@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Store } from 'lucide-react';
 import { createInitialStoreForUser } from '@/lib/queries';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type AuthMode = 'login' | 'signup';
 
@@ -27,8 +28,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +64,37 @@ export default function LoginPage() {
     setEmail('');
     setPassword('');
   };
+  
+  if (!isMounted) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+        <div className="absolute top-8 left-8 flex items-center gap-2 text-lg font-semibold text-primary">
+          <Store className="h-6 w-6" />
+          <span className="text-foreground">StoreFlex Lite</span>
+        </div>
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-4 w-full max-w-xs" />
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+               <Skeleton className="h-4 w-16" />
+               <Skeleton className="h-10 w-full" />
+            </div>
+             <div className="grid gap-2">
+               <Skeleton className="h-4 w-16" />
+               <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+          <CardFooter className="flex-col gap-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-6 w-48" />
+          </CardFooter>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
