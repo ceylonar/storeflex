@@ -56,7 +56,7 @@ function PriceOptimizerFormContent() {
     defaultValues: {
       productName: '',
       productCategory: '',
-      costPrice: undefined,
+      costPrice: '' as unknown as number, // Use empty string for controlled input
       competitorPrices: '',
       salesData: [],
     },
@@ -291,4 +291,3 @@ export function PriceOptimizerForm() {
 
     return <PriceOptimizerFormContent />;
 }
-
