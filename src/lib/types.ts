@@ -39,7 +39,7 @@ export type SalesData = {
 
 export type TopSellingProduct = {
   name: string;
-  totalSales: number;
+  totalQuantity: number;
 }
 
 export type Sale = {

@@ -100,7 +100,7 @@ export function TopSellingProductsCard({ products }: { products: TopSellingProdu
     <Card>
       <CardHeader>
         <CardTitle>Top Selling Products</CardTitle>
-        <CardDescription>Your best-performing products by revenue.</CardDescription>
+        <CardDescription>Your best-performing products by quantity sold.</CardDescription>
       </CardHeader>
       <CardContent className="pr-0">
         <ResponsiveContainer width="100%" height={300}>
@@ -112,7 +112,7 @@ export function TopSellingProductsCard({ products }: { products: TopSellingProdu
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `LKR ${value/1000}k`}
+                allowDecimals={false}
             />
             <YAxis 
                 type="category" 
@@ -127,7 +127,7 @@ export function TopSellingProductsCard({ products }: { products: TopSellingProdu
               contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius)" }}
               cursor={{fill: 'hsla(var(--primary), 0.1)'}}
             />
-            <Bar dataKey="totalSales" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="totalQuantity" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

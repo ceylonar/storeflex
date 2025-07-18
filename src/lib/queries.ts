@@ -275,15 +275,15 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
         salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Omit<Sale, 'id'>;
             if (productSales[sale.product_name]) {
-                productSales[sale.product_name] += sale.total_amount;
+                productSales[sale.product_name] += sale.quantity;
             } else {
-                productSales[sale.product_name] = sale.total_amount;
+                productSales[sale.product_name] = sale.quantity;
             }
         });
 
         const sortedProducts = Object.entries(productSales)
-            .map(([name, totalSales]) => ({ name, totalSales }))
-            .sort((a, b) => b.totalSales - a.totalSales);
+            .map(([name, totalQuantity]) => ({ name, totalQuantity }))
+            .sort((a, b) => b.totalQuantity - a.totalQuantity);
             
         return sortedProducts.slice(0, 5);
 
