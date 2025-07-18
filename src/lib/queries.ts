@@ -201,12 +201,15 @@ export async function fetchDashboardData() {
         // Low Stock Products
         const lowStockQuery = query(productsCollection, where('stock', '<', 5), orderBy('stock', 'asc'), limit(5));
         const lowStockSnapshot = await getDocs(lowStockQuery);
-        const lowStockProducts = lowStockSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            created_at: doc.data().created_at?.toDate().toISOString(),
-            updated_at: doc.data().updated_at?.toDate().toISOString(),
-        })) as Product[];
+        const lowStockProducts = lowStockSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                created_at: (data.created_at?.toDate() || new Date()).toISOString(),
+                updated_at: (data.updated_at?.toDate() || new Date()).toISOString(),
+            }
+        }) as Product[];
 
         return {
             inventoryValue,
