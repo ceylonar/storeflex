@@ -22,15 +22,15 @@ export default async function DashboardPage() {
         />
         <StatCard 
           title="Sales (Today)" 
-          value="$12,897" 
+          value={`$${dashboardData.salesToday.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
           iconName="ShoppingCart" 
-          description="+15% from yesterday" 
+          description="Total sales for today" 
         />
         <StatCard 
-          title="New Customers" 
-          value="32" 
-          iconName="Users" 
-          description="+5 since last week" 
+          title="Total Sales" 
+          value={`$${dashboardData.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="CreditCard"
+          description="All-time total sales"
         />
       </div>
 

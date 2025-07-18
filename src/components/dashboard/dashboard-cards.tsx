@@ -23,7 +23,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGri
 import type { Product, RecentActivity, SalesData } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users } from 'lucide-react';
+import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useEffect, useState } from 'react';
 
@@ -31,7 +31,8 @@ const icons = {
   DollarSign,
   Package,
   ShoppingCart,
-  Users
+  Users,
+  CreditCard
 };
 
 interface StatCardProps {

@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect } from './types';
 import { z } from 'zod';
+import { startOfDay, endOfDay, subMonths } from 'date-fns';
 
 // Form validation schemas
 const ProductSchema = z.object({
@@ -149,6 +150,7 @@ export async function fetchDashboardData() {
     noStore();
     try {
         const productsCollection = collection(db, 'products');
+        const salesCollection = collection(db, 'sales');
 
         // Inventory Value & Product Count
         const productsSnapshot = await getDocs(productsCollection);
@@ -157,8 +159,25 @@ export async function fetchDashboardData() {
             const product = doc.data() as Omit<Product, 'id'>;
             inventoryValue += (product.stock || 0) * (product.cost_price || 0);
         });
-
         const productCount = productsSnapshot.size;
+
+        // Sales (Today)
+        const todayStart = startOfDay(new Date());
+        const todayEnd = endOfDay(new Date());
+        const todaySalesQuery = query(salesCollection, where('sale_date', '>=', todayStart), where('sale_date', '<=', todayEnd));
+        const todaySalesSnapshot = await getDocs(todaySalesQuery);
+        let salesToday = 0;
+        todaySalesSnapshot.forEach(doc => {
+            salesToday += doc.data().total_amount;
+        });
+
+        // Total Sales
+        const allSalesSnapshot = await getDocs(salesCollection);
+        let totalSales = 0;
+        allSalesSnapshot.forEach(doc => {
+          totalSales += doc.data().total_amount;
+        });
+
 
         // Recent Activities
         const activityCollection = collection(db, 'recent_activity');
@@ -179,11 +198,15 @@ export async function fetchDashboardData() {
         const lowStockProducts = lowStockSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
+            created_at: doc.data().created_at?.toDate().toISOString(),
+            updated_at: doc.data().updated_at?.toDate().toISOString(),
         })) as Product[];
 
         return {
             inventoryValue,
             productCount,
+            salesToday,
+            totalSales,
             recentActivities,
             lowStockProducts,
         };
@@ -193,43 +216,37 @@ export async function fetchDashboardData() {
     }
 }
 
-export async function fetchSalesData() {
+export async function fetchSalesData(): Promise<SalesData[]> {
     noStore();
     try {
+        const sixMonthsAgo = subMonths(new Date(), 6);
         const salesCollection = collection(db, 'sales');
-        const salesQuery = query(salesCollection, where('sale_date', '>=', new Date(new Date().setMonth(new Date().getMonth() - 6))));
+        const salesQuery = query(salesCollection, where('sale_date', '>=', sixMonthsAgo));
         const salesSnapshot = await getDocs(salesQuery);
 
-        const salesByMonth = salesSnapshot.docs.reduce((acc, doc) => {
+        // Initialize months
+        const salesByMonth: Record<string, { sales: number }> = {};
+        for (let i = 5; i >= 0; i--) {
+            const date = subMonths(new Date(), i);
+            const month = date.toLocaleString('default', { month: 'short' });
+            salesByMonth[month] = { sales: 0 };
+        }
+
+        salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Omit<Sale, 'id'>;
             const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
             const month = saleDate.toLocaleString('default', { month: 'short' });
             
-            if (!acc[month]) {
-                acc[month] = { sales: 0, date: saleDate };
+            if (salesByMonth[month]) {
+                salesByMonth[month].sales += sale.total_amount;
             }
-            acc[month].sales += sale.total_amount;
-            return acc;
-        }, {} as Record<string, { sales: number, date: Date }>);
+        });
 
-        const sortedMonths = Object.keys(salesByMonth).sort((a, b) => salesByMonth[a].date.getTime() - salesByMonth[b].date.getTime());
-        
-        const salesData: SalesData[] = sortedMonths.map(month => ({
-            month: month,
-            sales: salesByMonth[month].sales,
+        const salesData: SalesData[] = Object.entries(salesByMonth).map(([month, data]) => ({
+            month,
+            sales: data.sales,
         }));
         
-        if (salesData.length === 0) {
-             return [
-                { month: 'Jan', sales: 0 },
-                { month: 'Feb', sales: 0 },
-                { month: 'Mar', sales: 0 },
-                { month: 'Apr', sales: 0 },
-                { month: 'May', sales: 0 },
-                { month: 'Jun', sales: 0 },
-            ];
-        }
-
         return salesData;
 
     } catch (error) {
