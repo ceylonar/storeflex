@@ -21,7 +21,7 @@ import {
   runTransaction,
   setDoc
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, TopSellingProduct, UserProfile } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths } from 'date-fns';
 import { getAuthenticatedAppForUser } from './firebase-admin';
@@ -190,33 +190,45 @@ export async function fetchStores() {
     }
 }
 
-export async function createInitialStoreForUser(userId: string, email: string, profileData: Omit<UserProfile, 'id' | 'email'>) {
+export async function createInitialStoreForUser(profileData: z.infer<typeof UserProfileSchema>): Promise<{ success: boolean; message: string; }> {
     const { db } = getFirebaseServices();
+    const authData = await getAuthenticatedAppForUser();
+    if (!authData?.auth.currentUser) {
+        return { success: false, message: 'User is not authenticated. Please log in.' };
+    }
+    const { uid, email } = authData.auth.currentUser;
+
+    const validatedFields = UserProfileSchema.safeParse(profileData);
+    if(!validatedFields.success) {
+        return { success: false, message: 'Invalid profile data.'};
+    }
+    const data = validatedFields.data;
+
     try {
         const batch = writeBatch(db);
 
-        // Create user profile document
-        const userRef = doc(db, 'users', userId);
+        const userRef = doc(db, 'users', uid);
         batch.set(userRef, {
-            ...profileData,
+            ...data,
             email,
-            id: userId,
+            id: uid,
             created_at: serverTimestamp()
         });
         
-        // Create initial store
         const storesCollection = collection(db, 'stores');
         const newStoreRef = doc(storesCollection);
         batch.set(newStoreRef, {
-            name: profileData.businessName || 'My First Store',
-            userId: userId,
+            name: data.businessName || 'My First Store',
+            userId: uid,
             created_at: serverTimestamp()
         });
 
         await batch.commit();
+        revalidatePath('/dashboard/settings');
+        return { success: true, message: 'User profile and store created.' };
     } catch (error) {
         console.error('Failed to create initial user data:', error);
-        // We don't throw here to not block the user creation flow
+        return { success: false, message: 'Failed to set up your profile.' };
     }
 }
 

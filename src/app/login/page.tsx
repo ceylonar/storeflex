@@ -18,7 +18,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Store } from 'lucide-react';
-import { createInitialStoreForUser } from '@/lib/queries';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type AuthMode = 'login' | 'signup';
@@ -26,12 +25,6 @@ type AuthMode = 'login' | 'signup';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [address, setAddress] = useState('');
-  const [contactNumber, setContactNumber] = useState('');
-  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [isMounted, setIsMounted] = useState(false);
@@ -49,18 +42,12 @@ export default function LoginPage() {
       const { auth } = getFirebaseServices();
       if (authMode === 'login') {
         await signInWithEmailAndPassword(auth, email, password);
+        router.push('/dashboard');
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const userProfile = {
-            name,
-            businessName,
-            address,
-            contactNumber,
-            googleSheetUrl
-        };
-        await createInitialStoreForUser(userCredential.user.uid, email, userProfile);
+        await createUserWithEmailAndPassword(auth, email, password);
+        // After signup, redirect to the welcome page to collect profile info
+        router.push('/welcome');
       }
-      router.push('/dashboard');
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -76,11 +63,6 @@ export default function LoginPage() {
     setAuthMode(prevMode => (prevMode === 'login' ? 'signup' : 'login'));
     setEmail('');
     setPassword('');
-    setName('');
-    setBusinessName('');
-    setAddress('');
-    setContactNumber('');
-    setGoogleSheetUrl('');
   };
   
   if (!isMounted) {
@@ -126,32 +108,12 @@ export default function LoginPage() {
           <CardDescription>
             {authMode === 'login' 
                 ? 'Enter your email below to login to your account.'
-                : 'Create a new account to manage your inventory.'
+                : 'Create a new account to get started.'
             }
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleAuthAction}>
           <CardContent className="grid gap-4">
-             {authMode === 'signup' && (
-              <>
-                 <div className="grid gap-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input id="name" placeholder="John Doe" required value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="businessName">Business Name</Label>
-                  <Input id="businessName" placeholder="My Awesome Store" required value={businessName} onChange={(e) => setBusinessName(e.target.value)} />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input id="address" placeholder="123 Main St, Anytown" value={address} onChange={(e) => setAddress(e.target.value)} />
-                </div>
-                 <div className="grid gap-2">
-                  <Label htmlFor="contactNumber">Contact Number</Label>
-                  <Input id="contactNumber" type="tel" placeholder="+94 123 456 789" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} />
-                </div>
-              </>
-            )}
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -174,12 +136,6 @@ export default function LoginPage() {
                 minLength={6}
               />
             </div>
-             {authMode === 'signup' && (
-              <div className="grid gap-2">
-                <Label htmlFor="googleSheetUrl">Google Sheet URL (Optional)</Label>
-                <Input id="googleSheetUrl" type="url" placeholder="https://docs.google.com/spreadsheets/..." value={googleSheetUrl} onChange={(e) => setGoogleSheetUrl(e.target.value)} />
-              </div>
-            )}
           </CardContent>
           <CardFooter className="flex-col gap-4">
             <Button className="w-full" type="submit" disabled={loading}>
