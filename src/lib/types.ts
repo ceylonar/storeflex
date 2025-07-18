@@ -26,6 +26,7 @@ export type RecentActivity = {
   id: string;
   type: 'sale' | 'update' | 'new' | 'delete';
   product_name: string;
+  product_image?: string;
   details: string;
   timestamp: string; // Should be ISO string date
 };

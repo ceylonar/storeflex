@@ -54,7 +54,7 @@ export async function createProduct(formData: FormData) {
     throw new Error('Invalid product data.');
   }
   
-  const { name, ...productData } = validatedFields.data;
+  const { name, image, ...productData } = validatedFields.data;
 
   try {
     const batch = writeBatch(db);
@@ -64,9 +64,9 @@ export async function createProduct(formData: FormData) {
     batch.set(newProductRef, {
       ...productData,
       name,
+      image: image || '',
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
-      image: productData.image || '',
     });
     
     const activityCollection = collection(db, 'recent_activity');
@@ -74,6 +74,7 @@ export async function createProduct(formData: FormData) {
     batch.set(newActivityRef, {
       type: 'new',
       product_name: name,
+      product_image: image || '',
       details: 'New product added to inventory',
       timestamp: serverTimestamp(),
     });
@@ -265,7 +266,7 @@ export async function updateProduct(id: string, formData: FormData) {
     throw new Error('Invalid product data.');
   }
 
-  const { name, ...productData } = validatedFields.data;
+  const { name, image, ...productData } = validatedFields.data;
   
   try {
     const batch = writeBatch(db);
@@ -273,8 +274,8 @@ export async function updateProduct(id: string, formData: FormData) {
     batch.update(productRef, {
       ...productData,
       name,
+      image: image || '',
       updated_at: serverTimestamp(),
-      image: productData.image || '',
     });
     
     const activityCollection = collection(db, 'recent_activity');
@@ -282,6 +283,7 @@ export async function updateProduct(id: string, formData: FormData) {
     batch.set(newActivityRef, {
         type: 'update',
         product_name: name,
+        product_image: image || '',
         details: 'Product details updated',
         timestamp: serverTimestamp()
     });
@@ -307,7 +309,7 @@ export async function deleteProduct(id: string) {
     if (!productDoc.exists()) {
         throw new Error('Product not found.');
     }
-    const productName = productDoc.data().name;
+    const { name, image } = productDoc.data();
     
     batch.delete(productRef);
     
@@ -315,7 +317,8 @@ export async function deleteProduct(id: string) {
     const newActivityRef = doc(activityCollection);
     batch.set(newActivityRef, {
         type: 'delete',
-        product_name: productName,
+        product_name: name,
+        product_image: image || '',
         details: 'Product removed from inventory',
         timestamp: serverTimestamp()
     });
@@ -379,6 +382,7 @@ export async function createSale(formData: FormData) {
       transaction.set(newActivityRef, {
         type: 'sale',
         product_name: productData.name,
+        product_image: productData.image || '',
         details: `Sold ${quantity} unit(s)`,
         timestamp: serverTimestamp(),
       });
