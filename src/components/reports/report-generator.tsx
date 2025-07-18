@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, FileText, Download, Calendar as CalendarIcon } from 'lucide-react';
 import type { Sale } from '@/lib/types';
 import { fetchSalesReport } from '@/lib/actions';
-import { format, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
@@ -42,7 +42,7 @@ interface ReportData {
 
 export function ReportGenerator() {
   const [date, setDate] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 29),
+    from: new Date(),
     to: new Date(),
   });
   const [reportData, setReportData] = useState<ReportData | null>(null);
