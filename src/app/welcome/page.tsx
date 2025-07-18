@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,13 +9,12 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Store } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { createInitialStoreForUser } from '@/lib/queries';
-import { getFirebaseServices } from '@/lib/firebase';
 import { useAuth } from '@/components/auth-provider';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const profileFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -27,7 +26,7 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-export default function WelcomePage() {
+function WelcomeForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -86,11 +85,6 @@ export default function WelcomePage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="absolute top-8 left-8 flex items-center gap-2 text-lg font-semibold text-primary">
-        <Store className="h-6 w-6" />
-        <span className="text-foreground">StoreFlex Lite</span>
-      </div>
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Welcome! Let's get you set up.</CardTitle>
@@ -170,6 +164,49 @@ export default function WelcomePage() {
           </form>
         </Form>
       </Card>
-    </main>
   );
+}
+
+
+function WelcomeSkeleton() {
+    return (
+        <Card className="w-full max-w-lg">
+            <CardHeader>
+                <Skeleton className="h-8 w-3/4" />
+                <Skeleton className="h-4 w-full max-w-md" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-10 w-full" /></div>
+                    <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                </div>
+                <div className="space-y-2"><Skeleton className="h-4 w-16" /><Skeleton className="h-10 w-full" /></div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                     <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                     <div className="space-y-2"><Skeleton className="h-4 w-40" /><Skeleton className="h-10 w-full" /></div>
+                </div>
+            </CardContent>
+            <CardFooter>
+                <Skeleton className="h-10 w-64" />
+            </CardFooter>
+        </Card>
+    )
+}
+
+export default function WelcomePage() {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    return (
+        <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+            <div className="absolute top-8 left-8 flex items-center gap-2 text-lg font-semibold text-primary">
+                <Store className="h-6 w-6" />
+                <span className="text-foreground">StoreFlex Lite</span>
+            </div>
+            {isMounted ? <WelcomeForm /> : <WelcomeSkeleton />}
+        </main>
+    );
 }
