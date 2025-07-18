@@ -2,7 +2,7 @@
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
-import { db } from './firebase';
+import { getFirebaseServices } from './firebase';
 import { 
   collection, 
   getDocs, 
@@ -49,6 +49,7 @@ const SaleSchema = z.object({
 
 // CREATE
 export async function createProduct(formData: FormData) {
+  const { db } = getFirebaseServices();
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -95,6 +96,7 @@ export async function createProduct(formData: FormData) {
 // READ
 export async function fetchProducts() {
   noStore();
+  const { db } = getFirebaseServices();
   try {
     const productsCollection = collection(db, 'products');
     const q = query(productsCollection, orderBy('created_at', 'desc'));
@@ -117,6 +119,7 @@ export async function fetchProducts() {
 
 export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   noStore();
+  const { db } = getFirebaseServices();
   try {
     const productsCollection = collection(db, 'products');
     const q = query(productsCollection, orderBy('name', 'asc'));
@@ -138,6 +141,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
 
 export async function fetchStores() {
     noStore();
+    const { db } = getFirebaseServices();
     try {
         const storesCollection = collection(db, 'stores');
         const q = query(storesCollection, orderBy('name'));
@@ -155,6 +159,7 @@ export async function fetchStores() {
 
 export async function fetchDashboardData() {
     noStore();
+    const { db } = getFirebaseServices();
     try {
         const productsCollection = collection(db, 'products');
         const salesCollection = collection(db, 'sales');
@@ -227,6 +232,7 @@ export async function fetchDashboardData() {
 
 export async function fetchSalesData(): Promise<SalesData[]> {
     noStore();
+    const { db } = getFirebaseServices();
     try {
         const sixMonthsAgo = subMonths(new Date(), 6);
         const salesCollection = collection(db, 'sales');
@@ -266,6 +272,7 @@ export async function fetchSalesData(): Promise<SalesData[]> {
 
 export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     noStore();
+    const { db } = getFirebaseServices();
     try {
         const salesCollection = collection(db, 'sales');
         const salesSnapshot = await getDocs(salesCollection);
@@ -295,6 +302,7 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
 
 export async function fetchAllActivities(): Promise<RecentActivity[]> {
     noStore();
+    const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
         const activityQuery = query(activityCollection, orderBy('timestamp', 'desc'));
@@ -316,6 +324,7 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
 
 // UPDATE
 export async function updateProduct(id: string, formData: FormData) {
+  const { db } = getFirebaseServices();
   const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -358,6 +367,7 @@ export async function updateProduct(id: string, formData: FormData) {
 
 // DELETE
 export async function deleteProduct(id: string) {
+  const { db } = getFirebaseServices();
   try {
     const batch = writeBatch(db);
     const productRef = doc(db, 'products', id);
@@ -395,6 +405,7 @@ export async function deleteProduct(id: string) {
 
 // CREATE SALE
 export async function createSale(formData: FormData) {
+  const { db } = getFirebaseServices();
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -458,6 +469,7 @@ export async function createSale(formData: FormData) {
 // READ SALES
 export async function fetchSales() {
   noStore();
+  const { db } = getFirebaseServices();
   try {
     const salesCollection = collection(db, 'sales');
     const q = query(salesCollection, orderBy('sale_date', 'desc'));
@@ -479,6 +491,7 @@ export async function fetchSales() {
 
 // UPDATE SALE
 export async function updateSale(id: string, formData: FormData) {
+  const { db } = getFirebaseServices();
   const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
 
   if (!validatedFields.success) {
@@ -548,6 +561,7 @@ export async function updateSale(id: string, formData: FormData) {
 
 // DELETE SALE
 export async function deleteSale(id: string) {
+  const { db } = getFirebaseServices();
   try {
     const saleRef = doc(db, 'sales', id);
     

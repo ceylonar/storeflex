@@ -31,7 +31,7 @@ import { useEffect, useState } from 'react';
 import { fetchStores } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { getFirebaseServices } from '@/lib/firebase';
 import { useAuth } from '../auth-provider';
 
 
@@ -50,14 +50,23 @@ export function Header() {
   const [stores, setStores] = useState<StoreType[]>([]);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/login');
+    try {
+        const { auth } = getFirebaseServices();
+        await signOut(auth);
+        router.push('/login');
+    } catch(e) {
+        console.error("Logout failed:", e);
+    }
   };
 
   useEffect(() => {
     async function getStores() {
-        const fetchedStores = await fetchStores();
-        setStores(fetchedStores);
+        try {
+            const fetchedStores = await fetchStores();
+            setStores(fetchedStores);
+        } catch(e) {
+            console.error("Failed to fetch stores:", e)
+        }
     }
     getStores();
   }, []);

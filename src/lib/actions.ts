@@ -3,7 +3,7 @@
 
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
 import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from './firebase';
+import { getFirebaseServices } from './firebase';
 import { endOfDay, startOfDay } from 'date-fns';
 import { z } from 'zod';
 import type { Sale } from './types';
@@ -61,6 +61,7 @@ type ReportData = {
 };
 
 export async function fetchSalesReport(range: DateRange): Promise<{ success: boolean; data: ReportData | null; message: string; }> {
+  const { db } = getFirebaseServices();
   try {
     const { from, to } = range;
 
