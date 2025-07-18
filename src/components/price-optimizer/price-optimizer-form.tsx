@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, PlusCircle, Trash, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '../ui/separator';
+import { Skeleton } from '../ui/skeleton';
 
 const PriceOptimizerFormSchema = z.object({
   productName: z.string().min(1, 'Product name is required'),
@@ -44,7 +46,7 @@ const PriceOptimizerFormSchema = z.object({
 
 type PriceOptimizerFormValues = z.infer<typeof PriceOptimizerFormSchema>;
 
-export function PriceOptimizerForm() {
+function PriceOptimizerFormContent() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SuggestOptimalPriceOutput | null>(null);
   const { toast } = useToast();
@@ -90,8 +92,8 @@ export function PriceOptimizerForm() {
 
     setLoading(false);
   };
-
-  return (
+  
+    return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <Form {...form}>
@@ -241,3 +243,52 @@ export function PriceOptimizerForm() {
     </div>
   );
 }
+
+
+export function PriceOptimizerForm() {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    if (!isMounted) {
+        return (
+             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <Card className="lg:col-span-2">
+                    <CardHeader>
+                        <Skeleton className="h-8 w-48" />
+                        <Skeleton className="h-4 w-full max-w-sm" />
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                            <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-full" /></div>
+                            <div className="space-y-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>
+                        </div>
+                    </CardContent>
+                    <CardFooter>
+                        <Skeleton className="h-10 w-36" />
+                    </CardFooter>
+                </Card>
+                 <div className="lg:col-span-1">
+                    <Card className="sticky top-24">
+                        <CardHeader>
+                            <Skeleton className="h-8 w-36" />
+                            <Skeleton className="h-4 w-full max-w-xs" />
+                        </CardHeader>
+                        <CardContent className="min-h-[200px] flex items-center justify-center">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                        </CardContent>
+                    </Card>
+                 </div>
+             </div>
+        );
+    }
+
+    return <PriceOptimizerFormContent />;
+}
+
