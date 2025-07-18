@@ -39,6 +39,7 @@ export type Sale = {
   id: string;
   product_id: string;
   product_name: string;
+  product_image?: string;
   quantity: number;
   price_per_unit: number;
   total_amount: number;

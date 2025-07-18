@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -61,6 +62,7 @@ import { createSale, updateSale, deleteSale } from '@/lib/queries';
 import { format } from 'date-fns';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 type FormState = 'add' | 'edit';
 
@@ -153,6 +155,9 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="hidden w-[100px] sm:table-cell">
+                <span className="sr-only">Image</span>
+              </TableHead>
               <TableHead>Product Name</TableHead>
               <TableHead>Date</TableHead>
               <TableHead className="text-right">Quantity</TableHead>
@@ -166,6 +171,16 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
           <TableBody>
             {sales.map((sale) => (
               <TableRow key={sale.id}>
+                 <TableCell className="hidden sm:table-cell">
+                  <Image
+                    alt={sale.product_name}
+                    className="aspect-square rounded-md object-cover"
+                    height="64"
+                    src={sale.product_image || 'https://placehold.co/64x64.png'}
+                    width="64"
+                    data-ai-hint="product image"
+                  />
+                </TableCell>
                 <TableCell className="font-medium">{sale.product_name}</TableCell>
                 <TableCell>{format(new Date(sale.sale_date), 'PPP')}</TableCell>
                 <TableCell className="text-right">{sale.quantity}</TableCell>

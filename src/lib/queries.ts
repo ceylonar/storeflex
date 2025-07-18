@@ -66,7 +66,7 @@ export async function createProduct(formData: FormData) {
       name,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
-      image: productData.image || 'https://placehold.co/64x64.png',
+      image: productData.image || `https://placehold.co/64x64.png`,
     });
     
     const activityCollection = collection(db, 'recent_activity');
@@ -274,7 +274,7 @@ export async function updateProduct(id: string, formData: FormData) {
       ...productData,
       name,
       updated_at: serverTimestamp(),
-      image: productData.image || 'https://placehold.co/64x64.png',
+      image: productData.image || `https://placehold.co/64x64.png`,
     });
     
     const activityCollection = collection(db, 'recent_activity');
@@ -367,6 +367,7 @@ export async function createSale(formData: FormData) {
       transaction.set(newSaleRef, {
         product_id,
         product_name: productData.name,
+        product_image: productData.image || `https://placehold.co/64x64.png`,
         quantity,
         price_per_unit,
         total_amount: quantity * price_per_unit,
@@ -458,6 +459,7 @@ export async function updateSale(id: string, formData: FormData) {
             total_amount: quantity * price_per_unit,
             sale_date: new Date(sale_date),
             product_name: productDoc.data().name,
+            product_image: productDoc.data().image || `https://placehold.co/64x64.png`,
         });
     });
 
