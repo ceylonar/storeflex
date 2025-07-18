@@ -17,7 +17,8 @@ import {
   limit,
   getDoc,
   writeBatch,
-  Timestamp
+  Timestamp,
+  runTransaction
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect } from './types';
 import { z } from 'zod';
@@ -99,8 +100,8 @@ export async function fetchProducts() {
       return {
         id: doc.id,
         ...data,
-        created_at: data.created_at?.toDate().toISOString() || new Date().toISOString(),
-        updated_at: data.updated_at?.toDate().toISOString() || new Date().toISOString(),
+        created_at: data.created_at?.toDate().toISOString(),
+        updated_at: data.updated_at?.toDate().toISOString(),
       }
     }) as Product[];
     return products;
@@ -178,7 +179,6 @@ export async function fetchDashboardData() {
         const lowStockProducts = lowStockSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
-            // No need to convert timestamp here as it's not used in the LowStockCard
         })) as Product[];
 
         return {
@@ -326,46 +326,45 @@ export async function createSale(formData: FormData) {
   }
   
   const { product_id, quantity, price_per_unit, sale_date } = validatedFields.data;
-  const total_amount = quantity * price_per_unit;
-
+  
   try {
-    const batch = writeBatch(db);
-    const productRef = doc(db, 'products', product_id);
-    const productDoc = await getDoc(productRef);
+    await runTransaction(db, async (transaction) => {
+      const productRef = doc(db, 'products', product_id);
+      const productDoc = await transaction.get(productRef);
 
-    if (!productDoc.exists()) {
-      throw new Error('Product not found.');
-    }
-    const productData = productDoc.data();
-    const newStock = (productData.stock || 0) - quantity;
+      if (!productDoc.exists()) {
+        throw new Error('Product not found.');
+      }
+      
+      const productData = productDoc.data();
+      const newStock = (productData.stock || 0) - quantity;
 
-    if (newStock < 0) {
-      throw new Error('Not enough stock for this sale.');
-    }
-    
-    batch.update(productRef, { stock: newStock });
+      if (newStock < 0) {
+        throw new Error('Not enough stock for this sale.');
+      }
+      
+      transaction.update(productRef, { stock: newStock });
 
-    const salesCollection = collection(db, 'sales');
-    const newSaleRef = doc(salesCollection);
-    batch.set(newSaleRef, {
-      product_id,
-      product_name: productData.name,
-      quantity,
-      price_per_unit,
-      total_amount,
-      sale_date: new Date(sale_date),
+      const salesCollection = collection(db, 'sales');
+      const newSaleRef = doc(salesCollection);
+      transaction.set(newSaleRef, {
+        product_id,
+        product_name: productData.name,
+        quantity,
+        price_per_unit,
+        total_amount: quantity * price_per_unit,
+        sale_date: new Date(sale_date),
+      });
+
+      const activityCollection = collection(db, 'recent_activity');
+      const newActivityRef = doc(activityCollection);
+      transaction.set(newActivityRef, {
+        type: 'sale',
+        product_name: productData.name,
+        details: `Sold ${quantity} unit(s)`,
+        timestamp: serverTimestamp(),
+      });
     });
-
-    const activityCollection = collection(db, 'recent_activity');
-    const newActivityRef = doc(activityCollection);
-    batch.set(newActivityRef, {
-      type: 'sale',
-      product_name: productData.name,
-      details: `Sold ${quantity} unit(s)`,
-      timestamp: serverTimestamp(),
-    });
-
-    await batch.commit();
 
     revalidatePath('/dashboard/sales');
     revalidatePath('/dashboard');
@@ -409,31 +408,49 @@ export async function updateSale(id: string, formData: FormData) {
   }
 
   const { product_id, quantity, price_per_unit, sale_date } = validatedFields.data;
-  const total_amount = quantity * price_per_unit;
-
+  
   try {
-    const batch = writeBatch(db);
-    const saleRef = doc(db, 'sales', id);
-    
-    // We don't adjust stock on update for simplicity, as it can get complex.
-    // A more robust solution might revert the original stock change and apply the new one.
-    
-    batch.update(saleRef, {
-      product_id,
-      quantity,
-      price_per_unit,
-      total_amount,
-      sale_date: new Date(sale_date),
+    await runTransaction(db, async (transaction) => {
+        const saleRef = doc(db, 'sales', id);
+        const saleDoc = await transaction.get(saleRef);
+        if (!saleDoc.exists()) {
+            throw new Error('Sale not found');
+        }
+
+        const oldSaleData = saleDoc.data() as Sale;
+        const quantityChange = quantity - oldSaleData.quantity;
+
+        const productRef = doc(db, 'products', product_id);
+        const productDoc = await transaction.get(productRef);
+
+        if (!productDoc.exists()) {
+            throw new Error('Product not found');
+        }
+
+        const newStock = (productDoc.data().stock || 0) - quantityChange;
+        if (newStock < 0) {
+            throw new Error('Not enough stock to fulfill the updated sale quantity.');
+        }
+
+        transaction.update(productRef, { stock: newStock });
+
+        transaction.update(saleRef, {
+            product_id,
+            quantity,
+            price_per_unit,
+            total_amount: quantity * price_per_unit,
+            sale_date: new Date(sale_date),
+            product_name: productDoc.data().name,
+        });
     });
-    
-    await batch.commit();
 
     revalidatePath('/dashboard/sales');
     revalidatePath('/dashboard');
+    revalidatePath('/dashboard/inventory');
     return { success: true, message: 'Sale updated successfully.' };
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to update sale.');
+    throw new Error((error as Error).message || 'Failed to update sale.');
   }
 }
 
@@ -441,25 +458,24 @@ export async function updateSale(id: string, formData: FormData) {
 export async function deleteSale(id: string) {
   try {
     const saleRef = doc(db, 'sales', id);
-    const saleDoc = await getDoc(saleRef);
-    if (!saleDoc.exists()) {
-        throw new Error('Sale not found');
-    }
+    
+    await runTransaction(db, async (transaction) => {
+        const saleDoc = await transaction.get(saleRef);
+        if (!saleDoc.exists()) {
+            throw new Error('Sale not found');
+        }
 
-    const { product_id, quantity } = saleDoc.data() as Sale;
+        const { product_id, quantity } = saleDoc.data() as Sale;
+        const productRef = doc(db, 'products', product_id);
+        const productDoc = await transaction.get(productRef);
 
-    const batch = writeBatch(db);
+        if(productDoc.exists()) {
+            const newStock = (productDoc.data().stock || 0) + quantity;
+            transaction.update(productRef, { stock: newStock });
+        }
 
-    // Restore stock
-    const productRef = doc(db, 'products', product_id);
-    const productDoc = await getDoc(productRef);
-    if(productDoc.exists()) {
-        const newStock = (productDoc.data().stock || 0) + quantity;
-        batch.update(productRef, { stock: newStock });
-    }
-
-    batch.delete(saleRef);
-    await batch.commit();
+        transaction.delete(saleRef);
+    });
     
     revalidatePath('/dashboard/sales');
     revalidatePath('/dashboard');
