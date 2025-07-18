@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Store } from 'lucide-react';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { createInitialStoreForUser } from '@/lib/queries';
+import { getFirebaseServices } from '@/lib/firebase';
+import { useAuth } from '@/components/auth-provider';
 
 const profileFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -29,6 +31,7 @@ export default function WelcomePage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -43,8 +46,26 @@ export default function WelcomePage() {
 
   const onSubmit = async (data: ProfileFormValues) => {
     setLoading(true);
+
+    if (!user) {
+        toast({
+            variant: 'destructive',
+            title: 'Authentication Error',
+            description: 'Could not find authenticated user. Please log in again.'
+        });
+        setLoading(false);
+        router.push('/login');
+        return;
+    }
+
     try {
-      const response = await createInitialStoreForUser(data);
+      const { uid, email } = user;
+      const response = await createInitialStoreForUser({
+        uid,
+        email: email || '',
+        profileData: data,
+      });
+
       if(response.success) {
         toast({
             title: "Welcome!",

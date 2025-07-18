@@ -65,6 +65,12 @@ const UserProfileSchema = z.object({
     googleSheetUrl: z.string().url().optional().or(z.literal('')),
 });
 
+interface CreateUserArgs {
+    uid: string;
+    email: string;
+    profileData: z.infer<typeof UserProfileSchema>;
+}
+
 
 // CREATE
 export async function createProduct(formData: FormData) {
@@ -190,13 +196,12 @@ export async function fetchStores() {
     }
 }
 
-export async function createInitialStoreForUser(profileData: z.infer<typeof UserProfileSchema>): Promise<{ success: boolean; message: string; }> {
+export async function createInitialStoreForUser({ uid, email, profileData }: CreateUserArgs): Promise<{ success: boolean; message: string; }> {
     const { db } = getFirebaseServices();
-    const authData = await getAuthenticatedAppForUser();
-    if (!authData?.auth.currentUser) {
+
+    if (!uid) {
         return { success: false, message: 'User is not authenticated. Please log in.' };
     }
-    const { uid, email } = authData.auth.currentUser;
 
     const validatedFields = UserProfileSchema.safeParse(profileData);
     if(!validatedFields.success) {
