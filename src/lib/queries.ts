@@ -41,6 +41,7 @@ const SaleSchema = z.object({
   product_id: z.string().min(1, 'Product is required.'),
   quantity: z.coerce.number().int().positive('Quantity must be a positive number'),
   price_per_unit: z.coerce.number().positive('Unit price must be positive.'),
+  total_amount: z.coerce.number().positive('Total amount must be positive.'),
   sale_date: z.string().min(1, 'Sale date is required'),
 });
 
@@ -365,7 +366,7 @@ export async function createSale(formData: FormData) {
     throw new Error('Invalid sale data.');
   }
   
-  const { product_id, quantity, price_per_unit, sale_date } = validatedFields.data;
+  const { product_id, quantity, price_per_unit, total_amount, sale_date } = validatedFields.data;
   
   try {
     await runTransaction(db, async (transaction) => {
@@ -393,7 +394,7 @@ export async function createSale(formData: FormData) {
         product_image: productData.image || '',
         quantity,
         price_per_unit,
-        total_amount: quantity * price_per_unit,
+        total_amount: total_amount,
         sale_date: new Date(sale_date),
       });
 
@@ -449,7 +450,7 @@ export async function updateSale(id: string, formData: FormData) {
     throw new Error('Invalid sale data.');
   }
 
-  const { product_id, quantity, price_per_unit, sale_date } = validatedFields.data;
+  const { product_id, quantity, price_per_unit, total_amount, sale_date } = validatedFields.data;
   
   try {
     await runTransaction(db, async (transaction) => {
@@ -462,14 +463,26 @@ export async function updateSale(id: string, formData: FormData) {
         const oldSaleData = saleDoc.data() as Sale;
         const quantityChange = quantity - oldSaleData.quantity;
 
+        // If the product changed, we need to revert stock on old product and decrement on new one
+        if (oldSaleData.product_id !== product_id) {
+          const oldProductRef = doc(db, 'products', oldSaleData.product_id);
+          const oldProductDoc = await transaction.get(oldProductRef);
+          if (oldProductDoc.exists()) {
+            transaction.update(oldProductRef, { stock: (oldProductDoc.data().stock || 0) + oldSaleData.quantity });
+          }
+        }
+
         const productRef = doc(db, 'products', product_id);
         const productDoc = await transaction.get(productRef);
 
         if (!productDoc.exists()) {
             throw new Error('Product not found');
         }
+        
+        const currentStock = productDoc.data().stock || 0;
+        const stockAfterRevert = oldSaleData.product_id === product_id ? currentStock + oldSaleData.quantity : currentStock;
+        const newStock = stockAfterRevert - quantity;
 
-        const newStock = (productDoc.data().stock || 0) - quantityChange;
         if (newStock < 0) {
             throw new Error('Not enough stock to fulfill the updated sale quantity.');
         }
@@ -480,7 +493,7 @@ export async function updateSale(id: string, formData: FormData) {
             product_id,
             quantity,
             price_per_unit,
-            total_amount: quantity * price_per_unit,
+            total_amount: total_amount,
             sale_date: new Date(sale_date),
             product_name: productDoc.data().name,
             product_image: productDoc.data().image || '',

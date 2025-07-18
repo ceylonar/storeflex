@@ -65,6 +65,7 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 
 type FormState = 'add' | 'edit';
+type LastEditedField = 'unit_price' | 'total_amount' | null;
 
 const initialSaleState: Partial<Sale> = {
   id: '',
@@ -81,6 +82,7 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedSale, setSelectedSale] = React.useState<Partial<Sale>>(initialSaleState);
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+  const [lastEdited, setLastEdited] = React.useState<LastEditedField>(null);
   const { toast } = useToast();
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -93,9 +95,34 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
         setSelectedSale(initialSaleState);
         setSelectedDate(new Date());
     }
+    setLastEdited(null);
     setIsDialogOpen(true);
   };
-  
+
+  const handleValueChange = (field: keyof Sale, value: string | number) => {
+      setSelectedSale(prev => ({ ...prev, [field]: value }));
+  }
+
+  React.useEffect(() => {
+    if (!isDialogOpen) return;
+
+    const quantity = Number(selectedSale.quantity) || 0;
+    const unitPrice = Number(selectedSale.price_per_unit) || 0;
+    const totalAmount = Number(selectedSale.total_amount) || 0;
+
+    if (lastEdited === 'unit_price') {
+        const newTotal = quantity * unitPrice;
+        if (newTotal !== totalAmount) {
+            handleValueChange('total_amount', newTotal.toFixed(2));
+        }
+    } else if (lastEdited === 'total_amount') {
+        const newUnitPrice = quantity > 0 ? totalAmount / quantity : 0;
+        if (newUnitPrice !== unitPrice) {
+            handleValueChange('price_per_unit', newUnitPrice.toFixed(2));
+        }
+    }
+  }, [selectedSale.quantity, selectedSale.price_per_unit, selectedSale.total_amount, lastEdited, isDialogOpen]);
+
   const handleDelete = async (id: string) => {
     try {
       await deleteSale(id);
@@ -117,6 +144,7 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     formData.set('sale_date', selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '');
+    formData.set('total_amount', String(selectedSale.total_amount || '0'));
 
     try {
       if (formState === 'add') {
@@ -277,11 +305,43 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="quantity" className="text-right">Quantity</Label>
-                  <Input id="quantity" name="quantity" type="number" defaultValue={selectedSale.quantity} className="col-span-3" required />
+                  <Input 
+                    id="quantity" 
+                    name="quantity" 
+                    type="number" 
+                    value={selectedSale.quantity}
+                    onChange={(e) => {
+                      handleValueChange('quantity', e.target.value);
+                      if (!lastEdited) setLastEdited('unit_price');
+                    }}
+                    className="col-span-3" required 
+                  />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="price_per_unit" className="text-right">Unit Price (LKR)</Label>
-                  <Input id="price_per_unit" name="price_per_unit" type="number" step="0.01" defaultValue={selectedSale.price_per_unit} className="col-span-3" required />
+                  <Input 
+                    id="price_per_unit" 
+                    name="price_per_unit" 
+                    type="number" 
+                    step="0.01" 
+                    value={selectedSale.price_per_unit}
+                    onFocus={() => setLastEdited('unit_price')}
+                    onChange={(e) => handleValueChange('price_per_unit', e.target.value)} 
+                    className="col-span-3" required 
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="total_amount" className="text-right">Total (LKR)</Label>
+                  <Input 
+                    id="total_amount" 
+                    name="total_amount" 
+                    type="number" 
+                    step="0.01" 
+                    value={selectedSale.total_amount}
+                    onFocus={() => setLastEdited('total_amount')}
+                    onChange={(e) => handleValueChange('total_amount', e.target.value)} 
+                    className="col-span-3" required 
+                  />
                 </div>
               </div>
               <DialogFooter>
