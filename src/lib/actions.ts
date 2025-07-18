@@ -2,9 +2,9 @@
 'use server';
 
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
-import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { getFirebaseServices } from './firebase';
-import { endOfDay, startOfDay } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
 import type { Sale } from './types';
 import type { DateRange } from 'react-day-picker';
@@ -77,33 +77,37 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     const endDate = endOfDay(to);
 
     const salesCollection = collection(db, 'sales');
-    const q = query(
-      salesCollection,
-      where('userId', '==', userId),
-      where('sale_date', '>=', startDate),
-      where('sale_date', '<=', endDate)
-    );
+    // Simplified query to avoid composite index requirement
+    const q = query(salesCollection, where('userId', '==', userId));
 
     const querySnapshot = await getDocs(q);
     
     let totalSales = 0;
-    const sales: Sale[] = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      totalSales += data.total_amount;
-      return {
-        id: doc.id,
-        ...data,
-        sale_date: (data.sale_date as Timestamp).toDate().toISOString(),
-      } as Sale;
+    const allSales: Sale[] = [];
+    querySnapshot.forEach(doc => {
+        allSales.push({
+            id: doc.id,
+            ...doc.data(),
+            sale_date: (doc.data().sale_date as Timestamp).toDate().toISOString(),
+        } as Sale);
+    });
+    
+    // Manual filtering by date
+    const filteredSales = allSales.filter(sale => 
+        isWithinInterval(new Date(sale.sale_date), { start: startDate, end: endDate })
+    );
+
+    filteredSales.forEach(sale => {
+        totalSales += sale.total_amount;
     });
 
-    const transactionCount = sales.length;
+    const transactionCount = filteredSales.length;
     
-    sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
+    filteredSales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
 
     return {
       success: true,
-      data: { sales, totalSales, transactionCount },
+      data: { sales: filteredSales, totalSales, transactionCount },
       message: 'Report generated successfully.',
     };
 
