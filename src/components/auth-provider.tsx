@@ -30,10 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
         const { auth } = getFirebaseServices();
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          setUser(user);
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+          setUser(currentUser);
           setLoading(false);
-          if (!user && pathname !== '/login') {
+          if (!currentUser && pathname !== '/login') {
             router.push('/login');
           }
         });
@@ -65,10 +65,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // Only render children if the user is authenticated and we are not on the login page
+  if (user && pathname !== '/login') {
+    return (
+        <AuthContext.Provider value={{ user }}>
+            {children}
+        </AuthContext.Provider>
+    );
+  }
+  
+  // If no user and not on login page, the loading spinner is shown until redirection happens
   return (
-    <AuthContext.Provider value={{ user }}>
-        {children}
-    </AuthContext.Provider>
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
   );
 }
 
