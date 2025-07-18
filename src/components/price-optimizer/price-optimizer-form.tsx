@@ -95,70 +95,75 @@ function PriceOptimizerFormContent() {
   
     return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-      <Card className="lg:col-span-2">
+      <div className="lg:col-span-2">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardHeader>
-              <CardTitle>Product Information</CardTitle>
-              <CardDescription>
-                Provide details about the product to get a price suggestion.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="productName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Product Name</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="productCategory"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Product Category</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="costPrice"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cost Price (LKR)</FormLabel>
-                      <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="competitorPrices"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Competitor Prices (comma-separated)</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <Separator />
-               <div>
-                <h3 className="text-lg font-medium">Historical Sales Data (Optional)</h3>
-                <div className="space-y-4 mt-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <Card>
+                <CardHeader>
+                <CardTitle>Product Information</CardTitle>
+                <CardDescription>
+                    Provide details about the product to get a price suggestion.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <FormField
+                    control={form.control}
+                    name="productName"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Product Name</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="productCategory"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Product Category</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <FormField
+                    control={form.control}
+                    name="costPrice"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Cost Price (LKR)</FormLabel>
+                        <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="competitorPrices"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Competitor Prices (comma-separated)</FormLabel>
+                        <FormControl><Input {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                  <CardTitle>Historical Sales Data (Optional)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                   {fields.map((field, index) => (
-                    <div key={field.id} className="grid grid-cols-1 gap-2 rounded-lg border p-4 md:grid-cols-4">
+                    <div key={field.id} className="grid grid-cols-1 gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4">
                       <FormField
                         control={form.control}
                         name={`salesData.${index}.date`}
@@ -180,9 +185,10 @@ function PriceOptimizerFormContent() {
                            <FormItem><FormLabel>Price (LKR)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
                         )}
                       />
-                      <div className="flex items-end">
+                      <div className="flex items-end self-end justify-self-end">
                          <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}>
                             <Trash className="h-4 w-4" />
+                            <span className="sr-only">Remove entry</span>
                         </Button>
                       </div>
                     </div>
@@ -195,18 +201,17 @@ function PriceOptimizerFormContent() {
                   >
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Sales Entry
                   </Button>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={loading}>
-                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                Suggest Price
-              </Button>
-            </CardFooter>
+              </CardContent>
+              <CardFooter>
+                <Button type="submit" disabled={loading}>
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  Suggest Price
+                </Button>
+              </CardFooter>
+            </Card>
           </form>
         </Form>
-      </Card>
+      </div>
 
       <div className="lg:col-span-1">
         <Card className="sticky top-24">

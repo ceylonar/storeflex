@@ -48,6 +48,7 @@ import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { createProduct, updateProduct, deleteProduct } from '@/lib/queries';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { ScrollArea } from '../ui/scroll-area';
 
 type FormState = 'add' | 'edit';
 
@@ -120,12 +121,12 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
             <div>
                 <CardTitle>Products</CardTitle>
                 <CardDescription>A list of all products in your inventory.</CardDescription>
             </div>
-            <Button size="sm" className="gap-1" onClick={() => handleOpenDialog('add')}>
+            <Button size="sm" className="gap-1 w-full sm:w-auto" onClick={() => handleOpenDialog('add')}>
               <PlusCircle className="h-4 w-4" />
               Add Product
             </Button>
@@ -135,14 +136,13 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden w-[100px] sm:table-cell">
+              <TableHead className="hidden w-[80px] sm:table-cell">
                 <span className="sr-only">Image</span>
               </TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="hidden md:table-cell">Stock</TableHead>
-              <TableHead className="hidden md:table-cell">Cost Price</TableHead>
+              <TableHead className="hidden lg:table-cell">SKU</TableHead>
+              <TableHead className="hidden md:table-cell">Category</TableHead>
+              <TableHead>Stock</TableHead>
               <TableHead>Selling Price</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
@@ -153,18 +153,17 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
             {products.map((product) => (
               <TableRow key={product.id}>
                 <TableCell className="hidden sm:table-cell">
-                  <Avatar className="h-16 w-16 rounded-md">
+                  <Avatar className="h-12 w-12 rounded-md">
                     <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" className="aspect-square object-cover" />
                     <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell>{product.sku}</TableCell>
-                <TableCell>
+                <TableCell className="hidden lg:table-cell">{product.sku}</TableCell>
+                <TableCell className="hidden md:table-cell">
                   <Badge variant="outline">{product.category}</Badge>
                 </TableCell>
-                <TableCell className="hidden md:table-cell">{product.stock}</TableCell>
-                <TableCell className="hidden md:table-cell">LKR {Number(product.cost_price).toFixed(2)}</TableCell>
+                <TableCell>{product.stock}</TableCell>
                 <TableCell>LKR {Number(product.selling_price).toFixed(2)}</TableCell>
                 <TableCell>
                   <DropdownMenu>
@@ -208,55 +207,61 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
         </Table>
       </CardContent>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <form ref={formRef} onSubmit={handleSubmit}>
-              <DialogHeader>
-                <DialogTitle>{formState === 'add' ? 'Add New Product' : 'Edit Product'}</DialogTitle>
-                <DialogDescription>
-                  Fill in the details for the product.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">Name</Label>
-                  <Input id="name" name="name" defaultValue={selectedProduct.name} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="sku" className="text-right">SKU</Label>
-                  <Input id="sku" name="sku" defaultValue={selectedProduct.sku} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="category" className="text-right">Category</Label>
-                  <Input id="category" name="category" defaultValue={selectedProduct.category} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="stock" className="text-right">Stock</Label>
-                  <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="cost_price" className="text-right">Cost Price (LKR)</Label>
-                  <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="selling_price" className="text-right">Selling Price (LKR)</Label>
-                  <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} className="col-span-3" />
-                </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="low_stock_threshold" className="text-right">Low Stock Level</Label>
-                  <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} className="col-span-3" />
-                </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="image" className="text-right">Image URL</Label>
-                  <Input id="image" name="image" defaultValue={selectedProduct.image} className="col-span-3" />
-                </div>
-              </div>
-              <DialogFooter>
-                  <DialogClose asChild>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{formState === 'add' ? 'Add New Product' : 'Edit Product'}</DialogTitle>
+              <DialogDescription>
+                Fill in the details for the product.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+                <form ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input id="name" name="name" defaultValue={selectedProduct.name} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="sku">SKU</Label>
+                        <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="category">Category</Label>
+                        <Input id="category" name="category" defaultValue={selectedProduct.category} />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="stock">Stock</Label>
+                        <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="low_stock_threshold">Low Stock Level</Label>
+                        <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} />
+                        </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="cost_price">Cost Price (LKR)</Label>
+                        <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="selling_price">Selling Price (LKR)</Label>
+                        <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="image">Image URL</Label>
+                        <Input id="image" name="image" defaultValue={selectedProduct.image} />
+                    </div>
+                </form>
+            </ScrollArea>
+            <DialogFooter className="pt-4">
+                <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancel</Button>
-                  </DialogClose>
-                  <Button type="submit">Save Product</Button>
-              </DialogFooter>
-            </form>
+                </DialogClose>
+                <Button type="submit" onClick={() => formRef.current?.requestSubmit()}>Save Product</Button>
+            </DialogFooter>
           </DialogContent>
       </Dialog>
     </Card>

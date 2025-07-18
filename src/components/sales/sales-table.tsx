@@ -62,6 +62,7 @@ import { format } from 'date-fns';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { ScrollArea } from '../ui/scroll-area';
 
 type FormState = 'add' | 'edit';
 type LastEditedField = 'unit_price' | 'total_amount' | null;
@@ -182,12 +183,12 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
             <div>
                 <CardTitle>Sales Records</CardTitle>
                 <CardDescription>A list of all recorded sales.</CardDescription>
             </div>
-            <Button size="sm" className="gap-1" onClick={() => handleOpenDialog('add')}>
+            <Button size="sm" className="gap-1 w-full sm:w-auto" onClick={() => handleOpenDialog('add')}>
               <PlusCircle className="h-4 w-4" />
               Add Sale
             </Button>
@@ -197,14 +198,13 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="hidden w-[100px] sm:table-cell">
+              <TableHead className="hidden w-[80px] sm:table-cell">
                 <span className="sr-only">Image</span>
               </TableHead>
               <TableHead>Product Name</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Quantity</TableHead>
-              <TableHead className="text-right">Unit Price</TableHead>
-              <TableHead className="text-right">Total Amount</TableHead>
+              <TableHead className="hidden md:table-cell">Date</TableHead>
+              <TableHead className="text-right">Qty</TableHead>
+              <TableHead className="text-right hidden sm:table-cell">Total</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -214,16 +214,18 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
             {sales.map((sale) => (
               <TableRow key={sale.id}>
                  <TableCell className="hidden sm:table-cell">
-                  <Avatar className="h-16 w-16 rounded-md">
+                  <Avatar className="h-12 w-12 rounded-md">
                     <AvatarImage src={sale.product_image || 'https://placehold.co/64x64.png'} alt={sale.product_name} data-ai-hint="product image" className="aspect-square object-cover" />
                     <AvatarFallback>{sale.product_name.charAt(0)}</AvatarFallback>
                   </Avatar>
                 </TableCell>
-                <TableCell className="font-medium">{sale.product_name}</TableCell>
-                <TableCell>{format(new Date(sale.sale_date), 'PPP')}</TableCell>
+                <TableCell className="font-medium">
+                  <div>{sale.product_name}</div>
+                  <div className="text-muted-foreground text-sm md:hidden">{format(new Date(sale.sale_date), 'PPP')}</div>
+                </TableCell>
+                <TableCell className="hidden md:table-cell">{format(new Date(sale.sale_date), 'PPP')}</TableCell>
                 <TableCell className="text-right">{sale.quantity}</TableCell>
-                <TableCell className="text-right">LKR {Number(sale.price_per_unit).toFixed(2)}</TableCell>
-                <TableCell className="text-right">LKR {Number(sale.total_amount).toFixed(2)}</TableCell>
+                <TableCell className="text-right hidden sm:table-cell">LKR {Number(sale.total_amount).toFixed(2)}</TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -266,106 +268,108 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
         </Table>
       </CardContent>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <form ref={formRef} onSubmit={handleSubmit}>
-              <DialogHeader>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
                 <DialogTitle>{formState === 'add' ? 'Add New Sale' : 'Edit Sale'}</DialogTitle>
                 <DialogDescription>
-                  Fill in the details for the sale. Click save when you're done.
+                    Fill in the details for the sale. Click save when you're done.
                 </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="product_id" className="text-right">Product</Label>
-                   <Select 
-                     name="product_id" 
-                     value={selectedSale.product_id}
-                     onValueChange={handleProductChange}
-                     required
-                   >
-                    <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {products.map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="sale_date" className="text-right">Sale Date</Label>
-                   <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "col-span-3 justify-start text-left font-normal",
-                          !selectedDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={setSelectedDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="quantity" className="text-right">Quantity</Label>
-                  <Input 
-                    id="quantity" 
-                    name="quantity" 
-                    type="number" 
-                    value={selectedSale.quantity}
-                    onChange={(e) => {
-                      handleValueChange('quantity', e.target.value);
-                      if (!lastEdited) setLastEdited('unit_price');
-                    }}
-                    className="col-span-3" required 
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="price_per_unit" className="text-right">Unit Price (LKR)</Label>
-                  <Input 
-                    id="price_per_unit" 
-                    name="price_per_unit" 
-                    type="number" 
-                    step="0.01" 
-                    value={selectedSale.price_per_unit}
-                    onFocus={() => setLastEdited('unit_price')}
-                    onChange={(e) => handleValueChange('price_per_unit', e.target.value)} 
-                    className="col-span-3" required 
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="total_amount" className="text-right">Total (LKR)</Label>
-                  <Input 
-                    id="total_amount" 
-                    name="total_amount" 
-                    type="number" 
-                    step="0.01" 
-                    value={selectedSale.total_amount}
-                    onFocus={() => setLastEdited('total_amount')}
-                    onChange={(e) => handleValueChange('total_amount', e.target.value)} 
-                    className="col-span-3" required 
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="secondary">Cancel</Button>
-                  </DialogClose>
-                  <Button type="submit">Save Sale</Button>
-              </DialogFooter>
-            </form>
+            </DialogHeader>
+            <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+                <form ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="product_id">Product</Label>
+                        <Select 
+                            name="product_id" 
+                            value={selectedSale.product_id}
+                            onValueChange={handleProductChange}
+                            required
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a product" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {products.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="sale_date">Sale Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !selectedDate && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={setSelectedDate}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="quantity">Quantity</Label>
+                        <Input 
+                            id="quantity" 
+                            name="quantity" 
+                            type="number" 
+                            value={selectedSale.quantity}
+                            onChange={(e) => {
+                            handleValueChange('quantity', e.target.value);
+                            if (!lastEdited) setLastEdited('unit_price');
+                            }}
+                            required 
+                        />
+                    </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="price_per_unit">Unit Price (LKR)</Label>
+                            <Input 
+                                id="price_per_unit" 
+                                name="price_per_unit" 
+                                type="number" 
+                                step="0.01" 
+                                value={selectedSale.price_per_unit}
+                                onFocus={() => setLastEdited('unit_price')}
+                                onChange={(e) => handleValueChange('price_per_unit', e.target.value)} 
+                                required 
+                            />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="total_amount">Total (LKR)</Label>
+                            <Input 
+                                id="total_amount" 
+                                name="total_amount" 
+                                type="number" 
+                                step="0.01" 
+                                value={selectedSale.total_amount}
+                                onFocus={() => setLastEdited('total_amount')}
+                                onChange={(e) => handleValueChange('total_amount', e.target.value)} 
+                                required 
+                            />
+                        </div>
+                    </div>
+                </form>
+            </ScrollArea>
+            <DialogFooter className="pt-4">
+                <DialogClose asChild>
+                <Button type="button" variant="secondary">Cancel</Button>
+                </DialogClose>
+                <Button type="submit" onClick={() => formRef.current?.requestSubmit()}>Save Sale</Button>
+            </DialogFooter>
           </DialogContent>
       </Dialog>
     </Card>

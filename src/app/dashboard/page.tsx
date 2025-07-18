@@ -9,8 +9,8 @@ export default async function DashboardPage() {
   const topProducts = await fetchTopSellingProducts();
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-4">
+    <div className="space-y-6 md:space-y-8">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard 
           title="Inventory Value" 
           value={`LKR ${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
@@ -37,20 +37,20 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:gap-8 xl:grid-cols-3">
         <div className="xl:col-span-2">
             <DynamicSalesChart salesData={salesData} />
         </div>
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1">
              <DynamicTopSellingProductsChart products={topProducts} />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-3">
-         <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 gap-6 md:gap-8 xl:grid-cols-3">
+         <div className="xl:col-span-2">
             <LowStockCard products={dashboardData.lowStockProducts} />
         </div>
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1">
             <RecentActivityCard activities={dashboardData.recentActivities} />
         </div>
       </div>
