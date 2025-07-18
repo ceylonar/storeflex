@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Store } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createInitialStoreForUser } from '@/lib/queries';
 
 type AuthMode = 'login' | 'signup';
 
@@ -44,9 +45,15 @@ export default function LoginPage() {
         await signInWithEmailAndPassword(auth, email, password);
         router.push('/dashboard');
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-        // After signup, redirect to the welcome page to collect profile info
-        router.push('/welcome');
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        if (user) {
+            await createInitialStoreForUser({
+                uid: user.uid,
+                email: user.email || '',
+            });
+        }
+        router.push('/dashboard');
       }
     } catch (error) {
       toast({

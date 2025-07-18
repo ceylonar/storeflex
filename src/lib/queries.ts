@@ -68,7 +68,6 @@ const UserProfileSchema = z.object({
 interface CreateUserArgs {
     uid: string;
     email: string;
-    profileData: z.infer<typeof UserProfileSchema>;
 }
 
 
@@ -196,40 +195,34 @@ export async function fetchStores() {
     }
 }
 
-export async function createInitialStoreForUser({ uid, email, profileData }: CreateUserArgs): Promise<{ success: boolean; message: string; }> {
+export async function createInitialStoreForUser({ uid, email }: CreateUserArgs): Promise<{ success: boolean; message: string; }> {
     const { db } = getFirebaseServices();
 
     if (!uid) {
         return { success: false, message: 'User is not authenticated. Please log in.' };
     }
 
-    const validatedFields = UserProfileSchema.safeParse(profileData);
-    if(!validatedFields.success) {
-        return { success: false, message: 'Invalid profile data.'};
-    }
-    const data = validatedFields.data;
-
     try {
         const batch = writeBatch(db);
 
         const userRef = doc(db, 'users', uid);
         batch.set(userRef, {
-            ...data,
             email,
             id: uid,
+            name: email.split('@')[0] || 'New User',
+            businessName: `${email.split('@')[0]}'s Store`,
             created_at: serverTimestamp()
         });
         
         const storesCollection = collection(db, 'stores');
         const newStoreRef = doc(storesCollection);
         batch.set(newStoreRef, {
-            name: data.businessName || 'My First Store',
+            name: `${email.split('@')[0]}'s Store`,
             userId: uid,
             created_at: serverTimestamp()
         });
 
         await batch.commit();
-        revalidatePath('/dashboard/settings');
         return { success: true, message: 'User profile and store created.' };
     } catch (error) {
         console.error('Failed to create initial user data:', error);
