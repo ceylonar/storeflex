@@ -34,6 +34,7 @@ const ProductSchema = z.object({
   cost_price: z.coerce.number().positive('Cost price must be positive'),
   selling_price: z.coerce.number().positive('Selling price must be positive'),
   image: z.string().url('Must be a valid image URL').optional().or(z.literal('')),
+  low_stock_threshold: z.coerce.number().int().nonnegative('Low stock threshold must be a non-negative number'),
 });
 
 const SaleSchema = z.object({
@@ -158,14 +159,26 @@ export async function fetchDashboardData() {
         const productsCollection = collection(db, 'products');
         const salesCollection = collection(db, 'sales');
 
-        // Inventory Value & Product Count
         const productsSnapshot = await getDocs(productsCollection);
         let inventoryValue = 0;
+        const allProducts: Product[] = [];
+
         productsSnapshot.forEach(doc => {
-            const product = doc.data() as Omit<Product, 'id'>;
+            const product = { id: doc.id, ...doc.data() } as Omit<Product, 'created_at' | 'updated_at'> & { created_at: Timestamp, updated_at: Timestamp };
             inventoryValue += (product.stock || 0) * (product.cost_price || 0);
+            allProducts.push({
+                ...product,
+                created_at: product.created_at.toDate().toISOString(),
+                updated_at: product.updated_at.toDate().toISOString(),
+            });
         });
+
         const productCount = productsSnapshot.size;
+
+        const lowStockProducts = allProducts
+            .filter(p => p.stock < p.low_stock_threshold)
+            .sort((a, b) => a.stock - b.stock)
+            .slice(0, 5);
 
         // Sales (Today)
         const todayStart = startOfDay(new Date());
@@ -197,19 +210,6 @@ export async function fetchDashboardData() {
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
-
-        // Low Stock Products
-        const lowStockQuery = query(productsCollection, where('stock', '<', 5), orderBy('stock', 'asc'), limit(5));
-        const lowStockSnapshot = await getDocs(lowStockQuery);
-        const lowStockProducts = lowStockSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                created_at: (data.created_at?.toDate() || new Date()).toISOString(),
-                updated_at: (data.updated_at?.toDate() || new Date()).toISOString(),
-            }
-        }) as Product[];
 
         return {
             inventoryValue,

@@ -51,7 +51,7 @@ import { createProduct, updateProduct, deleteProduct } from '@/lib/queries';
 
 type FormState = 'add' | 'edit';
 
-const initialProductState = {
+const initialProductState: Partial<Product> = {
   id: '',
   name: '',
   sku: '',
@@ -60,6 +60,7 @@ const initialProductState = {
   cost_price: 0,
   selling_price: 0,
   image: '',
+  low_stock_threshold: 5,
 };
 
 export function InventoryTable({ initialProducts }: { initialProducts: Product[] }) {
@@ -211,7 +212,7 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
         </Table>
       </CardContent>
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-md">
             <form ref={formRef} onSubmit={handleSubmit}>
               <DialogHeader>
                 <DialogTitle>{formState === 'add' ? 'Add New Product' : 'Edit Product'}</DialogTitle>
@@ -243,6 +244,10 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="selling_price" className="text-right">Selling Price (LKR)</Label>
                   <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} className="col-span-3" />
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="low_stock_threshold" className="text-right">Low Stock Level</Label>
+                  <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} className="col-span-3" />
                 </div>
                  <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="image" className="text-right">Image URL</Label>
