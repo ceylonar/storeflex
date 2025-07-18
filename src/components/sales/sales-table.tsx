@@ -103,6 +103,21 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
       setSelectedSale(prev => ({ ...prev, [field]: value }));
   }
 
+  const handleProductChange = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+        const quantity = Number(selectedSale.quantity) || 1;
+        const pricePerUnit = product.selling_price;
+        setSelectedSale(prev => ({
+            ...prev,
+            product_id: productId,
+            price_per_unit: pricePerUnit,
+            total_amount: quantity * pricePerUnit,
+        }));
+    }
+  }
+
+
   React.useEffect(() => {
     if (!isDialogOpen) return;
 
@@ -267,7 +282,12 @@ export function SalesTable({ initialSales, products }: { initialSales: Sale[], p
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="product_id" className="text-right">Product</Label>
-                   <Select name="product_id" defaultValue={selectedSale.product_id} required>
+                   <Select 
+                     name="product_id" 
+                     value={selectedSale.product_id}
+                     onValueChange={handleProductChange}
+                     required
+                   >
                     <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select a product" />
                     </SelectTrigger>

@@ -120,10 +120,14 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
     const productsCollection = collection(db, 'products');
     const q = query(productsCollection, orderBy('name', 'asc'));
     const querySnapshot = await getDocs(q);
-    const products = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      name: doc.data().name as string,
-    }));
+    const products = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name as string,
+        selling_price: data.selling_price as number,
+      }
+    });
     return products;
   } catch (error) {
     console.error('Database Error:', error);

@@ -20,6 +20,7 @@ export type Product = {
 export type ProductSelect = {
   id: string;
   name: string;
+  selling_price: number;
 }
 
 export type RecentActivity = {
