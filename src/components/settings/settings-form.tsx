@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { updateUserProfile } from '@/lib/queries';
 import { Loader2, Save, RefreshCw } from 'lucide-react';
+import { Settings } from 'lucide-react';
 
 const settingsFormSchema = z.object({
   googleSheetUrl: z.string().url('Please enter a valid URL').optional().or(z.literal('')),
@@ -114,12 +115,12 @@ export function SettingsForm({ userProfile }: { userProfile: UserProfile | null 
           </CardContent>
           <CardFooter className="justify-between border-t px-6 py-4">
              <Button type="button" variant="outline" onClick={handleManualSync} disabled={syncLoading || !form.getValues('googleSheetUrl')}>
-                 {syncLoading ? <Loader2 className="mr-2 animate-spin" /> : <RefreshCw className="mr-2" />}
+                 {syncLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 Manual Sync
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 animate-spin" />}
-              <Save className="mr-2" />
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Save className="mr-2 h-4 w-4" />
               Save
             </Button>
           </CardFooter>

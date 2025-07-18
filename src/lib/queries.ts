@@ -505,8 +505,8 @@ export async function updateUserProfile(formData: FormData) {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('User not authenticated.');
     
-    // We only care about the googleSheetUrl for now, but keep the schema for future edits
-    const validatedFields = UserProfileSchema.partial().safeParse(Object.fromEntries(formData.entries()));
+    const profileData = Object.fromEntries(formData.entries());
+    const validatedFields = UserProfileSchema.partial().safeParse(profileData);
 
     if (!validatedFields.success) {
         console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
