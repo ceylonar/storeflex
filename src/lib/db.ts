@@ -1,4 +1,7 @@
 import {Pool} from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
 
 if (!process.env.POSTGRES_URL) {
   throw new Error('Missing POSTGRES_URL environment variable');
