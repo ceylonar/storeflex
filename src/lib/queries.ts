@@ -20,7 +20,7 @@ import {
   Timestamp,
   runTransaction
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, TopSellingProduct } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths } from 'date-fns';
 
@@ -261,6 +261,35 @@ export async function fetchSalesData(): Promise<SalesData[]> {
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch sales data.');
+    }
+}
+
+export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
+    noStore();
+    try {
+        const salesCollection = collection(db, 'sales');
+        const salesSnapshot = await getDocs(salesCollection);
+
+        const productSales: Record<string, number> = {};
+
+        salesSnapshot.docs.forEach(doc => {
+            const sale = doc.data() as Omit<Sale, 'id'>;
+            if (productSales[sale.product_name]) {
+                productSales[sale.product_name] += sale.total_amount;
+            } else {
+                productSales[sale.product_name] = sale.total_amount;
+            }
+        });
+
+        const sortedProducts = Object.entries(productSales)
+            .map(([name, totalSales]) => ({ name, totalSales }))
+            .sort((a, b) => b.totalSales - a.totalSales);
+            
+        return sortedProducts.slice(0, 5);
+
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch top selling products.');
     }
 }
 

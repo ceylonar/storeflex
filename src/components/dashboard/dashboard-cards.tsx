@@ -19,8 +19,8 @@ import {
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import type { Product, RecentActivity, SalesData } from '@/lib/types';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, LabelList, Legend } from 'recharts';
+import type { Product, RecentActivity, SalesData, TopSellingProduct } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard } from 'lucide-react';
@@ -88,6 +88,46 @@ export function SalesChartCard({ salesData }: { salesData: SalesData[] }) {
               cursor={{fill: 'hsla(var(--primary), 0.1)'}}
             />
             <Bar dataKey="sales" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function TopSellingProductsCard({ products }: { products: TopSellingProduct[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Top Selling Products</CardTitle>
+        <CardDescription>Your best-performing products by revenue.</CardDescription>
+      </CardHeader>
+      <CardContent className="pr-0">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart layout="vertical" data={products} margin={{ left: -10 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis 
+                type="number" 
+                stroke="#888888"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `LKR ${value/1000}k`}
+            />
+            <YAxis 
+                type="category" 
+                dataKey="name" 
+                stroke="#888888"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+                width={80}
+            />
+             <Tooltip
+              contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", borderRadius: "var(--radius)" }}
+              cursor={{fill: 'hsla(var(--primary), 0.1)'}}
+            />
+            <Bar dataKey="totalSales" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
