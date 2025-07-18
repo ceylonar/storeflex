@@ -140,7 +140,17 @@ function ActivityTime({ timestamp }: { timestamp: string }) {
   const [timeAgo, setTimeAgo] = useState('');
 
   useEffect(() => {
-    setTimeAgo(formatDistanceToNow(new Date(timestamp), { addSuffix: true }));
+    // Ensure timestamp is a valid string before creating a Date object
+    if (timestamp) {
+      try {
+        setTimeAgo(formatDistanceToNow(new Date(timestamp), { addSuffix: true }));
+      } catch (error) {
+        console.error("Error formatting date:", error);
+        setTimeAgo("Invalid date");
+      }
+    } else {
+        setTimeAgo("A while ago");
+    }
   }, [timestamp]);
 
   return <>{timeAgo}</>;

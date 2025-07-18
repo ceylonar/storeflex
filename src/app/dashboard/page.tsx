@@ -22,7 +22,7 @@ export default async function DashboardPage() {
         />
         <StatCard 
           title="Sales (Today)" 
-          value="12,897" 
+          value="$12,897" 
           iconName="ShoppingCart" 
           description="+15% from yesterday" 
         />

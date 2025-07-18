@@ -15,7 +15,8 @@ import {
   serverTimestamp,
   where,
   limit,
-  getCountFromServer
+  getCountFromServer,
+  getDoc
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store } from './types';
 import { z } from 'zod';
@@ -26,7 +27,7 @@ const ProductSchema = z.object({
   sku: z.string().min(1, 'SKU is required'),
   name: z.string().min(1, 'Product name is required'),
   category: z.string().min(1, 'Category is required'),
-  stock: z.coerce.number().int().nonnegative('Stock must be a positive number'),
+  stock: z.coerce.number().int().nonnegative('Stock must be a non-negative number'),
   cost_price: z.coerce.number().positive('Cost price must be positive'),
   selling_price: z.coerce.number().positive('Selling price must be positive'),
   image: z.string().url('Must be a valid image URL').optional().or(z.literal('')),
@@ -118,8 +119,7 @@ export async function fetchDashboardData() {
             inventoryValue += (product.stock || 0) * (product.cost_price || 0);
         });
 
-        const productCountSnapshot = await getCountFromServer(productsCollection);
-        const productCount = productCountSnapshot.data().count;
+        const productCount = productsSnapshot.size;
 
         // Recent Activities
         const activityCollection = collection(db, 'recent_activity');
@@ -226,14 +226,15 @@ export async function deleteProduct(id: string) {
   const productRef = doc(db, 'products', id);
 
   try {
-    // Note: To get product name for activity log, we would need to fetch the doc first.
-    // For simplicity here, we'll log a generic message.
+    const productDoc = await getDoc(productRef);
+    const productName = productDoc.exists() ? productDoc.data().name : `Product ID: ${id}`;
+    
     await deleteDoc(productRef);
     
     const activityCollection = collection(db, 'recent_activity');
     await addDoc(activityCollection, {
         type: 'delete',
-        product_name: `Product ID: ${id}`,
+        product_name: productName,
         details: 'Product removed from inventory',
         timestamp: serverTimestamp()
     });
