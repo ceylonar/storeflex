@@ -1,19 +1,10 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /products/{productId} {
-      // Allow reading single documents and listing the collection
-      allow get, list: if true;
-      // Allow creating, updating, and deleting documents
-      allow write: if true;
-    }
-    match /stores/{storeId} {
-      allow get, list: if true;
-      allow write: if true;
-    }
-    match /recent_activity/{activityId} {
-      allow get, list: if true;
-      allow write: if true;
+    // Allow read and write access to all documents in all collections
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }
