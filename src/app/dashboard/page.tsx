@@ -1,5 +1,7 @@
-import { StatCard, SalesChartCard, LowStockCard, RecentActivityCard, TopSellingProductsCard } from '@/components/dashboard/dashboard-cards';
+import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
 import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/lib/queries';
+import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
+import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
 
 export default async function DashboardPage() {
   const dashboardData = await fetchDashboardData();
@@ -37,10 +39,10 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 md:gap-8 lg:grid-cols-2 xl:grid-cols-3">
         <div className="xl:col-span-2">
-            <SalesChartCard salesData={salesData} />
+            <DynamicSalesChart salesData={salesData} />
         </div>
         <div className="lg:col-span-1">
-             <TopSellingProductsCard products={topProducts} />
+             <DynamicTopSellingProductsChart products={topProducts} />
         </div>
       </div>
 
