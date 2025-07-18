@@ -19,9 +19,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import type { RecentActivity } from '@/lib/types';
 import { format } from 'date-fns';
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+
+function FormattedDate({ timestamp }: { timestamp: string }) {
+    const [date, setDate] = React.useState('');
+
+    React.useEffect(() => {
+        if(timestamp) {
+            try {
+                setDate(format(new Date(timestamp), 'PPP p'));
+            } catch (error) {
+                console.error("Failed to format date:", error);
+                setDate("Invalid Date");
+            }
+        }
+    }, [timestamp]);
+
+    return <>{date || '...'}</>;
+}
 
 
 export function ActivityTable({ activities }: { activities: RecentActivity[] }) {
@@ -73,7 +89,7 @@ export function ActivityTable({ activities }: { activities: RecentActivity[] }) 
                 </TableCell>
                 <TableCell>{activity.details}</TableCell>
                 <TableCell className="text-right">
-                  {format(new Date(activity.timestamp), 'PPP p')}
+                  <FormattedDate timestamp={activity.timestamp} />
                 </TableCell>
               </TableRow>
             ))}

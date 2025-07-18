@@ -24,7 +24,7 @@ import type { Product, RecentActivity, SalesData } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import { useEffect, useState } from 'react';
 
 const icons = {
