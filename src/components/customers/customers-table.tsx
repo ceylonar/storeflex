@@ -57,12 +57,14 @@ const initialCustomerState: Partial<Customer> = {
 };
 
 interface CustomersTableProps {
-    initialCustomers: Customer[];
+    customers: Customer[];
     onViewHistory: (customer: Customer) => void;
+    onCustomerCreated: (customer: Customer) => void;
+    onCustomerUpdated: (customer: Customer) => void;
+    onCustomerDeleted: (id: string) => void;
 }
 
-export function CustomersTable({ initialCustomers, onViewHistory }: CustomersTableProps) {
-  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+export function CustomersTable({ customers, onViewHistory, onCustomerCreated, onCustomerUpdated, onCustomerDeleted }: CustomersTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedCustomer, setSelectedCustomer] = React.useState<Partial<Customer>>(initialCustomerState);
@@ -78,7 +80,7 @@ export function CustomersTable({ initialCustomers, onViewHistory }: CustomersTab
   const handleDelete = async (id: string) => {
     try {
       await deleteCustomer(id);
-      setCustomers(customers.filter(c => c.id !== id));
+      onCustomerDeleted(id);
       toast({
         title: 'Success',
         description: 'Customer deleted successfully.',
@@ -99,14 +101,15 @@ export function CustomersTable({ initialCustomers, onViewHistory }: CustomersTab
       if (formState === 'add') {
         const newCustomer = await createCustomer(formData);
         if (newCustomer) {
-            setCustomers(prev => [newCustomer, ...prev]);
+            onCustomerCreated(newCustomer);
+            toast({ title: 'Success', description: 'Customer added.' });
         }
-        toast({ title: 'Success', description: 'Customer added.' });
       } else if (selectedCustomer.id) {
-        await updateCustomer(selectedCustomer.id, formData);
-        const updatedCustomers = customers.map(c => c.id === selectedCustomer.id ? {...c, ...Object.fromEntries(formData)} : c);
-        setCustomers(updatedCustomers as Customer[]);
-        toast({ title: 'Success', description: 'Customer updated.' });
+        const updatedCustomerData = await updateCustomer(selectedCustomer.id, formData);
+        if (updatedCustomerData) {
+            onCustomerUpdated(updatedCustomerData);
+            toast({ title: 'Success', description: 'Customer updated.' });
+        }
       }
       setIsDialogOpen(false);
     } catch (error) {

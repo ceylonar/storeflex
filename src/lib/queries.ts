@@ -352,7 +352,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     }
 }
 
-export async function updateCustomer(id: string, formData: FormData) {
+export async function updateCustomer(id: string, formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
 
@@ -367,9 +367,25 @@ export async function updateCustomer(id: string, formData: FormData) {
         if (!docSnap.exists() || docSnap.data().userId !== userId) {
             throw new Error("Customer not found or access denied.");
         }
-        await updateDoc(customerRef, validatedFields.data);
+        
+        const updatedData = {
+            ...validatedFields.data,
+            updated_at: serverTimestamp(),
+        }
+        await updateDoc(customerRef, updatedData);
+
         revalidatePath('/dashboard/customers');
         revalidatePath('/dashboard/sales');
+
+        const updatedDoc = await getDoc(customerRef);
+        const data = updatedDoc.data();
+        return {
+            id: updatedDoc.id,
+            ...data,
+            created_at: (data.created_at as Timestamp)?.toDate().toISOString(),
+            updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
+        } as Customer;
+
     } catch (error) {
         throw new Error("Failed to update customer.");
     }
@@ -765,7 +781,6 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
             } as Purchase
         });
         
-        // Sort in-memory to avoid composite index requirement
         purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
         
         return purchases;
