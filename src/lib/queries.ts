@@ -963,7 +963,7 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
     const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'));
+        const activityQuery = query(activityCollection, where('userId', '==', userId));
         const activitySnapshot = await getDocs(activityQuery);
         const activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -973,6 +973,10 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
+        
+        // Sort in-memory to avoid composite index requirement
+        activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
         return activities;
     } catch (error) {
         console.error('Database Error:', error);
