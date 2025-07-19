@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -219,6 +220,7 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
                   activity.type === 'update' && 'text-blue-500',
                   activity.type === 'new' && 'text-purple-500',
                   activity.type === 'delete' && 'text-destructive',
+                  activity.type === 'purchase' && 'text-green-500',
                 )}>({activity.type})</span>
               </p>
               <p className="text-sm text-muted-foreground">{activity.details}</p>

@@ -40,7 +40,7 @@ export type ProductSelect = {
 export type RecentActivity = {
   id: string;
   userId: string;
-  type: 'sale' | 'update' | 'new' | 'delete';
+  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase';
   product_name: string;
   product_image?: string;
   details: string;
@@ -90,3 +90,30 @@ export type Customer = {
   phone: string;
   created_at: string;
 };
+
+export type Supplier = {
+  id: string;
+  userId: string;
+  name: string;
+  phone: string;
+  created_at: string;
+};
+
+export type PurchaseItem = {
+  id: string;
+  name: string;
+  image?: string;
+  quantity: number;
+  cost_price: number;
+  total_cost: number;
+};
+
+export type Purchase = {
+  id: string;
+  userId: string;
+  supplier_id: string;
+  supplier_name: string;
+  items: PurchaseItem[];
+  total_amount: number;
+  purchase_date: string; // ISO String
+}

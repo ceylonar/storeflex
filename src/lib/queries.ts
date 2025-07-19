@@ -20,8 +20,9 @@ import {
   Timestamp,
   runTransaction,
   setDoc,
+  increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 
@@ -53,6 +54,13 @@ const CustomerSchema = z.object({
     phone: z.string().optional(),
 });
 
+const SupplierSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(1, "Supplier name is required"),
+    phone: z.string().optional(),
+});
+
+
 const SaleItemSchema = z.object({
     id: z.string(),
     name: z.string(),
@@ -73,6 +81,22 @@ const POSSaleSchema = z.object({
   discount_amount: z.number().nonnegative(),
   service_charge: z.number().nonnegative(),
   total: z.number().nonnegative(),
+});
+
+const PurchaseItemSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().optional(),
+    quantity: z.number().int().positive(),
+    cost_price: z.number().positive(),
+    total_cost: z.number().positive(),
+});
+
+const POSPurchaseSchema = z.object({
+  items: z.array(PurchaseItemSchema).min(1, 'At least one item is required.'),
+  supplier_id: z.string(),
+  supplier_name: z.string(),
+  totalAmount: z.number().nonnegative(),
 });
 
 
@@ -473,6 +497,205 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
     throw new Error('Failed to fetch products for select.');
   }
 }
+
+// --- SUPPLIER & PURCHASE QUERIES ---
+
+export async function createSupplier(formData: FormData): Promise<Supplier | null> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    const validatedFields = SupplierSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
+
+    if (!validatedFields.success) {
+        throw new Error("Invalid supplier data.");
+    }
+
+    try {
+        const suppliersCollection = collection(db, 'suppliers');
+        const newSupplierRef = doc(suppliersCollection);
+        
+        const newSupplierData = {
+            ...validatedFields.data,
+            id: newSupplierRef.id,
+            userId,
+            created_at: serverTimestamp(),
+        }
+
+        await setDoc(newSupplierRef, newSupplierData);
+
+        revalidatePath('/dashboard/suppliers');
+        revalidatePath('/dashboard/buy');
+        
+        const dataToReturn: Supplier = {
+          id: newSupplierRef.id,
+          userId,
+          name: validatedFields.data.name,
+          phone: validatedFields.data.phone || '',
+          created_at: new Date().toISOString()
+        };
+
+        return dataToReturn
+
+    } catch (error) {
+        console.error("Database Error:", error);
+        throw new Error("Failed to create supplier.");
+    }
+}
+
+export async function fetchSuppliers(): Promise<Supplier[]> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
+    try {
+        const suppliersCollection = collection(db, 'suppliers');
+        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+            } as Supplier
+        });
+    } catch(error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch suppliers.');
+    }
+}
+
+export async function updateSupplier(id: string, formData: FormData) {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    const validatedFields = SupplierSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
+    if (!validatedFields.success) {
+        throw new Error("Invalid supplier data.");
+    }
+
+    try {
+        const supplierRef = doc(db, 'suppliers', id);
+        const docSnap = await getDoc(supplierRef);
+        if (!docSnap.exists() || docSnap.data().userId !== userId) {
+            throw new Error("Supplier not found or access denied.");
+        }
+        await updateDoc(supplierRef, validatedFields.data);
+        revalidatePath('/dashboard/suppliers');
+        revalidatePath('/dashboard/buy');
+    } catch (error) {
+        throw new Error("Failed to update supplier.");
+    }
+}
+
+export async function deleteSupplier(id: string) {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    try {
+        const supplierRef = doc(db, 'suppliers', id);
+        const docSnap = await getDoc(supplierRef);
+        if (!docSnap.exists() || docSnap.data().userId !== userId) {
+            throw new Error("Supplier not found or access denied.");
+        }
+        await deleteDoc(supplierRef);
+        revalidatePath('/dashboard/suppliers');
+        revalidatePath('/dashboard/buy');
+    } catch (error) {
+        throw new Error("Failed to delete supplier.");
+    }
+}
+
+export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSchema>) {
+  const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
+
+  const validatedFields = POSPurchaseSchema.safeParse(purchaseData);
+
+  if (!validatedFields.success) {
+    throw new Error('Invalid purchase data.');
+  }
+  
+  const { items, ...purchaseDetails } = validatedFields.data;
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Phase 1: Update product stock and prepare activity logs
+      for (const item of items) {
+        const productRef = doc(db, 'products', item.id);
+        transaction.update(productRef, { 
+            stock: increment(item.quantity),
+            cost_price: item.cost_price, // Optionally update cost price on purchase
+            updated_at: serverTimestamp(),
+        });
+      }
+
+      // Phase 2: Create purchase record
+      const purchasesCollection = collection(db, 'purchases');
+      const newPurchaseRef = doc(purchasesCollection);
+      transaction.set(newPurchaseRef, {
+        userId,
+        items,
+        supplier_id: purchaseDetails.supplier_id,
+        supplier_name: purchaseDetails.supplier_name,
+        total_amount: purchaseDetails.totalAmount,
+        purchase_date: serverTimestamp(),
+      });
+
+      // Phase 3: Create a single activity log for the purchase
+      const activityCollection = collection(db, 'recent_activity');
+      const newActivityRef = doc(activityCollection);
+      transaction.set(newActivityRef, {
+        type: 'purchase',
+        product_name: `${items.length} items`,
+        product_image: items[0]?.image || '',
+        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${purchaseDetails.totalAmount.toFixed(2)}`,
+        timestamp: serverTimestamp(),
+        userId,
+      });
+    });
+
+    revalidatePath('/dashboard/buy');
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard/suppliers');
+    return { success: true, message: 'Purchase recorded and stock updated.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error((error as Error).message || 'Failed to record purchase.');
+  }
+}
+
+export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purchase[]> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
+    try {
+        const purchasesCollection = collection(db, 'purchases');
+        const q = query(
+            purchasesCollection, 
+            where('userId', '==', userId), 
+            where('supplier_id', '==', supplierId),
+            orderBy('purchase_date', 'desc')
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                purchase_date: (data.purchase_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+            } as Purchase
+        });
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch purchase history.');
+    }
+}
+
 
 // --- DASHBOARD & OTHER QUERIES ---
 

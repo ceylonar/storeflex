@@ -1,0 +1,105 @@
+
+'use client';
+
+import * as React from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import type { Purchase } from '@/lib/types';
+import { format } from 'date-fns';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+
+function FormattedDate({ timestamp }: { timestamp: string }) {
+    const [date, setDate] = React.useState('');
+
+    React.useEffect(() => {
+        if(timestamp && !isNaN(new Date(timestamp).getTime())) {
+            try {
+                setDate(format(new Date(timestamp), 'PPP p'));
+            } catch (error) {
+                console.error("Failed to format date:", error);
+                setDate("Invalid Date");
+            }
+        } else {
+            setDate("Not available");
+        }
+    }, [timestamp]);
+
+    return <>{date || '...'}</>;
+}
+
+
+export function PurchaseHistory({ purchases, supplierName }: { purchases: Purchase[], supplierName: string }) {
+  if (purchases.length === 0) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Purchase History for {supplierName}</CardTitle>
+                <CardDescription>
+                No purchases recorded for this supplier yet.
+                </CardDescription>
+            </CardHeader>
+        </Card>
+    );
+  }
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Purchase History for {supplierName}</CardTitle>
+        <CardDescription>
+          A history of all items purchased from this supplier.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="hidden w-[100px] sm:table-cell">
+                <span className="sr-only">Image</span>
+              </TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Quantity</TableHead>
+              <TableHead>Cost Price</TableHead>
+              <TableHead className="text-right">Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {purchases.flatMap((purchase) => 
+                purchase.items.map(item => (
+                    <TableRow key={`${purchase.id}-${item.id}`}>
+                        <TableCell className="hidden sm:table-cell">
+                        <Avatar className="h-9 w-9">
+                            <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product avatar" />
+                            <AvatarFallback>
+                                {item.name?.charAt(0).toUpperCase() || 'P'}
+                            </AvatarFallback>
+                        </Avatar>
+                        </TableCell>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+                        <TableCell>{item.quantity}</TableCell>
+                        <TableCell>LKR {item.cost_price.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">
+                        <FormattedDate timestamp={purchase.purchase_date} />
+                        </TableCell>
+                    </TableRow>
+                ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
