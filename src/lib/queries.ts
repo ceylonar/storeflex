@@ -292,7 +292,7 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
             nextId = (counterDoc.data().lastId || 0) + 1;
         }
 
-        const formattedId = `cus${nextId.toString().padStart(4, '0')}`;
+        const formattedId = `cus${String(nextId).padStart(4, '0')}`;
         const newCustomerRef = doc(db, 'customers', formattedId);
         
         const newCustomerData = {
@@ -447,15 +447,24 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
             productRefsAndData.push({ ref: productRef, newStock: newStock });
         }
 
-        // Phase 2: Perform all writes.
-        // 2a. Update stock for all items
+        // Phase 2: Get new Sale ID
+        const counterRef = doc(db, 'counters', `sales_${userId}`);
+        let nextId = 1;
+        const counterDoc = await transaction.get(counterRef);
+        if (counterDoc.exists()) {
+            nextId = (counterDoc.data().lastId || 0) + 1;
+        }
+        const formattedId = `sale${String(nextId).padStart(6, '0')}`;
+
+
+        // Phase 3: Perform all writes.
+        // 3a. Update stock for all items
         for (const prod of productRefsAndData) {
             transaction.update(prod.ref, { stock: prod.newStock });
         }
 
-      // 2b. Create a single sale document
-      const salesCollection = collection(db, 'sales');
-      const newSaleRef = doc(salesCollection);
+      // 3b. Create a single sale document
+      const newSaleRef = doc(db, 'sales', formattedId);
       const itemsToSave = items.map(({ stock, ...rest }) => rest); // Don't save client-side stock
       transaction.set(newSaleRef, {
         userId,
@@ -471,7 +480,10 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         sale_date: serverTimestamp(),
       });
 
-      // 2c. Create a single activity log for the entire transaction
+      // 3c. Update sale counter
+      transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
+      // 3d. Create a single activity log for the entire transaction
       const activityCollection = collection(db, 'recent_activity');
       const newActivityRef = doc(activityCollection);
       transaction.set(newActivityRef, {
@@ -577,7 +589,7 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
             nextId = (counterDoc.data().lastId || 0) + 1;
           }
   
-          const formattedId = `sup${nextId.toString().padStart(4, '0')}`;
+          const formattedId = `sup${String(nextId).padStart(4, '0')}`;
           const newSupplierRef = doc(db, 'suppliers', formattedId);
           
           const newSupplierData = {
@@ -1017,3 +1029,4 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch activities.');
     }
 }
+
