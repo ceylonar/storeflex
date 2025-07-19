@@ -273,6 +273,23 @@ export async function deleteProduct(id: string) {
 
 // --- CUSTOMER QUERIES ---
 
+async function getNextId(db: any, counterId: string, prefix: string) {
+  const counterRef = doc(db, 'counters', counterId);
+  let nextId: number;
+
+  const counterDoc = await getDoc(counterRef);
+  if (counterDoc.exists()) {
+    nextId = (counterDoc.data().lastId || 0) + 1;
+  } else {
+    nextId = 1;
+  }
+  
+  // Format the ID, e.g., sup0001
+  const formattedId = `${prefix}${(nextId).toString().padStart(4, '0')}`;
+  
+  return { nextId, formattedId };
+}
+
 export async function createCustomer(formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
@@ -284,32 +301,40 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
     }
 
     try {
-        const customersCollection = collection(db, 'customers');
-        const newCustomerRef = doc(customersCollection); // Auto-generates ID
+      const newCustomer = await runTransaction(db, async (transaction) => {
+        const counterRef = doc(db, 'counters', `customers_${userId}`);
+        let nextId = 1;
+        const counterDoc = await transaction.get(counterRef);
+        if (counterDoc.exists()) {
+            nextId = counterDoc.data().lastId + 1;
+        }
+
+        const formattedId = `cus${nextId.toString().padStart(4, '0')}`;
+        const newCustomerRef = doc(db, 'customers', formattedId);
         
         const newCustomerData = {
             ...validatedFields.data,
-            id: newCustomerRef.id,
+            id: formattedId,
             userId,
             created_at: serverTimestamp(),
         }
 
-        await setDoc(newCustomerRef, newCustomerData);
+        transaction.set(newCustomerRef, newCustomerData);
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
-        revalidatePath('/dashboard/customers');
-        revalidatePath('/dashboard/sales');
-        
-        // Firestore returns a server timestamp object, so we manually create a date for the return value
-        const dataToReturn: Customer = {
-          id: newCustomerRef.id,
+        return {
+          id: formattedId,
           userId,
           name: validatedFields.data.name,
           phone: validatedFields.data.phone || '',
           created_at: new Date().toISOString()
-        };
-
-        return dataToReturn
-
+        } as Customer;
+      });
+      
+      revalidatePath('/dashboard/customers');
+      revalidatePath('/dashboard/sales');
+      
+      return newCustomer;
     } catch (error) {
         console.error("Database Error:", error);
         throw new Error("Failed to create customer.");
@@ -509,32 +534,42 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
     if (!validatedFields.success) {
         throw new Error("Invalid supplier data.");
     }
-
+    
     try {
-        const suppliersCollection = collection(db, 'suppliers');
-        const newSupplierRef = doc(suppliersCollection);
-        
-        const newSupplierData = {
-            ...validatedFields.data,
-            id: newSupplierRef.id,
+        const newSupplier = await runTransaction(db, async (transaction) => {
+          const counterRef = doc(db, 'counters', `suppliers_${userId}`);
+          let nextId = 1;
+          const counterDoc = await transaction.get(counterRef);
+          if (counterDoc.exists()) {
+            nextId = counterDoc.data().lastId + 1;
+          }
+  
+          const formattedId = `sup${nextId.toString().padStart(4, '0')}`;
+          const newSupplierRef = doc(db, 'suppliers', formattedId);
+          
+          const newSupplierData = {
+              ...validatedFields.data,
+              id: formattedId,
+              userId,
+              created_at: serverTimestamp(),
+          }
+  
+          transaction.set(newSupplierRef, newSupplierData);
+          transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
+          return {
+            id: formattedId,
             userId,
-            created_at: serverTimestamp(),
-        }
-
-        await setDoc(newSupplierRef, newSupplierData);
-
+            name: validatedFields.data.name,
+            phone: validatedFields.data.phone || '',
+            created_at: new Date().toISOString()
+          } as Supplier;
+        });
+  
         revalidatePath('/dashboard/suppliers');
         revalidatePath('/dashboard/buy');
         
-        const dataToReturn: Supplier = {
-          id: newSupplierRef.id,
-          userId,
-          name: validatedFields.data.name,
-          phone: validatedFields.data.phone || '',
-          created_at: new Date().toISOString()
-        };
-
-        return dataToReturn
+        return newSupplier;
 
     } catch (error) {
         console.error("Database Error:", error);
