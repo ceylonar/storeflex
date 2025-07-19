@@ -11,6 +11,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -22,6 +28,7 @@ import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { fetchSalesByCustomer } from '@/lib/queries';
 import { Loader2 } from 'lucide-react';
+import { ScrollArea } from '../ui/scroll-area';
 
 function FormattedDate({ timestamp }: { timestamp: string }) {
     const [date, setDate] = React.useState('');
@@ -94,50 +101,72 @@ export function SalesHistory({ selectedCustomer }: SalesHistoryProps) {
       <CardHeader>
         <CardTitle>Sales History for {selectedCustomer.name}</CardTitle>
         <CardDescription>
-          A history of all items purchased by this customer.
+          A history of all transactions for this customer.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {sales.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No sales recorded for this customer yet.</p>
         ) : (
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead className="hidden w-[100px] sm:table-cell">
-                    Image
-                </TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Unit Price</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead className="text-right">Date</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {sales.flatMap((sale) => 
-                    sale.items.map(item => (
-                        <TableRow key={`${sale.id}-${item.id}`}>
-                            <TableCell className="hidden sm:table-cell">
-                            <Avatar className="h-9 w-9">
-                                <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product avatar" />
-                                <AvatarFallback>
-                                    {item.name?.charAt(0).toUpperCase() || 'P'}
-                                </AvatarFallback>
-                            </Avatar>
-                            </TableCell>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>LKR {item.price_per_unit.toFixed(2)}</TableCell>
-                            <TableCell>LKR {item.total_amount.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">
-                                <FormattedDate timestamp={sale.sale_date} />
-                            </TableCell>
-                        </TableRow>
-                    ))
-                )}
-            </TableBody>
-            </Table>
+            <ScrollArea className="h-[60vh]">
+              <Accordion type="single" collapsible className="w-full">
+                {sales.map((sale) => (
+                    <AccordionItem value={sale.id} key={sale.id} className="border-b">
+                        <AccordionTrigger className="p-4 hover:no-underline">
+                            <div className="flex justify-between w-full">
+                                <div className="text-left">
+                                    <p className="font-semibold text-primary">Sale ID: {sale.id}</p>
+                                    <p className="text-sm text-muted-foreground"><FormattedDate timestamp={sale.sale_date} /></p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-lg">LKR {sale.total_amount.toFixed(2)}</p>
+                                    <p className="text-sm text-muted-foreground">{sale.items.length} item(s)</p>
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="p-4 pt-0">
+                           <div className="space-y-4">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
+                                            <TableHead>Product</TableHead>
+                                            <TableHead>Quantity</TableHead>
+                                            <TableHead>Unit Price</TableHead>
+                                            <TableHead className="text-right">Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {sale.items.map(item => (
+                                            <TableRow key={`${sale.id}-${item.id}`}>
+                                                <TableCell className="hidden sm:table-cell">
+                                                <Avatar className="h-9 w-9">
+                                                    <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product avatar" />
+                                                    <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
+                                                </Avatar>
+                                                </TableCell>
+                                                <TableCell className="font-medium">{item.name}</TableCell>
+                                                <TableCell>{item.quantity}</TableCell>
+                                                <TableCell>LKR {item.price_per_unit.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right">LKR {item.total_amount.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+
+                                <div className="max-w-sm ml-auto space-y-2 text-sm">
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {sale.subtotal.toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Service Charge</span><span>LKR {sale.service_charge.toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({sale.tax_percentage}%)</span><span>LKR {sale.tax_amount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between text-destructive"><span >Discount</span><span>- LKR {sale.discount_amount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between border-t pt-2 font-bold"><span >Total</span><span>LKR {sale.total_amount.toFixed(2)}</span></div>
+                                </div>
+                           </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+              </Accordion>
+            </ScrollArea>
         )}
       </CardContent>
     </Card>
