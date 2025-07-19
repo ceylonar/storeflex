@@ -273,23 +273,6 @@ export async function deleteProduct(id: string) {
 
 // --- CUSTOMER QUERIES ---
 
-async function getNextId(db: any, counterId: string, prefix: string) {
-  const counterRef = doc(db, 'counters', counterId);
-  let nextId: number;
-
-  const counterDoc = await getDoc(counterRef);
-  if (counterDoc.exists()) {
-    nextId = (counterDoc.data().lastId || 0) + 1;
-  } else {
-    nextId = 1;
-  }
-  
-  // Format the ID, e.g., sup0001
-  const formattedId = `${prefix}${(nextId).toString().padStart(4, '0')}`;
-  
-  return { nextId, formattedId };
-}
-
 export async function createCustomer(formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
@@ -306,7 +289,7 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
         let nextId = 1;
         const counterDoc = await transaction.get(counterRef);
         if (counterDoc.exists()) {
-            nextId = counterDoc.data().lastId + 1;
+            nextId = (counterDoc.data().lastId || 0) + 1;
         }
 
         const formattedId = `cus${nextId.toString().padStart(4, '0')}`;
@@ -541,7 +524,7 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
           let nextId = 1;
           const counterDoc = await transaction.get(counterRef);
           if (counterDoc.exists()) {
-            nextId = counterDoc.data().lastId + 1;
+            nextId = (counterDoc.data().lastId || 0) + 1;
           }
   
           const formattedId = `sup${nextId.toString().padStart(4, '0')}`;
@@ -1023,3 +1006,5 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     };
   }
 }
+
+    
