@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -39,7 +40,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History } from 'lucide-react';
 import type { Customer } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -55,7 +56,12 @@ const initialCustomerState: Partial<Customer> = {
   phone: '',
 };
 
-export function CustomersTable({ initialCustomers }: { initialCustomers: Customer[] }) {
+interface CustomersTableProps {
+    initialCustomers: Customer[];
+    onViewHistory: (customer: Customer) => void;
+}
+
+export function CustomersTable({ initialCustomers, onViewHistory }: CustomersTableProps) {
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
@@ -91,14 +97,17 @@ export function CustomersTable({ initialCustomers }: { initialCustomers: Custome
     const formData = new FormData(event.currentTarget);
     try {
       if (formState === 'add') {
-        await createCustomer(formData);
+        const newCustomer = await createCustomer(formData);
+        if (newCustomer) {
+            setCustomers(prev => [newCustomer, ...prev]);
+        }
         toast({ title: 'Success', description: 'Customer added.' });
       } else if (selectedCustomer.id) {
         await updateCustomer(selectedCustomer.id, formData);
+        const updatedCustomers = customers.map(c => c.id === selectedCustomer.id ? {...c, ...Object.fromEntries(formData)} : c);
+        setCustomers(updatedCustomers as Customer[]);
         toast({ title: 'Success', description: 'Customer updated.' });
       }
-      // This is a simple way to refresh data, a more robust solution might involve re-fetching.
-      window.location.reload();
       setIsDialogOpen(false);
     } catch (error) {
        toast({
@@ -142,40 +151,46 @@ export function CustomersTable({ initialCustomers }: { initialCustomers: Custome
                 <TableCell className="font-medium">{customer.name}</TableCell>
                 <TableCell>{customer.phone}</TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleOpenDialog('edit', customer)}>
-                        <Pencil className="mr-2 h-4 w-4" /> Edit
-                      </DropdownMenuItem>
-                       <DropdownMenuSeparator />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the customer.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(customer.id)}>Continue</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => onViewHistory(customer)}>
+                        <History className="h-4 w-4 mr-2" />
+                        View History
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Toggle menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handleOpenDialog('edit', customer)}>
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                         <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the customer.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(customer.id)}>Continue</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

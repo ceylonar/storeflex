@@ -1,5 +1,6 @@
+
 import { fetchCustomers } from "@/lib/queries";
-import { CustomersTable } from "@/components/customers/customers-table";
+import { CustomersClient } from "@/components/customers/customers-client";
 
 export default async function CustomersPage() {
   const customers = await fetchCustomers();
@@ -9,10 +10,10 @@ export default async function CustomersPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Customers</h1>
         <p className="text-muted-foreground">
-          Manage your customer database.
+          Manage your customer database and view their sales history.
         </p>
       </div>
-      <CustomersTable initialCustomers={customers} />
+      <CustomersClient initialCustomers={customers} />
     </div>
   );
 }

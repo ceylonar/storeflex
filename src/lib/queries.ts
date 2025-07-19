@@ -297,7 +297,6 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
         
         const newCustomerData = {
             ...validatedFields.data,
-            id: formattedId,
             userId,
             created_at: serverTimestamp(),
         }
@@ -506,6 +505,40 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   }
 }
 
+export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
+    try {
+        const salesCollection = collection(db, 'sales');
+        const q = query(
+            salesCollection, 
+            where('userId', '==', userId), 
+            where('customer_id', '==', customerId)
+        );
+        const querySnapshot = await getDocs(q);
+        const sales = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                sale_date: (data.sale_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+            } as Sale
+        });
+        
+        // Sort in-memory to avoid composite index requirement
+        sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
+        
+        return sales;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch sales history.');
+    }
+}
+
+
 // --- SUPPLIER & PURCHASE QUERIES ---
 
 export async function createSupplier(formData: FormData): Promise<Supplier | null> {
@@ -532,7 +565,6 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
           
           const newSupplierData = {
               ...validatedFields.data,
-              id: formattedId,
               userId,
               created_at: serverTimestamp(),
           }
@@ -1006,5 +1038,3 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     };
   }
 }
-
-    
