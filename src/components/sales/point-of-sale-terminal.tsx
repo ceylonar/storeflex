@@ -24,9 +24,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { createSale } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductSelect, SaleItem, Customer } from '@/lib/types';
-import { Search, PlusCircle, MinusCircle, Trash2, User, FileText, Loader2 } from 'lucide-react';
+import { Search, PlusCircle, MinusCircle, Trash2, FileText, Loader2, User } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
-import { CustomerCombobox } from './customer-combobox';
+import { CustomerSelection } from './customer-selection';
+
 
 export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
@@ -43,6 +44,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
 
   const handleCustomerCreated = (newCustomer: Customer) => {
     setCustomers(prev => [newCustomer, ...prev]);
+    setSelectedCustomer(newCustomer);
   };
 
   const filteredProducts = products.filter(
@@ -132,11 +134,15 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   };
 
   if (!isMounted) {
-    return null; // or a loading skeleton
+    return (
+        <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
       {/* Left Column: Product Search */}
       <Card className="lg:col-span-3">
         <CardHeader>
@@ -145,7 +151,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search for products..."
-              className="pl-8"
+              className="w-full pl-8 sm:w-80"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -181,7 +187,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
               </TableBody>
             </Table>
              {filteredProducts.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="py-8 text-center text-muted-foreground">
                     <p>No products match your search.</p>
                 </div>
             )}
@@ -198,15 +204,12 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Customer Details */}
-            <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2"><User className="h-4 w-4" /> Customer Details</h3>
-                 <CustomerCombobox 
-                    customers={customers}
-                    selectedCustomer={selectedCustomer}
-                    onSelectCustomer={setSelectedCustomer}
-                    onCustomerCreated={handleCustomerCreated}
-                />
-            </div>
+             <CustomerSelection 
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomer}
+                onCustomerCreated={handleCustomerCreated}
+             />
 
             {/* Cart Items */}
             <ScrollArea className="h-[35vh] border-t border-b py-2">
@@ -218,7 +221,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                         <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
-                        <p className="font-medium text-sm truncate">{item.name}</p>
+                        <p className="font-medium truncate text-sm">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
                           LKR {item.price_per_unit.toFixed(2)}
                         </p>
@@ -241,7 +244,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                     </div>
                   ))
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                         <FileText className="h-10 w-10" />
                         <p className="mt-2 text-sm">Your bill is empty.</p>
                         <p className="text-xs">Add products from the left.</p>
@@ -260,7 +263,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                         <span>Tax (5%)</span>
                         <span>LKR {tax.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between font-bold text-base border-t pt-2">
+                    <div className="flex justify-between border-t pt-2 font-bold text-base">
                         <span>Total</span>
                         <span>LKR {total.toFixed(2)}</span>
                     </div>
