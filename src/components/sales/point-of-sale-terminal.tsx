@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -27,12 +28,17 @@ import { Search, PlusCircle, MinusCircle, Trash2, User, FileText, Loader2 } from
 import { ScrollArea } from '../ui/scroll-area';
 
 export function PointOfSaleTerminal({ products }: { products: ProductSelect[] }) {
+  const [isMounted, setIsMounted] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<SaleItem[]>([]);
   const [customerName, setCustomerName] = React.useState('');
   const [customerId, setCustomerId] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const filteredProducts = products.filter(
     (product) =>
@@ -120,6 +126,10 @@ export function PointOfSaleTerminal({ products }: { products: ProductSelect[] })
         setIsSubmitting(false);
     }
   };
+
+  if (!isMounted) {
+    return null; // or a loading skeleton
+  }
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
