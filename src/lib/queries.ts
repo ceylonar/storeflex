@@ -550,9 +550,9 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(suppliersCollection, where('userId', '==', userId));
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
+        const suppliers = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -560,6 +560,12 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Supplier
         });
+        
+        // Sort in-memory to avoid composite index requirement
+        suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        return suppliers;
+
     } catch(error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch suppliers.');
@@ -978,3 +984,6 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     };
   }
 }
+
+
+    
