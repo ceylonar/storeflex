@@ -377,27 +377,36 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
   
   try {
     await runTransaction(db, async (transaction) => {
-        // 1. Update stock for all items
+        const productRefsAndData = [];
+
+        // Phase 1: Read all product documents first.
         for (const item of items) {
             const productRef = doc(db, 'products', item.id);
             const productDoc = await transaction.get(productRef);
-
+            
             if (!productDoc.exists() || productDoc.data().userId !== userId) {
                 throw new Error(`Product "${item.name}" not found or access denied.`);
             }
             
-            const newStock = (productDoc.data().stock || 0) - item.quantity;
+            const currentStock = productDoc.data().stock || 0;
+            const newStock = currentStock - item.quantity;
 
             if (newStock < 0) {
-                throw new Error(`Not enough stock for ${item.name}.`);
+                throw new Error(`Not enough stock for ${item.name}. Only ${currentStock} available.`);
             }
-            transaction.update(productRef, { stock: newStock });
+            productRefsAndData.push({ ref: productRef, newStock: newStock });
         }
 
-      // 2. Create a single sale document
+        // Phase 2: Perform all writes.
+        // 2a. Update stock for all items
+        for (const prod of productRefsAndData) {
+            transaction.update(prod.ref, { stock: prod.newStock });
+        }
+
+      // 2b. Create a single sale document
       const salesCollection = collection(db, 'sales');
       const newSaleRef = doc(salesCollection);
-      const itemsToSave = items.map(({ stock, ...rest }) => rest);
+      const itemsToSave = items.map(({ stock, ...rest }) => rest); // Don't save client-side stock
       transaction.set(newSaleRef, {
         userId,
         items: itemsToSave,
@@ -405,11 +414,11 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         customer_name,
         subtotal,
         tax,
-        total,
+        total_amount: total,
         sale_date: serverTimestamp(),
       });
 
-      // 3. Create a single activity log for the entire transaction
+      // 2c. Create a single activity log for the entire transaction
       const activityCollection = collection(db, 'recent_activity');
       const newActivityRef = doc(activityCollection);
       transaction.set(newActivityRef, {
@@ -680,4 +689,63 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch activities.');
     }
+}
+
+export async function fetchSalesReport(range: DateRange): Promise<{ success: boolean; data: { sales: Sale[]; totalSales: number; transactionCount: number; } | null; message: string; }> {
+  noStore();
+  const { db } = getFirebaseServices();
+  const userId = MOCK_USER_ID;
+  try {
+    const { from, to } = range;
+
+    if (!from || !to) {
+        throw new Error('A valid date range is required.');
+    }
+
+    const startDate = startOfDay(from);
+    const endDate = endOfDay(to);
+
+    const salesCollection = collection(db, 'sales');
+    const q = query(salesCollection, where('userId', '==', userId));
+
+    const querySnapshot = await getDocs(q);
+    
+    let totalSales = 0;
+    const allSales: Sale[] = [];
+    querySnapshot.forEach(doc => {
+        allSales.push({
+            id: doc.id,
+            ...doc.data(),
+            sale_date: (doc.data().sale_date as Timestamp).toDate().toISOString(),
+        } as Sale);
+    });
+    
+    // Manual filtering by date
+    const filteredSales = allSales.filter(sale => 
+        isWithinInterval(new Date(sale.sale_date), { start: startDate, end: endDate })
+    );
+
+    filteredSales.forEach(sale => {
+        totalSales += sale.total_amount;
+    });
+
+    const transactionCount = filteredSales.length;
+    
+    filteredSales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
+
+    return {
+      success: true,
+      data: { sales: filteredSales, totalSales, transactionCount },
+      message: 'Report generated successfully.',
+    };
+
+  } catch (error) {
+    console.error('Report Generation Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return {
+      success: false,
+      data: null,
+      message: `Failed to generate report: ${errorMessage}`,
+    };
+  }
 }
