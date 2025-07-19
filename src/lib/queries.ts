@@ -21,7 +21,7 @@ import {
   runTransaction,
   setDoc
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 
@@ -46,14 +46,24 @@ const ProductSchema = z.object({
   low_stock_threshold: z.coerce.number().int().nonnegative('Low stock threshold must be a non-negative number'),
 });
 
-const SaleSchema = z.object({
-  id: z.string().optional(),
-  product_id: z.string().min(1, 'Product is required.'),
-  quantity: z.coerce.number().int().positive('Quantity must be a positive number'),
-  price_per_unit: z.coerce.number().positive('Unit price must be positive.'),
-  total_amount: z.coerce.number().positive('Total amount must be positive.'),
-  sale_date: z.string().min(1, 'Sale date is required'),
+const SaleItemSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().optional(),
+    quantity: z.number().int().positive(),
+    price_per_unit: z.number().positive(),
+    total_amount: z.number().positive(),
 });
+
+const POSSaleSchema = z.object({
+  items: z.array(SaleItemSchema).min(1, 'At least one item is required in the sale.'),
+  customer_name: z.string().optional(),
+  customer_id: z.string().optional(),
+  subtotal: z.number().nonnegative(),
+  tax: z.number().nonnegative(),
+  total: z.number().nonnegative(),
+});
+
 
 // CREATE
 export async function createProduct(formData: FormData) {
@@ -148,6 +158,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         id: doc.id,
         name: data.name as string,
         selling_price: data.selling_price as number,
+        image: data.image as string || '',
       }
     });
     return products.sort((a,b) => a.name.localeCompare(b.name));
@@ -234,9 +245,9 @@ export async function fetchDashboardData() {
         allSalesSnapshot.forEach(doc => {
             const sale = doc.data();
             const saleDate = (sale.sale_date as Timestamp).toDate();
-            totalSales += sale.total_amount;
+            totalSales += sale.total;
             if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
-                salesToday += sale.total_amount;
+                salesToday += sale.total;
             }
         });
 
@@ -282,7 +293,7 @@ export async function fetchSalesData(): Promise<SalesData[]> {
 
         // Initialize months
         const salesByMonth: Record<string, { sales: number }> = {};
-        const sixMonthsAgo = subMonths(new Date(), 6);
+        const sixMonthsAgo = subMonths(new Date(), 5);
         for (let i = 5; i >= 0; i--) {
             const date = subMonths(new Date(), i);
             const month = date.toLocaleString('default', { month: 'short' });
@@ -290,14 +301,14 @@ export async function fetchSalesData(): Promise<SalesData[]> {
         }
 
         salesSnapshot.docs.forEach(doc => {
-            const sale = doc.data() as Omit<Sale, 'id'>;
+            const sale = doc.data() as Sale;
             const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
             
             // Manual date filtering
             if (saleDate >= sixMonthsAgo) {
                 const month = saleDate.toLocaleString('default', { month: 'short' });
                 if (salesByMonth[month]) {
-                    salesByMonth[month].sales += sale.total_amount;
+                    salesByMonth[month].sales += sale.total;
                 }
             }
         });
@@ -329,11 +340,16 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
         const productSales: Record<string, { name: string, totalQuantity: number }> = {};
 
         salesSnapshot.docs.forEach(doc => {
-            const sale = doc.data() as Omit<Sale, 'id'>;
-            if (productSales[sale.product_name]) {
-                productSales[sale.product_name].totalQuantity += sale.quantity;
-            } else {
-                productSales[sale.product_name] = { name: sale.product_name, totalQuantity: sale.quantity };
+            const sale = doc.data() as Sale;
+            // Add a guard clause to ensure sale.items exists and is an array
+            if (sale.items && Array.isArray(sale.items)) {
+                sale.items.forEach(item => {
+                    if (productSales[item.name]) {
+                        productSales[item.name].totalQuantity += item.quantity;
+                    } else {
+                        productSales[item.name] = { name: item.name, totalQuantity: item.quantity };
+                    }
+                });
             }
         });
 
@@ -469,57 +485,60 @@ export async function deleteProduct(id: string) {
 // --- SALES QUERIES ---
 
 // CREATE SALE
-export async function createSale(formData: FormData) {
+export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
 
-  const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
+  const validatedFields = POSSaleSchema.safeParse(saleData);
 
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
     throw new Error('Invalid sale data.');
   }
   
-  const { product_id, quantity, price_per_unit, total_amount, sale_date } = validatedFields.data;
+  const { items, customer_name, customer_id, subtotal, tax, total } = validatedFields.data;
   
   try {
     await runTransaction(db, async (transaction) => {
-      const productRef = doc(db, 'products', product_id);
-      const productDoc = await transaction.get(productRef);
+        // 1. Update stock for all items
+        for (const item of items) {
+            const productRef = doc(db, 'products', item.id);
+            const productDoc = await transaction.get(productRef);
 
-      if (!productDoc.exists() || productDoc.data().userId !== userId) {
-        throw new Error('Product not found or access denied.');
-      }
-      
-      const productData = productDoc.data();
-      const newStock = (productData.stock || 0) - quantity;
+            if (!productDoc.exists() || productDoc.data().userId !== userId) {
+                throw new Error(`Product "${item.name}" not found or access denied.`);
+            }
+            
+            const newStock = (productDoc.data().stock || 0) - item.quantity;
 
-      if (newStock < 0) {
-        throw new Error('Not enough stock for this sale.');
-      }
-      
-      transaction.update(productRef, { stock: newStock });
+            if (newStock < 0) {
+                throw new Error(`Not enough stock for ${item.name}.`);
+            }
+            transaction.update(productRef, { stock: newStock });
+        }
 
+      // 2. Create a single sale document
       const salesCollection = collection(db, 'sales');
       const newSaleRef = doc(salesCollection);
       transaction.set(newSaleRef, {
-        product_id,
-        product_name: productData.name,
-        product_image: productData.image || '',
-        quantity,
-        price_per_unit,
-        total_amount: total_amount,
-        sale_date: new Date(sale_date),
         userId,
+        items,
+        customer_name,
+        customer_id,
+        subtotal,
+        tax,
+        total,
+        sale_date: serverTimestamp(),
       });
 
+      // 3. Create a single activity log for the entire transaction
       const activityCollection = collection(db, 'recent_activity');
       const newActivityRef = doc(activityCollection);
       transaction.set(newActivityRef, {
         type: 'sale',
-        product_name: productData.name,
-        product_image: productData.image || '',
-        details: `Sold ${quantity} unit(s)`,
+        product_name: `${items.length} items`,
+        product_image: items[0]?.image || '',
+        details: `Sale to ${customer_name || 'Walk-in'} for LKR ${total.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
       });
@@ -535,7 +554,7 @@ export async function createSale(formData: FormData) {
   }
 }
 
-// READ SALES
+// READ SALES - This function is for a future sales history page
 export async function fetchSales() {
   noStore();
   const userId = await getCurrentUserId();
@@ -544,7 +563,7 @@ export async function fetchSales() {
   const { db } = getFirebaseServices();
   try {
     const salesCollection = collection(db, 'sales');
-    const q = query(salesCollection, where('userId', '==', userId));
+    const q = query(salesCollection, where('userId', '==', userId), orderBy('sale_date', 'desc'), limit(50));
     const querySnapshot = await getDocs(q);
     const sales = querySnapshot.docs.map(doc => {
       const data = doc.data();
@@ -554,117 +573,10 @@ export async function fetchSales() {
         sale_date: data.sale_date.toDate().toISOString(),
       }
     }) as Sale[];
-    return sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
+    return sales;
   } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch sales.');
-  }
-}
-
-// UPDATE SALE
-export async function updateSale(id: string, formData: FormData) {
-  const { db } = getFirebaseServices();
-  const userId = await getCurrentUserId();
-
-  const validatedFields = SaleSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
-
-  if (!validatedFields.success) {
-    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
-    throw new Error('Invalid sale data.');
-  }
-
-  const { product_id, quantity, price_per_unit, total_amount, sale_date } = validatedFields.data;
-  
-  try {
-    await runTransaction(db, async (transaction) => {
-        const saleRef = doc(db, 'sales', id);
-        const saleDoc = await transaction.get(saleRef);
-        if (!saleDoc.exists() || saleDoc.data().userId !== userId) {
-            throw new Error('Sale not found or access denied');
-        }
-
-        const oldSaleData = saleDoc.data() as Sale;
-        
-        // If the product changed, we need to revert stock on old product and decrement on new one
-        if (oldSaleData.product_id !== product_id) {
-          const oldProductRef = doc(db, 'products', oldSaleData.product_id);
-          const oldProductDoc = await transaction.get(oldProductRef);
-          if (oldProductDoc.exists() && oldProductDoc.data().userId === userId) {
-            transaction.update(oldProductRef, { stock: (oldProductDoc.data().stock || 0) + oldSaleData.quantity });
-          }
-        }
-
-        const productRef = doc(db, 'products', product_id);
-        const productDoc = await transaction.get(productRef);
-
-        if (!productDoc.exists() || productDoc.data().userId !== userId) {
-            throw new Error('Product not found or access denied');
-        }
-        
-        const currentStock = productDoc.data().stock || 0;
-        const stockAfterRevert = oldSaleData.product_id === product_id ? currentStock + oldSaleData.quantity : currentStock;
-        const newStock = stockAfterRevert - quantity;
-
-        if (newStock < 0) {
-            throw new Error('Not enough stock to fulfill the updated sale quantity.');
-        }
-
-        transaction.update(productRef, { stock: newStock });
-
-        transaction.update(saleRef, {
-            product_id,
-            quantity,
-            price_per_unit,
-            total_amount: total_amount,
-            sale_date: new Date(sale_date),
-            product_name: productDoc.data().name,
-            product_image: productDoc.data().image || '',
-            userId,
-        });
-    });
-
-    revalidatePath('/dashboard/sales');
-    revalidatePath('/dashboard');
-    revalidatePath('/dashboard/inventory');
-    return { success: true, message: 'Sale updated successfully.' };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error((error as Error).message || 'Failed to update sale.');
-  }
-}
-
-// DELETE SALE
-export async function deleteSale(id: string) {
-  const { db } = getFirebaseServices();
-  const userId = await getCurrentUserId();
-  
-  try {
-    const saleRef = doc(db, 'sales', id);
-    
-    await runTransaction(db, async (transaction) => {
-        const saleDoc = await transaction.get(saleRef);
-        if (!saleDoc.exists() || saleDoc.data().userId !== userId) {
-            throw new Error('Sale not found or access denied');
-        }
-
-        const { product_id, quantity } = saleDoc.data() as Sale;
-        const productRef = doc(db, 'products', product_id);
-        const productDoc = await transaction.get(productRef);
-
-        if(productDoc.exists() && productDoc.data().userId === userId) {
-            const newStock = (productDoc.data().stock || 0) + quantity;
-            transaction.update(productRef, { stock: newStock });
-        }
-
-        transaction.delete(saleRef);
-    });
-    
-    revalidatePath('/dashboard/sales');
-    revalidatePath('/dashboard');
-    revalidatePath('/dashboard/inventory');
-    return { success: true, message: 'Sale deleted and stock restored.' };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to delete sale.');
+    // Since this is not critical for POS, we can return empty array
+    return [];
   }
 }

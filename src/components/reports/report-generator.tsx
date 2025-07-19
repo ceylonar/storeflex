@@ -85,14 +85,16 @@ export function ReportGenerator() {
     
     const csvContent = [
       headers.join(','),
-      ...reportData.sales.map(sale => [
-        sale.id,
-        `"${sale.product_name}"`,
-        format(new Date(sale.sale_date), 'yyyy-MM-dd HH:mm:ss'),
-        sale.quantity,
-        sale.price_per_unit.toFixed(2),
-        sale.total_amount.toFixed(2)
-      ].join(','))
+      ...reportData.sales.flatMap(sale => 
+        sale.items.map(item => [
+          sale.id,
+          `"${item.name}"`,
+          format(new Date(sale.sale_date), 'yyyy-MM-dd HH:mm:ss'),
+          item.quantity,
+          item.price_per_unit.toFixed(2),
+          item.total_amount.toFixed(2)
+        ].join(','))
+      ).join('\n')
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -214,20 +216,22 @@ export function ReportGenerator() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reportData.sales.length > 0 ? reportData.sales.map((sale) => (
-                    <TableRow key={sale.id}>
+                  {reportData.sales.length > 0 ? reportData.sales.flatMap((sale) => (
+                    sale.items.map(item => (
+                    <TableRow key={`${sale.id}-${item.id}`}>
                       <TableCell className="hidden sm:table-cell">
                         <Avatar className="h-16 w-16 rounded-md">
-                          <AvatarImage src={sale.product_image || 'https://placehold.co/64x64.png'} alt={sale.product_name} data-ai-hint="product image" className="aspect-square object-cover" />
-                          <AvatarFallback>{sale.product_name.charAt(0)}</AvatarFallback>
+                          <AvatarImage src={item.image || sale.product_image || 'https://placehold.co/64x64.png'} alt={item.name} data-ai-hint="product image" className="aspect-square object-cover" />
+                          <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
                         </Avatar>
                       </TableCell>
-                      <TableCell className="font-medium">{sale.product_name}</TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{format(new Date(sale.sale_date), 'PPP p')}</TableCell>
-                      <TableCell className="text-right">{sale.quantity}</TableCell>
-                      <TableCell className="text-right">LKR {Number(sale.price_per_unit).toFixed(2)}</TableCell>
-                      <TableCell className="text-right">LKR {Number(sale.total_amount).toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{item.quantity}</TableCell>
+                      <TableCell className="text-right">LKR {Number(item.price_per_unit).toFixed(2)}</TableCell>
+                      <TableCell className="text-right">LKR {Number(item.total_amount).toFixed(2)}</TableCell>
                     </TableRow>
+                    ))
                   )) : (
                      <TableRow>
                         <TableCell colSpan={6} className="h-24 text-center">
