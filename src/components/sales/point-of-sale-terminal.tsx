@@ -24,10 +24,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { createSale } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductSelect, SaleItem, Customer } from '@/lib/types';
-import { Search, PlusCircle, MinusCircle, Trash2, FileText, Loader2, User } from 'lucide-react';
+import { Search, PlusCircle, MinusCircle, Trash2, FileText, Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { CustomerSelection } from './customer-selection';
 import { Badge } from '../ui/badge';
+import { Label } from '../ui/label';
 
 
 export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
@@ -37,6 +38,9 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [taxPercentage, setTaxPercentage] = React.useState(0);
+  const [discountAmount, setDiscountAmount] = React.useState(0);
+
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -114,8 +118,9 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
 
 
   const subtotal = cart.reduce((acc, item) => acc + item.total_amount, 0);
-  const tax = subtotal * 0.05; // Example 5% tax
-  const total = subtotal + tax;
+  const tax = subtotal * (taxPercentage / 100);
+  const total = Math.max(0, subtotal + tax - discountAmount);
+
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -135,6 +140,8 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             customer_id: selectedCustomer?.id || null,
             subtotal,
             tax,
+            tax_percentage: taxPercentage,
+            discount_amount: discountAmount,
             total,
         };
       await createSale(saleData);
@@ -145,6 +152,8 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
       // Reset state
       setCart([]);
       setSelectedCustomer(null);
+      setTaxPercentage(0);
+      setDiscountAmount(0);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -287,13 +296,39 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             {cart.length > 0 && (
                 <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                        <span>Subtotal</span>
+                        <span className="text-muted-foreground">Subtotal</span>
                         <span>LKR {subtotal.toFixed(2)}</span>
                     </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="tax" className="text-muted-foreground flex-1">Tax (%)</Label>
+                        <Input 
+                            id="tax" 
+                            type="number" 
+                            value={taxPercentage} 
+                            onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} 
+                            className="h-8 w-24 text-right"
+                            placeholder="0"
+                        />
+                    </div>
+                    
                     <div className="flex justify-between">
-                        <span>Tax (5%)</span>
+                        <span className="text-muted-foreground">Calculated Tax</span>
                         <span>LKR {tax.toFixed(2)}</span>
                     </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label>
+                        <Input 
+                            id="discount" 
+                            type="number" 
+                            value={discountAmount} 
+                            onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} 
+                            className="h-8 w-24 text-right"
+                            placeholder="0.00"
+                        />
+                    </div>
+                    
                     <div className="flex justify-between border-t pt-2 font-bold text-base">
                         <span>Total</span>
                         <span>LKR {total.toFixed(2)}</span>

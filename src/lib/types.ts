@@ -74,7 +74,9 @@ export type Sale = {
   customer_id: string | null;
   customer_name: string;
   subtotal: number;
-  tax: number;
+  tax_percentage: number;
+  tax_amount: number;
+  discount_amount: number;
   total_amount: number;
   sale_date: string; // Should be ISO string date
   product_image?: string;

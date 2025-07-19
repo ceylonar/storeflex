@@ -69,6 +69,8 @@ const POSSaleSchema = z.object({
   customer_name: z.string(),
   subtotal: z.number().nonnegative(),
   tax: z.number().nonnegative(),
+  tax_percentage: z.number().nonnegative(),
+  discount_amount: z.number().nonnegative(),
   total: z.number().nonnegative(),
 });
 
@@ -373,7 +375,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
     throw new Error('Invalid sale data.');
   }
   
-  const { items, customer_id, customer_name, subtotal, tax, total } = validatedFields.data;
+  const { items, ...saleDetails } = validatedFields.data;
   
   try {
     await runTransaction(db, async (transaction) => {
@@ -410,11 +412,13 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
       transaction.set(newSaleRef, {
         userId,
         items: itemsToSave,
-        customer_id: customer_id || null,
-        customer_name,
-        subtotal,
-        tax,
-        total_amount: total,
+        customer_id: saleDetails.customer_id || null,
+        customer_name: saleDetails.customer_name,
+        subtotal: saleDetails.subtotal,
+        tax_percentage: saleDetails.tax_percentage,
+        tax_amount: saleDetails.tax,
+        discount_amount: saleDetails.discount_amount,
+        total_amount: saleDetails.total,
         sale_date: serverTimestamp(),
       });
 
@@ -425,7 +429,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         type: 'sale',
         product_name: `${items.length} items`,
         product_image: items[0]?.image || '',
-        details: `Sale to ${customer_name} for LKR ${total.toFixed(2)}`,
+        details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
       });
@@ -606,7 +610,7 @@ export async function fetchSalesData(): Promise<SalesData[]> {
             if (saleDate >= sixMonthsAgo) {
                 const month = saleDate.toLocaleString('default', { month: 'short' });
                 if (salesByMonth[month]) {
-                    // Add a guard to ensure sale.total is a number
+                    // Add a guard to ensure sale.total_amount is a number
                     salesByMonth[month].sales += typeof sale.total_amount === 'number' ? sale.total_amount : 0;
                 }
             }
