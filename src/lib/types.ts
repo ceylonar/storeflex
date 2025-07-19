@@ -34,6 +34,7 @@ export type ProductSelect = {
   name: string;
   selling_price: number;
   image?: string;
+  stock: number;
 }
 
 export type RecentActivity = {
@@ -63,17 +64,18 @@ export type SaleItem = {
     quantity: number;
     price_per_unit: number;
     total_amount: number;
+    stock: number;
 };
 
 export type Sale = {
   id: string;
   userId: string;
-  items: SaleItem[];
+  items: Omit<SaleItem, 'stock'>[];
   customer_id: string | null;
   customer_name: string;
   subtotal: number;
   tax: number;
-  total: number;
+  total_amount: number;
   sale_date: string; // Should be ISO string date
   product_image?: string;
 };

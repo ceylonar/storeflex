@@ -25,6 +25,7 @@ import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, Us
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 
+
 // Helper to get a mock user ID
 // In a real app with authentication, this would come from the user's session
 const MOCK_USER_ID = 'user-123-abc';
@@ -59,6 +60,7 @@ const SaleItemSchema = z.object({
     quantity: z.number().int().positive(),
     price_per_unit: z.number().positive(),
     total_amount: z.number().positive(),
+    stock: z.number().int().nonnegative(),
 });
 
 const POSSaleSchema = z.object({
@@ -395,9 +397,10 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
       // 2. Create a single sale document
       const salesCollection = collection(db, 'sales');
       const newSaleRef = doc(salesCollection);
+      const itemsToSave = items.map(({ stock, ...rest }) => rest);
       transaction.set(newSaleRef, {
         userId,
-        items,
+        items: itemsToSave,
         customer_id: customer_id || null,
         customer_name,
         subtotal,
@@ -445,6 +448,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         id: doc.id,
         name: data.name as string,
         selling_price: data.selling_price as number,
+        stock: data.stock as number,
         image: data.image as string || '',
       }
     });

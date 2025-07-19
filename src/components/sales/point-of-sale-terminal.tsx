@@ -27,6 +27,7 @@ import type { ProductSelect, SaleItem, Customer } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, FileText, Loader2, User } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { CustomerSelection } from './customer-selection';
+import { Badge } from '../ui/badge';
 
 
 export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
@@ -54,6 +55,14 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   );
 
   const addToCart = (product: ProductSelect) => {
+    if (product.stock <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Out of Stock',
+        description: `${product.name} is currently out of stock.`,
+      });
+      return;
+    }
     setCart((prevCart) => [
       ...prevCart,
       {
@@ -63,15 +72,29 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
         quantity: 1,
         price_per_unit: product.selling_price,
         total_amount: product.selling_price,
+        stock: product.stock,
       },
     ]);
   };
 
   const updateQuantity = (productId: string, newQuantity: number) => {
+    const itemInCart = cart.find(item => item.id === productId);
+    if (!itemInCart) return;
+
     if (newQuantity < 1) {
         removeFromCart(productId);
         return;
     }
+
+    if (newQuantity > itemInCart.stock) {
+        toast({
+            variant: 'destructive',
+            title: 'Stock Limit Exceeded',
+            description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
+        });
+        return;
+    }
+
     setCart((prevCart) =>
       prevCart.map((item) =>
         item.id === productId
@@ -165,6 +188,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                   <TableHead className="w-[80px]">Image</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Price</TableHead>
+                  <TableHead>Stock</TableHead>
                   <TableHead className="w-[100px] text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -179,8 +203,15 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                     </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>LKR {product.selling_price.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {product.stock > 0 ? (
+                        <span>{product.stock}</span>
+                      ) : (
+                        <Badge variant="destructive">Out</Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" onClick={() => addToCart(product)}>Add</Button>
+                      <Button size="sm" onClick={() => addToCart(product)} disabled={product.stock <= 0}>Add</Button>
                     </TableCell>
                   </TableRow>
                 ))}
