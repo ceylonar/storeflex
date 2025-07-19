@@ -40,6 +40,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [taxPercentage, setTaxPercentage] = React.useState(0);
   const [discountAmount, setDiscountAmount] = React.useState(0);
+  const [serviceCharge, setServiceCharge] = React.useState(0);
 
   const { toast } = useToast();
 
@@ -119,7 +120,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
 
   const subtotal = cart.reduce((acc, item) => acc + item.total_amount, 0);
   const tax = subtotal * (taxPercentage / 100);
-  const total = Math.max(0, subtotal + tax - discountAmount);
+  const total = Math.max(0, subtotal + tax + serviceCharge - discountAmount);
 
 
   const handleCheckout = async () => {
@@ -142,6 +143,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             tax,
             tax_percentage: taxPercentage,
             discount_amount: discountAmount,
+            service_charge: serviceCharge,
             total,
         };
       await createSale(saleData);
@@ -154,6 +156,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
       setSelectedCustomer(null);
       setTaxPercentage(0);
       setDiscountAmount(0);
+      setServiceCharge(0);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -298,6 +301,18 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                     <div className="flex justify-between">
                         <span className="text-muted-foreground">Subtotal</span>
                         <span>LKR {subtotal.toFixed(2)}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor="service_charge" className="text-muted-foreground flex-1">Service Charge (LKR)</Label>
+                        <Input 
+                            id="service_charge" 
+                            type="number" 
+                            value={serviceCharge} 
+                            onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} 
+                            className="h-8 w-24 text-right"
+                            placeholder="0.00"
+                        />
                     </div>
 
                     <div className="flex items-center justify-between gap-2">

@@ -77,6 +77,7 @@ export type Sale = {
   tax_percentage: number;
   tax_amount: number;
   discount_amount: number;
+  service_charge: number;
   total_amount: number;
   sale_date: string; // Should be ISO string date
   product_image?: string;

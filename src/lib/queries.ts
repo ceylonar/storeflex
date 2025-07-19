@@ -71,6 +71,7 @@ const POSSaleSchema = z.object({
   tax: z.number().nonnegative(),
   tax_percentage: z.number().nonnegative(),
   discount_amount: z.number().nonnegative(),
+  service_charge: z.number().nonnegative(),
   total: z.number().nonnegative(),
 });
 
@@ -418,6 +419,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         tax_percentage: saleDetails.tax_percentage,
         tax_amount: saleDetails.tax,
         discount_amount: saleDetails.discount_amount,
+        service_charge: saleDetails.service_charge,
         total_amount: saleDetails.total,
         sale_date: serverTimestamp(),
       });
