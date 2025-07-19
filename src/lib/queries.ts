@@ -19,6 +19,7 @@ import {
   writeBatch,
   Timestamp,
   runTransaction,
+  setDoc,
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer } from './types';
 import { z } from 'zod';
@@ -269,10 +270,16 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
         revalidatePath('/dashboard/customers');
         revalidatePath('/dashboard/sales');
         
-        return {
-            ...newCustomerData,
-            created_at: new Date().toISOString()
-        } as Customer;
+        // Firestore returns a server timestamp object, so we manually create a date for the return value
+        const dataToReturn: Customer = {
+          id: newCustomerRef.id,
+          userId,
+          name: validatedFields.data.name,
+          phone: validatedFields.data.phone || '',
+          created_at: new Date().toISOString()
+        };
+
+        return dataToReturn
 
     } catch (error) {
         console.error("Database Error:", error);
@@ -288,16 +295,21 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(customersCollection, where('userId', '==', userId));
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
+        const customers = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
                 ...data,
-                created_at: data.created_at?.toDate().toISOString(),
+                created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Customer
         });
+        
+        // Sort in-memory to avoid composite index requirement
+        customers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        
+        return customers;
     } catch(error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch customers.');
@@ -574,7 +586,7 @@ export async function fetchSalesData(): Promise<SalesData[]> {
         }
 
         salesSnapshot.docs.forEach(doc => {
-            const sale = doc.data() as Sale;
+            const sale = doc.data();
             const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
             
             // Manual date filtering
@@ -582,7 +594,7 @@ export async function fetchSalesData(): Promise<SalesData[]> {
                 const month = saleDate.toLocaleString('default', { month: 'short' });
                 if (salesByMonth[month]) {
                     // Add a guard to ensure sale.total is a number
-                    salesByMonth[month].sales += typeof sale.total === 'number' ? sale.total : 0;
+                    salesByMonth[month].sales += typeof sale.total_amount === 'number' ? sale.total_amount : 0;
                 }
             }
         });
@@ -620,10 +632,10 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
                 sale.items.forEach(item => {
                     // Ensure quantity is a valid number
                     const quantity = typeof item.quantity === 'number' ? item.quantity : 0;
-                    if (productSales[item.name]) {
-                        productSales[item.name].totalQuantity += quantity;
+                    if (productSales[item.id]) {
+                        productSales[item.id].totalQuantity += quantity;
                     } else {
-                        productSales[item.name] = { name: item.name, totalQuantity: quantity };
+                        productSales[item.id] = { name: item.name, totalQuantity: quantity };
                     }
                 });
             }
