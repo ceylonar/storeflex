@@ -1023,8 +1023,3 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
     };
   }
 }
-
-
-    
-
-    

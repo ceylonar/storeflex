@@ -1,13 +1,10 @@
 
-import { fetchSuppliers, fetchPurchasesBySupplier } from "@/lib/queries";
-import { SuppliersTable } from "@/components/suppliers/suppliers-table";
-import { PurchaseHistory } from "@/components/suppliers/purchase-history";
+import { fetchSuppliers } from "@/lib/queries";
+import { SuppliersClient } from "@/components/suppliers/suppliers-client";
+
 
 export default async function SuppliersPage() {
   const suppliers = await fetchSuppliers();
-  // In a real app, you might fetch history for a selected supplier,
-  // but for now, we'll fetch for the first one as an example or none.
-  const purchases = suppliers.length > 0 ? await fetchPurchasesBySupplier(suppliers[0].id) : [];
 
   return (
     <div className="space-y-8">
@@ -17,9 +14,7 @@ export default async function SuppliersPage() {
           Manage your suppliers and view their purchase history.
         </p>
       </div>
-      <SuppliersTable initialSuppliers={suppliers} />
-      {/* This is a placeholder for showing history. A better UX might be a separate details page */}
-      {suppliers.length > 0 && <PurchaseHistory supplierName={suppliers[0].name} purchases={purchases} />}
+      <SuppliersClient initialSuppliers={suppliers} />
     </div>
   );
 }
