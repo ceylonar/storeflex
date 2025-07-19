@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -80,10 +81,12 @@ export function ActivityTable({ activities }: { activities: RecentActivity[] }) 
                   <Badge
                     variant="outline"
                     className={cn(
+                      'font-semibold',
                       activity.type === 'sale' && 'border-accent text-accent-foreground',
                       activity.type === 'update' && 'border-blue-500 text-blue-500',
                       activity.type === 'new' && 'border-purple-500 text-purple-500',
-                      activity.type === 'delete' && 'border-destructive text-destructive'
+                      activity.type === 'delete' && 'border-destructive text-destructive',
+                      activity.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500'
                     )}
                   >
                     {activity.type}

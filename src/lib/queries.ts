@@ -849,9 +849,9 @@ export async function fetchDashboardData() {
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
-
-        // Manual sort since we removed orderBy from the query
-        recentActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        // Sort in-memory
+        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return {
             inventoryValue,
@@ -963,7 +963,7 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
     const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, where('userId', '==', userId));
+        const activityQuery = query(activityCollection, where('userId', '==', userId), orderBy('timestamp', 'desc'));
         const activitySnapshot = await getDocs(activityQuery);
         const activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -973,68 +973,9 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
-        return activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        return activities;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch activities.');
     }
-}
-
-export async function fetchSalesReport(range: DateRange): Promise<{ success: boolean; data: { sales: Sale[]; totalSales: number; transactionCount: number; } | null; message: string; }> {
-  noStore();
-  const { db } = getFirebaseServices();
-  const userId = MOCK_USER_ID;
-  try {
-    const { from, to } = range;
-
-    if (!from || !to) {
-        throw new Error('A valid date range is required.');
-    }
-
-    const startDate = startOfDay(from);
-    const endDate = endOfDay(to);
-
-    const salesCollection = collection(db, 'sales');
-    const q = query(salesCollection, where('userId', '==', userId));
-
-    const querySnapshot = await getDocs(q);
-    
-    let totalSales = 0;
-    const allSales: Sale[] = [];
-    querySnapshot.forEach(doc => {
-        allSales.push({
-            id: doc.id,
-            ...doc.data(),
-            sale_date: (doc.data().sale_date as Timestamp).toDate().toISOString(),
-        } as Sale);
-    });
-    
-    // Manual filtering by date
-    const filteredSales = allSales.filter(sale => 
-        isWithinInterval(new Date(sale.sale_date), { start: startDate, end: endDate })
-    );
-
-    filteredSales.forEach(sale => {
-        totalSales += sale.total_amount;
-    });
-
-    const transactionCount = filteredSales.length;
-    
-    filteredSales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
-
-    return {
-      success: true,
-      data: { sales: filteredSales, totalSales, transactionCount },
-      message: 'Report generated successfully.',
-    };
-
-  } catch (error) {
-    console.error('Report Generation Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-    return {
-      success: false,
-      data: null,
-      message: `Failed to generate report: ${errorMessage}`,
-    };
-  }
 }

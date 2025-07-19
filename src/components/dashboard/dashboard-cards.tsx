@@ -215,12 +215,12 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
             <div className="grid gap-1">
               <p className="text-sm font-medium leading-none">
                 {activity.product_name}
-                <span className={cn('ml-2 capitalize text-xs', 
+                <span className={cn('ml-2 capitalize text-xs font-semibold', 
                   activity.type === 'sale' && 'text-accent-foreground',
                   activity.type === 'update' && 'text-blue-500',
                   activity.type === 'new' && 'text-purple-500',
                   activity.type === 'delete' && 'text-destructive',
-                  activity.type === 'purchase' && 'text-green-500',
+                  activity.type === 'purchase' && 'text-green-600 dark:text-green-500',
                 )}>({activity.type})</span>
               </p>
               <p className="text-sm text-muted-foreground">{activity.details}</p>
@@ -231,12 +231,6 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
           </div>
         ))}
       </CardContent>
-      <CardFooter>
-        <Button size="sm" className="w-full" disabled>
-            View All
-            <ArrowUpRight className="h-4 w-4 ml-2" />
-        </Button>
-      </CardFooter>
     </Card>
   );
 }
