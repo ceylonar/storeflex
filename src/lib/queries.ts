@@ -471,6 +471,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
     revalidatePath('/dashboard/sales');
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard/customers');
     return { success: true, message: 'Sale recorded successfully.' };
   } catch (error) {
     console.error('Database Error:', error);
@@ -622,7 +623,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     }
 }
 
-export async function updateSupplier(id: string, formData: FormData) {
+export async function updateSupplier(id: string, formData: FormData): Promise<Supplier | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
 
@@ -637,9 +638,27 @@ export async function updateSupplier(id: string, formData: FormData) {
         if (!docSnap.exists() || docSnap.data().userId !== userId) {
             throw new Error("Supplier not found or access denied.");
         }
-        await updateDoc(supplierRef, validatedFields.data);
+        
+        const updatedData = {
+            ...validatedFields.data,
+            updated_at: serverTimestamp(),
+        }
+
+        await updateDoc(supplierRef, updatedData);
+
         revalidatePath('/dashboard/suppliers');
         revalidatePath('/dashboard/buy');
+
+        const updatedDoc = await getDoc(supplierRef);
+        const data = updatedDoc.data();
+
+        return {
+            id: updatedDoc.id,
+            ...data,
+            created_at: (data.created_at as Timestamp)?.toDate().toISOString(),
+            updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
+        } as Supplier;
+
     } catch (error) {
         throw new Error("Failed to update supplier.");
     }

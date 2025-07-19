@@ -57,12 +57,14 @@ const initialSupplierState: Partial<Supplier> = {
 };
 
 interface SuppliersTableProps {
-    initialSuppliers: Supplier[];
+    suppliers: Supplier[];
     onViewHistory: (supplier: Supplier) => void;
+    onSupplierCreated: (supplier: Supplier) => void;
+    onSupplierUpdated: (supplier: Supplier) => void;
+    onSupplierDeleted: (id: string) => void;
 }
 
-export function SuppliersTable({ initialSuppliers, onViewHistory }: SuppliersTableProps) {
-  const [suppliers, setSuppliers] = React.useState<Supplier[]>(initialSuppliers);
+export function SuppliersTable({ suppliers, onViewHistory, onSupplierCreated, onSupplierUpdated, onSupplierDeleted }: SuppliersTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedSupplier, setSelectedSupplier] = React.useState<Partial<Supplier>>(initialSupplierState);
@@ -78,7 +80,7 @@ export function SuppliersTable({ initialSuppliers, onViewHistory }: SuppliersTab
   const handleDelete = async (id: string) => {
     try {
       await deleteSupplier(id);
-      setSuppliers(suppliers.filter(s => s.id !== id));
+      onSupplierDeleted(id);
       toast({
         title: 'Success',
         description: 'Supplier deleted successfully.',
@@ -99,14 +101,15 @@ export function SuppliersTable({ initialSuppliers, onViewHistory }: SuppliersTab
       if (formState === 'add') {
         const newSupplier = await createSupplier(formData);
         if (newSupplier) {
-            setSuppliers(prev => [newSupplier, ...prev]);
+            onSupplierCreated(newSupplier);
+            toast({ title: 'Success', description: 'Supplier added.' });
         }
-        toast({ title: 'Success', description: 'Supplier added.' });
       } else if (selectedSupplier.id) {
-        await updateSupplier(selectedSupplier.id, formData);
-        const updatedSuppliers = suppliers.map(s => s.id === selectedSupplier.id ? {...s, ...Object.fromEntries(formData)} : s);
-        setSuppliers(updatedSuppliers as Supplier[]);
-        toast({ title: 'Success', description: 'Supplier updated.' });
+        const updatedSupplierData = await updateSupplier(selectedSupplier.id, formData);
+        if (updatedSupplierData) {
+            onSupplierUpdated(updatedSupplierData);
+            toast({ title: 'Success', description: 'Supplier updated.' });
+        }
       }
       setIsDialogOpen(false);
     } catch (error) {
