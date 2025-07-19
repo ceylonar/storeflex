@@ -684,11 +684,10 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
         const q = query(
             purchasesCollection, 
             where('userId', '==', userId), 
-            where('supplier_id', '==', supplierId),
-            orderBy('purchase_date', 'desc')
+            where('supplier_id', '==', supplierId)
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
+        const purchases = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -696,6 +695,11 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
                 purchase_date: (data.purchase_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Purchase
         });
+        
+        // Sort in-memory to avoid composite index requirement
+        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+        
+        return purchases;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch purchase history.');
@@ -985,5 +989,7 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
   }
 }
 
+
+    
 
     
