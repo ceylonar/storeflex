@@ -245,9 +245,9 @@ export async function fetchDashboardData() {
         allSalesSnapshot.forEach(doc => {
             const sale = doc.data();
             const saleDate = (sale.sale_date as Timestamp).toDate();
-            totalSales += sale.total;
+            totalSales += sale.total || 0;
             if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
-                salesToday += sale.total;
+                salesToday += sale.total || 0;
             }
         });
 
@@ -308,7 +308,8 @@ export async function fetchSalesData(): Promise<SalesData[]> {
             if (saleDate >= sixMonthsAgo) {
                 const month = saleDate.toLocaleString('default', { month: 'short' });
                 if (salesByMonth[month]) {
-                    salesByMonth[month].sales += sale.total;
+                    // Add a guard to ensure sale.total is a number
+                    salesByMonth[month].sales += typeof sale.total === 'number' ? sale.total : 0;
                 }
             }
         });
@@ -344,10 +345,12 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
             // Add a guard clause to ensure sale.items exists and is an array
             if (sale.items && Array.isArray(sale.items)) {
                 sale.items.forEach(item => {
+                    // Ensure quantity is a valid number
+                    const quantity = typeof item.quantity === 'number' ? item.quantity : 0;
                     if (productSales[item.name]) {
-                        productSales[item.name].totalQuantity += item.quantity;
+                        productSales[item.name].totalQuantity += quantity;
                     } else {
-                        productSales[item.name] = { name: item.name, totalQuantity: item.quantity };
+                        productSales[item.name] = { name: item.name, totalQuantity: quantity };
                     }
                 });
             }
@@ -551,32 +554,5 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error((error as Error).message || 'Failed to record sale.');
-  }
-}
-
-// READ SALES - This function is for a future sales history page
-export async function fetchSales() {
-  noStore();
-  const userId = await getCurrentUserId();
-  if (!userId) return [];
-
-  const { db } = getFirebaseServices();
-  try {
-    const salesCollection = collection(db, 'sales');
-    const q = query(salesCollection, where('userId', '==', userId), orderBy('sale_date', 'desc'), limit(50));
-    const querySnapshot = await getDocs(q);
-    const sales = querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        sale_date: data.sale_date.toDate().toISOString(),
-      }
-    }) as Sale[];
-    return sales;
-  } catch (error) {
-    console.error('Database Error:', error);
-    // Since this is not critical for POS, we can return empty array
-    return [];
   }
 }
