@@ -1,8 +1,9 @@
-import { fetchProductsForSelect } from "@/lib/queries";
+import { fetchProductsForSelect, fetchCustomers } from "@/lib/queries";
 import { PointOfSaleTerminal } from "@/components/sales/point-of-sale-terminal";
 
 export default async function SalesPage() {
   const products = await fetchProductsForSelect();
+  const customers = await fetchCustomers();
 
   return (
     <div className="space-y-4">
@@ -12,7 +13,7 @@ export default async function SalesPage() {
           Create new sales transactions for customers.
         </p>
       </div>
-      <PointOfSaleTerminal products={products} />
+      <PointOfSaleTerminal products={products} initialCustomers={customers} />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 
@@ -11,6 +11,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
 ];

@@ -23,22 +23,27 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { createSale } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductSelect, SaleItem } from '@/lib/types';
+import type { ProductSelect, SaleItem, Customer } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, User, FileText, Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
+import { CustomerCombobox } from './customer-combobox';
 
-export function PointOfSaleTerminal({ products }: { products: ProductSelect[] }) {
+export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<SaleItem[]>([]);
-  const [customerName, setCustomerName] = React.useState('');
-  const [customerId, setCustomerId] = React.useState('');
+  const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+  const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const { toast } = useToast();
 
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const handleCustomerCreated = (newCustomer: Customer) => {
+    setCustomers(prev => [newCustomer, ...prev]);
+  };
 
   const filteredProducts = products.filter(
     (product) =>
@@ -101,8 +106,8 @@ export function PointOfSaleTerminal({ products }: { products: ProductSelect[] })
     try {
         const saleData = {
             items: cart,
-            customer_name: customerName || 'Walk-in Customer',
-            customer_id: customerId,
+            customer_name: selectedCustomer?.name || 'Walk-in Customer',
+            customer_id: selectedCustomer?.id || null,
             subtotal,
             tax,
             total,
@@ -114,8 +119,7 @@ export function PointOfSaleTerminal({ products }: { products: ProductSelect[] })
       });
       // Reset state
       setCart([]);
-      setCustomerName('');
-      setCustomerId('');
+      setSelectedCustomer(null);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -196,10 +200,12 @@ export function PointOfSaleTerminal({ products }: { products: ProductSelect[] })
             {/* Customer Details */}
             <div className="space-y-2">
                 <h3 className="text-sm font-medium flex items-center gap-2"><User className="h-4 w-4" /> Customer Details</h3>
-                <div className="grid grid-cols-2 gap-2">
-                    <Input placeholder="Customer Name" value={customerName} onChange={e => setCustomerName(e.target.value)} />
-                    <Input placeholder="Customer ID (Optional)" value={customerId} onChange={e => setCustomerId(e.target.value)} />
-                </div>
+                 <CustomerCombobox 
+                    customers={customers}
+                    selectedCustomer={selectedCustomer}
+                    onSelectCustomer={setSelectedCustomer}
+                    onCustomerCreated={handleCustomerCreated}
+                />
             </div>
 
             {/* Cart Items */}

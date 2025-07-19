@@ -19,9 +19,8 @@ import {
   writeBatch,
   Timestamp,
   runTransaction,
-  setDoc
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 
@@ -46,6 +45,12 @@ const ProductSchema = z.object({
   low_stock_threshold: z.coerce.number().int().nonnegative('Low stock threshold must be a non-negative number'),
 });
 
+const CustomerSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(1, "Customer name is required"),
+    phone: z.string().optional(),
+});
+
 const SaleItemSchema = z.object({
     id: z.string(),
     name: z.string(),
@@ -57,13 +62,15 @@ const SaleItemSchema = z.object({
 
 const POSSaleSchema = z.object({
   items: z.array(SaleItemSchema).min(1, 'At least one item is required in the sale.'),
-  customer_name: z.string().optional(),
-  customer_id: z.string().optional(),
+  customer_id: z.string().nullable(),
+  customer_name: z.string(),
   subtotal: z.number().nonnegative(),
   tax: z.number().nonnegative(),
   total: z.number().nonnegative(),
 });
 
+
+// --- PRODUCT QUERIES ---
 
 // CREATE
 export async function createProduct(formData: FormData) {
@@ -142,6 +149,274 @@ export async function fetchProducts() {
   }
 }
 
+// UPDATE
+export async function updateProduct(id: string, formData: FormData) {
+  const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
+
+  const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
+    throw new Error('Invalid product data.');
+  }
+
+  const { name, image, ...productData } = validatedFields.data;
+  
+  try {
+    const batch = writeBatch(db);
+    const productRef = doc(db, 'products', id);
+
+    // Verify ownership before updating
+    const productDoc = await getDoc(productRef);
+    if (!productDoc.exists() || productDoc.data().userId !== userId) {
+        throw new Error('Product not found or access denied.');
+    }
+
+    batch.update(productRef, {
+      ...productData,
+      name,
+      image: image || '',
+      updated_at: serverTimestamp(),
+    });
+    
+    const activityCollection = collection(db, 'recent_activity');
+    const newActivityRef = doc(activityCollection);
+    batch.set(newActivityRef, {
+        type: 'update',
+        product_name: name,
+        product_image: image || '',
+        details: 'Product details updated',
+        userId,
+        timestamp: serverTimestamp()
+    });
+
+    await batch.commit();
+
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard');
+    return { success: true, message: 'Product updated successfully.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to update product.');
+  }
+}
+
+// DELETE
+export async function deleteProduct(id: string) {
+  const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
+
+  try {
+    const batch = writeBatch(db);
+    const productRef = doc(db, 'products', id);
+
+    const productDoc = await getDoc(productRef);
+    if (!productDoc.exists() || productDoc.data().userId !== userId) {
+        throw new Error('Product not found or access denied.');
+    }
+    const { name, image } = productDoc.data();
+    
+    batch.delete(productRef);
+    
+    const activityCollection = collection(db, 'recent_activity');
+    const newActivityRef = doc(activityCollection);
+    batch.set(newActivityRef, {
+        type: 'delete',
+        product_name: name,
+        product_image: image || '',
+        details: 'Product removed from inventory',
+        userId,
+        timestamp: serverTimestamp()
+    });
+
+    await batch.commit();
+
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard');
+    return { success: true, message: 'Product deleted successfully.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to delete product.');
+  }
+}
+
+// --- CUSTOMER QUERIES ---
+
+export async function createCustomer(formData: FormData): Promise<Customer | null> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    const validatedFields = CustomerSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
+
+    if (!validatedFields.success) {
+        throw new Error("Invalid customer data.");
+    }
+
+    try {
+        const customersCollection = collection(db, 'customers');
+        const newCustomerRef = doc(customersCollection); // Auto-generates ID
+        
+        const newCustomerData = {
+            ...validatedFields.data,
+            id: newCustomerRef.id,
+            userId,
+            created_at: serverTimestamp(),
+        }
+
+        await setDoc(newCustomerRef, newCustomerData);
+
+        revalidatePath('/dashboard/customers');
+        revalidatePath('/dashboard/sales');
+        
+        return {
+            ...newCustomerData,
+            created_at: new Date().toISOString()
+        } as Customer;
+
+    } catch (error) {
+        console.error("Database Error:", error);
+        throw new Error("Failed to create customer.");
+    }
+}
+
+export async function fetchCustomers(): Promise<Customer[]> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
+    try {
+        const customersCollection = collection(db, 'customers');
+        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                created_at: data.created_at?.toDate().toISOString(),
+            } as Customer
+        });
+    } catch(error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch customers.');
+    }
+}
+
+export async function updateCustomer(id: string, formData: FormData) {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    const validatedFields = CustomerSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
+    if (!validatedFields.success) {
+        throw new Error("Invalid customer data.");
+    }
+
+    try {
+        const customerRef = doc(db, 'customers', id);
+        const docSnap = await getDoc(customerRef);
+        if (!docSnap.exists() || docSnap.data().userId !== userId) {
+            throw new Error("Customer not found or access denied.");
+        }
+        await updateDoc(customerRef, validatedFields.data);
+        revalidatePath('/dashboard/customers');
+        revalidatePath('/dashboard/sales');
+    } catch (error) {
+        throw new Error("Failed to update customer.");
+    }
+}
+
+export async function deleteCustomer(id: string) {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    try {
+        const customerRef = doc(db, 'customers', id);
+        const docSnap = await getDoc(customerRef);
+        if (!docSnap.exists() || docSnap.data().userId !== userId) {
+            throw new Error("Customer not found or access denied.");
+        }
+        await deleteDoc(customerRef);
+        revalidatePath('/dashboard/customers');
+        revalidatePath('/dashboard/sales');
+    } catch (error) {
+        throw new Error("Failed to delete customer.");
+    }
+}
+
+
+// --- SALES QUERIES ---
+
+export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
+  const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
+
+  const validatedFields = POSSaleSchema.safeParse(saleData);
+
+  if (!validatedFields.success) {
+    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
+    throw new Error('Invalid sale data.');
+  }
+  
+  const { items, customer_id, customer_name, subtotal, tax, total } = validatedFields.data;
+  
+  try {
+    await runTransaction(db, async (transaction) => {
+        // 1. Update stock for all items
+        for (const item of items) {
+            const productRef = doc(db, 'products', item.id);
+            const productDoc = await transaction.get(productRef);
+
+            if (!productDoc.exists() || productDoc.data().userId !== userId) {
+                throw new Error(`Product "${item.name}" not found or access denied.`);
+            }
+            
+            const newStock = (productDoc.data().stock || 0) - item.quantity;
+
+            if (newStock < 0) {
+                throw new Error(`Not enough stock for ${item.name}.`);
+            }
+            transaction.update(productRef, { stock: newStock });
+        }
+
+      // 2. Create a single sale document
+      const salesCollection = collection(db, 'sales');
+      const newSaleRef = doc(salesCollection);
+      transaction.set(newSaleRef, {
+        userId,
+        items,
+        customer_id: customer_id || null,
+        customer_name,
+        subtotal,
+        tax,
+        total,
+        sale_date: serverTimestamp(),
+      });
+
+      // 3. Create a single activity log for the entire transaction
+      const activityCollection = collection(db, 'recent_activity');
+      const newActivityRef = doc(activityCollection);
+      transaction.set(newActivityRef, {
+        type: 'sale',
+        product_name: `${items.length} items`,
+        product_image: items[0]?.image || '',
+        details: `Sale to ${customer_name} for LKR ${total.toFixed(2)}`,
+        timestamp: serverTimestamp(),
+        userId,
+      });
+    });
+
+    revalidatePath('/dashboard/sales');
+    revalidatePath('/dashboard');
+    revalidatePath('/dashboard/inventory');
+    return { success: true, message: 'Sale recorded successfully.' };
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error((error as Error).message || 'Failed to record sale.');
+  }
+}
+
 export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   noStore();
   const userId = await getCurrentUserId();
@@ -168,14 +443,12 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
   }
 }
 
+// --- DASHBOARD & OTHER QUERIES ---
+
 export async function fetchStores() {
     noStore();
-    const userId = await getCurrentUserId();
-    if (!userId) return [];
-    
     // Bypassing Firestore query to avoid index errors.
-    // In a real app, you would create the required Firestore index.
-    const defaultStore = { id: 'store-1', name: 'My Store', userId };
+    const defaultStore = { id: 'store-1', name: 'My Store' };
     return [defaultStore];
 }
 
@@ -245,9 +518,9 @@ export async function fetchDashboardData() {
         allSalesSnapshot.forEach(doc => {
             const sale = doc.data();
             const saleDate = (sale.sale_date as Timestamp).toDate();
-            totalSales += sale.total || 0;
+            totalSales += sale.total_amount || 0;
             if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
-                salesToday += sale.total || 0;
+                salesToday += sale.total_amount || 0;
             }
         });
 
@@ -391,168 +664,4 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch activities.');
     }
-}
-
-// UPDATE
-export async function updateProduct(id: string, formData: FormData) {
-  const { db } = getFirebaseServices();
-  const userId = await getCurrentUserId();
-
-  const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
-
-  if (!validatedFields.success) {
-    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
-    throw new Error('Invalid product data.');
-  }
-
-  const { name, image, ...productData } = validatedFields.data;
-  
-  try {
-    const batch = writeBatch(db);
-    const productRef = doc(db, 'products', id);
-
-    // Verify ownership before updating
-    const productDoc = await getDoc(productRef);
-    if (!productDoc.exists() || productDoc.data().userId !== userId) {
-        throw new Error('Product not found or access denied.');
-    }
-
-    batch.update(productRef, {
-      ...productData,
-      name,
-      image: image || '',
-      updated_at: serverTimestamp(),
-    });
-    
-    const activityCollection = collection(db, 'recent_activity');
-    const newActivityRef = doc(activityCollection);
-    batch.set(newActivityRef, {
-        type: 'update',
-        product_name: name,
-        product_image: image || '',
-        details: 'Product details updated',
-        userId,
-        timestamp: serverTimestamp()
-    });
-
-    await batch.commit();
-
-    revalidatePath('/dashboard/inventory');
-    revalidatePath('/dashboard');
-    return { success: true, message: 'Product updated successfully.' };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to update product.');
-  }
-}
-
-// DELETE
-export async function deleteProduct(id: string) {
-  const { db } = getFirebaseServices();
-  const userId = await getCurrentUserId();
-
-  try {
-    const batch = writeBatch(db);
-    const productRef = doc(db, 'products', id);
-
-    const productDoc = await getDoc(productRef);
-    if (!productDoc.exists() || productDoc.data().userId !== userId) {
-        throw new Error('Product not found or access denied.');
-    }
-    const { name, image } = productDoc.data();
-    
-    batch.delete(productRef);
-    
-    const activityCollection = collection(db, 'recent_activity');
-    const newActivityRef = doc(activityCollection);
-    batch.set(newActivityRef, {
-        type: 'delete',
-        product_name: name,
-        product_image: image || '',
-        details: 'Product removed from inventory',
-        userId,
-        timestamp: serverTimestamp()
-    });
-
-    await batch.commit();
-
-    revalidatePath('/dashboard/inventory');
-    revalidatePath('/dashboard');
-    return { success: true, message: 'Product deleted successfully.' };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to delete product.');
-  }
-}
-
-// --- SALES QUERIES ---
-
-// CREATE SALE
-export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
-  const { db } = getFirebaseServices();
-  const userId = await getCurrentUserId();
-
-  const validatedFields = POSSaleSchema.safeParse(saleData);
-
-  if (!validatedFields.success) {
-    console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
-    throw new Error('Invalid sale data.');
-  }
-  
-  const { items, customer_name, customer_id, subtotal, tax, total } = validatedFields.data;
-  
-  try {
-    await runTransaction(db, async (transaction) => {
-        // 1. Update stock for all items
-        for (const item of items) {
-            const productRef = doc(db, 'products', item.id);
-            const productDoc = await transaction.get(productRef);
-
-            if (!productDoc.exists() || productDoc.data().userId !== userId) {
-                throw new Error(`Product "${item.name}" not found or access denied.`);
-            }
-            
-            const newStock = (productDoc.data().stock || 0) - item.quantity;
-
-            if (newStock < 0) {
-                throw new Error(`Not enough stock for ${item.name}.`);
-            }
-            transaction.update(productRef, { stock: newStock });
-        }
-
-      // 2. Create a single sale document
-      const salesCollection = collection(db, 'sales');
-      const newSaleRef = doc(salesCollection);
-      transaction.set(newSaleRef, {
-        userId,
-        items,
-        customer_name,
-        customer_id,
-        subtotal,
-        tax,
-        total,
-        sale_date: serverTimestamp(),
-      });
-
-      // 3. Create a single activity log for the entire transaction
-      const activityCollection = collection(db, 'recent_activity');
-      const newActivityRef = doc(activityCollection);
-      transaction.set(newActivityRef, {
-        type: 'sale',
-        product_name: `${items.length} items`,
-        product_image: items[0]?.image || '',
-        details: `Sale to ${customer_name || 'Walk-in'} for LKR ${total.toFixed(2)}`,
-        timestamp: serverTimestamp(),
-        userId,
-      });
-    });
-
-    revalidatePath('/dashboard/sales');
-    revalidatePath('/dashboard');
-    revalidatePath('/dashboard/inventory');
-    return { success: true, message: 'Sale recorded successfully.' };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error((error as Error).message || 'Failed to record sale.');
-  }
 }

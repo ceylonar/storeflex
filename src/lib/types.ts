@@ -2,7 +2,6 @@
 export type Store = {
   id: string;
   name: string;
-  userId: string;
 };
 
 export type UserProfile = {
@@ -70,11 +69,19 @@ export type Sale = {
   id: string;
   userId: string;
   items: SaleItem[];
+  customer_id: string | null;
   customer_name: string;
-  customer_id?: string;
   subtotal: number;
   tax: number;
   total: number;
   sale_date: string; // Should be ISO string date
   product_image?: string;
+};
+
+export type Customer = {
+  id: string;
+  userId: string;
+  name: string;
+  phone: string;
+  created_at: string;
 };
