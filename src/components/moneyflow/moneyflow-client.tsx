@@ -25,7 +25,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Check, CheckCircle, Landmark, Loader2, X, Receipt, CreditCard } from 'lucide-react';
 import { MoneyflowData, MoneyflowTransaction, settlePayment } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
