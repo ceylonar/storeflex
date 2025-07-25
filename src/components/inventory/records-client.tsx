@@ -105,19 +105,57 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
     }
     
     const headers = [
-      'ID', 'Type', 'Product Name', 'Details', 'Timestamp'
+      'ID', 'Type', 'Product Name', 'Quantity Change', 'Amount (LKR)', 'Source/Destination', 'Timestamp'
     ];
     
     const csvContent = [
       headers.join(','),
-      ...records.map(rec => [
+      ...records.map(rec => {
+        let quantityChange = '';
+        let amount = '';
+        let sourceDestination = '';
+
+        if (rec.type === 'sale' || rec.type === 'purchase') {
+            const details = rec.details || '';
+            const amountMatch = details.match(/for LKR ([\d,]+\.\d{2})/);
+            if (amountMatch) {
+                amount = amountMatch[1].replace(/,/g, '');
+            }
+
+            if(rec.type === 'sale') {
+                const quantityMatch = rec.details.match(/Sold (\d+) unit\(s\)/);
+                if(quantityMatch) quantityChange = `-${quantityMatch[1]}`;
+
+                const customerMatch = details.match(/Sale to (.+?) for/);
+                if(customerMatch) sourceDestination = `Customer: ${customerMatch[1].trim()}`;
+            } else { // purchase
+                const quantityMatch = rec.details.match(/Purchased (\d+) unit\(s\)/);
+                if(quantityMatch) quantityChange = `+${quantityMatch[1]}`;
+                
+                const supplierMatch = details.match(/Purchase from (.+?) for/);
+                if(supplierMatch) sourceDestination = `Supplier: ${supplierMatch[1].trim()}`;
+            }
+        }
+        
+        // Handle multi-item transactions
+        if (rec.product_id === 'multiple') {
+             sourceDestination = rec.details;
+        }
+
+
+        const row = [
           rec.id,
           rec.type,
           `"${rec.product_name}"`,
-          `"${rec.details}"`,
+          quantityChange,
+          amount,
+          `"${sourceDestination}"`,
           format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss')
-        ].join(','))
-      .join('\n')
+        ];
+        
+        return row.join(',');
+
+      }).join('\n')
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -299,3 +337,5 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
     </div>
   );
 }
+
+    
