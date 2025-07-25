@@ -95,7 +95,17 @@ export function ProductHistory({ selectedProduct }: ProductHistoryProps) {
     <Card>
       <CardHeader>
         <CardTitle>Transaction History for {selectedProduct.name}</CardTitle>
-        <CardDescription>
+        <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground mt-2">
+            <div className="flex flex-col">
+                <span className="font-semibold">Available Stock</span>
+                <span className="text-lg font-bold text-foreground">{selectedProduct.stock} units</span>
+            </div>
+            <div className="flex flex-col">
+                <span className="font-semibold">Current Cost Price</span>
+                <span className="text-lg font-bold text-foreground">LKR {selectedProduct.cost_price.toFixed(2)}</span>
+            </div>
+        </div>
+        <CardDescription className="pt-4">
           A log of all sales and purchases for this product.
         </CardDescription>
       </CardHeader>
