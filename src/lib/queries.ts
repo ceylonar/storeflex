@@ -78,11 +78,11 @@ const POSSaleSchema = z.object({
   customer_id: z.string().nullable(),
   customer_name: z.string(),
   subtotal: z.number().nonnegative(),
-  tax: z.number().nonnegative(),
+  tax_amount: z.number().nonnegative(),
   tax_percentage: z.number().nonnegative(),
   discount_amount: z.number().nonnegative(),
   service_charge: z.number().nonnegative(),
-  total: z.number().nonnegative(),
+  total_amount: z.number().nonnegative(),
 });
 
 const PurchaseItemSchema = z.object({
@@ -433,7 +433,7 @@ export async function deleteCustomer(id: string) {
 
 // --- SALES QUERIES ---
 
-export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
+export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promise<Sale | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
 
@@ -447,7 +447,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
   const { items, ...saleDetails } = validatedFields.data;
   
   try {
-    await runTransaction(db, async (transaction) => {
+    const saleId = await runTransaction(db, async (transaction) => {
         const productRefsAndData = [];
         const itemIds = items.map(item => item.id); // For indexing
 
@@ -492,14 +492,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         userId,
         items: itemsToSave,
         item_ids: itemIds,
-        customer_id: saleDetails.customer_id || null,
-        customer_name: saleDetails.customer_name,
-        subtotal: saleDetails.subtotal,
-        tax_percentage: saleDetails.tax_percentage,
-        tax_amount: saleDetails.tax,
-        discount_amount: saleDetails.discount_amount,
-        service_charge: saleDetails.service_charge,
-        total_amount: saleDetails.total,
+        ...saleDetails,
         sale_date: serverTimestamp(),
       });
 
@@ -514,18 +507,29 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         product_id: items.length > 1 ? 'multiple' : items[0].id,
         product_name: `${items.length} items`,
         product_image: items[0]?.image || '',
-        details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total.toFixed(2)}`,
+        details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total_amount.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
         id: newSaleRef.id // Add sale ID to activity log
       });
+      return formattedId;
     });
 
     revalidatePath('/dashboard/sales');
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/customers');
-    return { success: true, message: 'Sale recorded successfully.' };
+
+    // Return the newly created sale object for receipt printing
+    const itemsToReturn = items.map(({stock, ...rest}) => rest);
+    return {
+        id: saleId,
+        userId,
+        items: itemsToReturn,
+        item_ids: items.map(i => i.id),
+        ...saleDetails,
+        sale_date: new Date().toISOString(),
+    };
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error((error as Error).message || 'Failed to record sale.');
