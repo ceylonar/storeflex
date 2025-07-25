@@ -1395,40 +1395,44 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         salesDocs.forEach(doc => {
             const sale = doc.data() as Sale;
             const creditAmount = sale.creditAmount || 0;
-            const transaction: MoneyflowTransaction = {
-                id: doc.id,
-                type: 'receivable',
-                partyName: sale.customer_name,
-                partyId: sale.customer_id!,
-                paymentMethod: sale.paymentMethod as 'credit' | 'check',
-                amount: creditAmount,
-                date: (sale.sale_date as any).toDate().toISOString(),
-                checkNumber: sale.checkNumber,
-            };
-            transactions.push(transaction);
-            receivablesTotal += creditAmount;
-            if (sale.paymentMethod === 'check') {
-                pendingChecksTotal += sale.total_amount;
+            if (creditAmount > 0 || sale.paymentMethod === 'check') {
+                const transaction: MoneyflowTransaction = {
+                    id: doc.id,
+                    type: 'receivable',
+                    partyName: sale.customer_name,
+                    partyId: sale.customer_id!,
+                    paymentMethod: sale.paymentMethod as 'credit' | 'check',
+                    amount: sale.paymentMethod === 'check' ? sale.total_amount : creditAmount,
+                    date: (sale.sale_date as any).toDate().toISOString(),
+                    checkNumber: sale.checkNumber,
+                };
+                transactions.push(transaction);
+                receivablesTotal += creditAmount;
+                if (sale.paymentMethod === 'check') {
+                    pendingChecksTotal += sale.total_amount;
+                }
             }
         });
 
         purchasesDocs.forEach(doc => {
             const purchase = doc.data() as Purchase;
             const creditAmount = purchase.creditAmount || 0;
-            const transaction: MoneyflowTransaction = {
-                id: doc.id,
-                type: 'payable',
-                partyName: purchase.supplier_name,
-                partyId: purchase.supplier_id,
-                paymentMethod: purchase.paymentMethod as 'credit' | 'check',
-                amount: creditAmount,
-                date: (purchase.purchase_date as any).toDate().toISOString(),
-                checkNumber: purchase.checkNumber,
-            };
-            transactions.push(transaction);
-            payablesTotal += creditAmount;
-            if (purchase.paymentMethod === 'check') {
-                pendingChecksTotal += purchase.total_amount;
+            if (creditAmount > 0 || purchase.paymentMethod === 'check') {
+                const transaction: MoneyflowTransaction = {
+                    id: doc.id,
+                    type: 'payable',
+                    partyName: purchase.supplier_name,
+                    partyId: purchase.supplier_id,
+                    paymentMethod: purchase.paymentMethod as 'credit' | 'check',
+                    amount: purchase.paymentMethod === 'check' ? purchase.total_amount : creditAmount,
+                    date: (purchase.purchase_date as any).toDate().toISOString(),
+                    checkNumber: purchase.checkNumber,
+                };
+                transactions.push(transaction);
+                payablesTotal += creditAmount;
+                if (purchase.paymentMethod === 'check') {
+                    pendingChecksTotal += purchase.total_amount;
+                }
             }
         });
         
@@ -1514,5 +1518,41 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
     } catch (error) {
         console.error('Settle Payment Error:', error);
         return { success: false, message: 'Failed to settle payment.' };
+    }
+}
+
+
+export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
+    try {
+        const activityCollection = collection(db, 'recent_activity');
+        const financialTypes: RecentActivity['type'][] = ['credit_settled', 'check_cleared', 'check_rejected'];
+        
+        const q = query(
+            activityCollection, 
+            where('userId', '==', userId), 
+            where('type', 'in', financialTypes),
+            orderBy('timestamp', 'desc'),
+            limit(20) // Get the last 20 financial activities
+        );
+        
+        const activitySnapshot = await getDocs(q);
+        const activities = activitySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
+            }
+        }) as RecentActivity[];
+
+        return activities;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch financial activities.');
     }
 }

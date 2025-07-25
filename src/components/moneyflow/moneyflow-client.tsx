@@ -27,7 +27,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Check, CheckCircle, Landmark, Loader2, X, Receipt, CreditCard } from 'lucide-react';
-import { MoneyflowData, MoneyflowTransaction, settlePayment } from '@/lib/queries';
+import { MoneyflowData, MoneyflowTransaction, settlePayment, RecentActivity } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -42,6 +42,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { FinancialHistory } from './financial-history';
 
 
 const StatCard = ({ title, value, icon, description }: { title: string, value: string, icon: React.ElementType, description: string }) => {
@@ -62,9 +63,10 @@ const StatCard = ({ title, value, icon, description }: { title: string, value: s
 
 interface MoneyflowClientProps {
   initialData: MoneyflowData;
+  initialHistory: RecentActivity[];
 }
 
-export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
+export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClientProps) {
   const [data, setData] = React.useState<MoneyflowData>(initialData);
   const [filter, setFilter] = React.useState('all');
   const [isSettling, setIsSettling] = React.useState<string | null>(null);
@@ -79,14 +81,14 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
         // Optimistically update UI
         setData(prevData => {
             const newTransactions = prevData.transactions.filter(t => t.id !== transaction.id);
-            const newPendingChecks = transaction.paymentMethod === 'check' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
+            const newPendingChecksTotal = transaction.paymentMethod === 'check' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
             const newReceivables = transaction.type === 'receivable' ? prevData.receivablesTotal - transaction.amount : prevData.receivablesTotal;
             const newPayables = transaction.type === 'payable' ? prevData.payablesTotal - transaction.amount : prevData.payablesTotal;
 
             return {
                 ...prevData,
                 transactions: newTransactions,
-                pendingChecksTotal: newPendingChecks,
+                pendingChecksTotal: newPendingChecksTotal,
                 receivablesTotal: newReceivables,
                 payablesTotal: newPayables,
             };
@@ -249,6 +251,8 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
           </Table>
         </CardContent>
       </Card>
+      
+      <FinancialHistory initialHistory={initialHistory} />
     </div>
   );
 }
