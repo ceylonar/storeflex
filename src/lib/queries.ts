@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -348,7 +349,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId));
+        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
         const querySnapshot = await getDocs(q);
         const customers = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -358,9 +359,6 @@ export async function fetchCustomers(): Promise<Customer[]> {
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Customer
         });
-        
-        // Sort in-memory to avoid composite index requirement
-        customers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return customers;
     } catch(error) {
@@ -564,7 +562,8 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
         const q = query(
             salesCollection, 
             where('userId', '==', userId), 
-            where('customer_id', '==', customerId)
+            where('customer_id', '==', customerId),
+            orderBy('sale_date', 'desc')
         );
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
@@ -575,9 +574,6 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
                 sale_date: (data.sale_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Sale
         });
-        
-        // Sort in-memory to avoid composite index requirement
-        sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
         
         return sales;
     } catch (error) {
@@ -648,7 +644,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId));
+        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
         const querySnapshot = await getDocs(q);
         const suppliers = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -659,9 +655,6 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
             } as Supplier
         });
         
-        // Sort in-memory to avoid composite index requirement
-        suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
         return suppliers;
 
     } catch(error) {
@@ -745,12 +738,27 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     await runTransaction(db, async (transaction) => {
       const itemIds = items.map(item => item.id); // For indexing
 
-      // Phase 1: Update product stock and prepare activity logs
+      // Phase 1: Update product stock and calculate weighted average cost
       for (const item of items) {
         const productRef = doc(db, 'products', item.id);
+        const productDoc = await transaction.get(productRef);
+        if (!productDoc.exists()) {
+            throw new Error(`Product ${item.name} not found.`);
+        }
+        
+        const product = productDoc.data() as Product;
+        const currentStock = product.stock || 0;
+        const currentCost = product.cost_price || 0;
+        
+        // Calculate new weighted average cost
+        const currentTotalValue = currentStock * currentCost;
+        const purchaseTotalValue = item.quantity * item.cost_price;
+        const newTotalStock = currentStock + item.quantity;
+        const newAverageCost = (currentTotalValue + purchaseTotalValue) / newTotalStock;
+
         transaction.update(productRef, { 
-            stock: increment(item.quantity),
-            cost_price: item.cost_price, // Optionally update cost price on purchase
+            stock: newTotalStock,
+            cost_price: newAverageCost,
             updated_at: serverTimestamp(),
         });
       }
@@ -917,9 +925,10 @@ export async function fetchDashboardData() {
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
-
-        // Sort activities in-memory after fetching
+        
+        // Sort in memory to avoid composite index
         recentActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
 
         return {
             inventoryValue,
