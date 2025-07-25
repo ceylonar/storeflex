@@ -20,8 +20,11 @@ export type Product = {
   id: string;
   userId: string;
   sku: string;
+  barcode?: string;
   name: string;
   category: string;
+  sub_category?: string;
+  brand?: string;
   stock: number;
   cost_price: number;
   selling_price: number;

@@ -56,7 +56,10 @@ const initialProductState: Partial<Product> = {
   id: '',
   name: '',
   sku: '',
+  barcode: '',
   category: '',
+  sub_category: '',
+  brand: '',
   stock: 0,
   cost_price: 0,
   selling_price: 0,
@@ -147,7 +150,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 <span className="sr-only">Image</span>
               </TableHead>
               <TableHead>Name</TableHead>
-              <TableHead className="hidden lg:table-cell">SKU</TableHead>
+              <TableHead className="hidden lg:table-cell">Brand</TableHead>
               <TableHead className="hidden md:table-cell">Category</TableHead>
               <TableHead>Stock</TableHead>
               <TableHead>Selling Price</TableHead>
@@ -166,7 +169,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                   </Avatar>
                 </TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell className="hidden lg:table-cell">{product.sku}</TableCell>
+                <TableCell className="hidden lg:table-cell">{product.brand}</TableCell>
                 <TableCell className="hidden md:table-cell">
                   <Badge variant="outline">{product.category}</Badge>
                 </TableCell>
@@ -229,19 +232,33 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
             </DialogHeader>
             <ScrollArea className="max-h-[70vh] -mx-6 px-6">
                 <form ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                    <div className="space-y-2">
                         <Label htmlFor="name">Name</Label>
                         <Input id="name" name="name" defaultValue={selectedProduct.name} />
-                        </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                         <Label htmlFor="sku">SKU</Label>
                         <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
                         </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="barcode">Barcode</Label>
+                        <Input id="barcode" name="barcode" defaultValue={selectedProduct.barcode} />
+                        </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="category">Category</Label>
-                        <Input id="category" name="category" defaultValue={selectedProduct.category} />
+                     <div className="space-y-2">
+                        <Label htmlFor="brand">Brand</Label>
+                        <Input id="brand" name="brand" defaultValue={selectedProduct.brand} />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="category">Category</Label>
+                            <Input id="category" name="category" defaultValue={selectedProduct.category} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="sub_category">Sub Category</Label>
+                            <Input id="sub_category" name="sub_category" defaultValue={selectedProduct.sub_category} />
+                        </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                         <div className="space-y-2">

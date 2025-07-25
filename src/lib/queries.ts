@@ -41,8 +41,11 @@ async function getCurrentUserId() {
 const ProductSchema = z.object({
   id: z.string().optional(),
   sku: z.string().min(1, 'SKU is required'),
+  barcode: z.string().optional(),
   name: z.string().min(1, 'Product name is required'),
   category: z.string().min(1, 'Category is required'),
+  sub_category: z.string().optional(),
+  brand: z.string().optional(),
   stock: z.coerce.number().int().nonnegative('Stock must be a non-negative number'),
   cost_price: z.coerce.number().positive('Cost price must be positive'),
   selling_price: z.coerce.number().positive('Selling price must be positive'),
