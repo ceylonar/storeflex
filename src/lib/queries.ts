@@ -801,8 +801,14 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       for (const item of items) {
           productRefs[item.id] = doc(db, 'products', item.id);
       }
-      const productDocs = await Promise.all(Object.values(productRefs).map(ref => transaction.get(ref)));
-      const productDocsMap = new Map(Object.keys(productRefs).map((id, i) => [id, productDocs[i]]));
+      
+      const productDocsMap = new Map();
+      const productDocs = await Promise.all(
+        Object.values(productRefs).map(ref => transaction.get(ref as any))
+      );
+      Object.keys(productRefs).forEach((id, i) => {
+        productDocsMap.set(id, productDocs[i]);
+      });
       
       const counterRef = doc(db, 'counters', `purchases_${userId}`);
       const counterDoc = await transaction.get(counterRef);
@@ -1367,8 +1373,8 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
     const { db } = getFirebaseServices();
     try {
-        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
-        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
+        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
 
         const [salesSnapshot, purchasesSnapshot] = await Promise.all([
             getDocs(salesQuery),
@@ -1380,41 +1386,45 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
 
-        salesSnapshot.forEach(doc => {
+        salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Sale;
-            const transaction: MoneyflowTransaction = {
-                id: doc.id,
-                type: 'receivable',
-                partyName: sale.customer_name,
-                partyId: sale.customer_id!,
-                paymentMethod: sale.paymentMethod as 'credit' | 'check',
-                amount: sale.creditAmount,
-                date: (sale.sale_date as any).toDate().toISOString(),
-                checkNumber: sale.checkNumber,
-            };
-            transactions.push(transaction);
-            receivablesTotal += sale.creditAmount;
-            if (sale.paymentMethod === 'check') {
-                pendingChecksTotal += sale.total_amount;
+            if (sale.paymentStatus !== 'paid') {
+                const transaction: MoneyflowTransaction = {
+                    id: doc.id,
+                    type: 'receivable',
+                    partyName: sale.customer_name,
+                    partyId: sale.customer_id!,
+                    paymentMethod: sale.paymentMethod as 'credit' | 'check',
+                    amount: sale.creditAmount,
+                    date: (sale.sale_date as any).toDate().toISOString(),
+                    checkNumber: sale.checkNumber,
+                };
+                transactions.push(transaction);
+                receivablesTotal += sale.creditAmount;
+                if (sale.paymentMethod === 'check') {
+                    pendingChecksTotal += sale.total_amount;
+                }
             }
         });
 
-        purchasesSnapshot.forEach(doc => {
+        purchasesSnapshot.docs.forEach(doc => {
             const purchase = doc.data() as Purchase;
-            const transaction: MoneyflowTransaction = {
-                id: doc.id,
-                type: 'payable',
-                partyName: purchase.supplier_name,
-                partyId: purchase.supplier_id,
-                paymentMethod: purchase.paymentMethod as 'credit' | 'check',
-                amount: purchase.creditAmount,
-                date: (purchase.purchase_date as any).toDate().toISOString(),
-                checkNumber: purchase.checkNumber,
-            };
-            transactions.push(transaction);
-            payablesTotal += purchase.creditAmount;
-            if (purchase.paymentMethod === 'check') {
-                pendingChecksTotal += purchase.total_amount;
+             if (purchase.paymentStatus !== 'paid') {
+                const transaction: MoneyflowTransaction = {
+                    id: doc.id,
+                    type: 'payable',
+                    partyName: purchase.supplier_name,
+                    partyId: purchase.supplier_id,
+                    paymentMethod: purchase.paymentMethod as 'credit' | 'check',
+                    amount: purchase.creditAmount,
+                    date: (purchase.purchase_date as any).toDate().toISOString(),
+                    checkNumber: purchase.checkNumber,
+                };
+                transactions.push(transaction);
+                payablesTotal += purchase.creditAmount;
+                if (purchase.paymentMethod === 'check') {
+                    pendingChecksTotal += purchase.total_amount;
+                }
             }
         });
         
