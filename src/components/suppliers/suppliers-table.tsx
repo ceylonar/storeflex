@@ -47,6 +47,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { createSupplier, updateSupplier, deleteSupplier } from '@/lib/queries';
+import { cn } from '@/lib/utils';
 
 type FormState = 'add' | 'edit';
 
@@ -142,6 +143,7 @@ export function SuppliersTable({ suppliers, onViewHistory, onSupplierCreated, on
               <TableHead>Supplier ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Phone Number</TableHead>
+              <TableHead>Credit Balance</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -153,6 +155,9 @@ export function SuppliersTable({ suppliers, onViewHistory, onSupplierCreated, on
                 <TableCell className="font-mono text-sm">{supplier.id}</TableCell>
                 <TableCell className="font-medium">{supplier.name}</TableCell>
                 <TableCell>{supplier.phone}</TableCell>
+                <TableCell className={cn(supplier.credit_balance > 0 ? "text-green-600 dark:text-green-500" : "text-muted-foreground")}>
+                    LKR {(supplier.credit_balance || 0).toFixed(2)}
+                </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => onViewHistory(supplier)}>

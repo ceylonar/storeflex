@@ -47,6 +47,7 @@ import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { createCustomer, updateCustomer, deleteCustomer } from '@/lib/queries';
+import { cn } from '@/lib/utils';
 
 type FormState = 'add' | 'edit';
 
@@ -142,6 +143,7 @@ export function CustomersTable({ customers, onViewHistory, onCustomerCreated, on
               <TableHead>Customer ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Phone Number</TableHead>
+              <TableHead>Credit Balance</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -153,6 +155,9 @@ export function CustomersTable({ customers, onViewHistory, onCustomerCreated, on
                 <TableCell className="font-mono text-sm">{customer.id}</TableCell>
                 <TableCell className="font-medium">{customer.name}</TableCell>
                 <TableCell>{customer.phone}</TableCell>
+                <TableCell className={cn(customer.credit_balance > 0 ? "text-destructive" : "text-muted-foreground")}>
+                    LKR {(customer.credit_balance || 0).toFixed(2)}
+                </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => onViewHistory(customer)}>
