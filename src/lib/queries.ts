@@ -25,7 +25,7 @@ import {
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord } from './types';
 import { z } from 'zod';
-import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
+import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, endOfYear, format, subDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 
 
@@ -1014,7 +1014,7 @@ export async function fetchDashboardData() {
     }
 }
 
-export async function fetchSalesData(): Promise<SalesData[]> {
+export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<SalesData[]> {
     noStore();
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -1024,42 +1024,87 @@ export async function fetchSalesData(): Promise<SalesData[]> {
         const salesCollection = collection(db, 'sales');
         const salesQuery = query(salesCollection, where('userId', '==', userId));
         const salesSnapshot = await getDocs(salesQuery);
+        const allSales = salesSnapshot.docs.map(doc => doc.data() as Sale);
 
-        // Initialize months
-        const salesByMonth: Record<string, { sales: number }> = {};
-        const sixMonthsAgo = subMonths(new Date(), 5);
-        for (let i = 5; i >= 0; i--) {
-            const date = subMonths(new Date(), i);
-            const month = date.toLocaleString('default', { month: 'short' });
-            salesByMonth[month] = { sales: 0 };
-        }
+        let aggregatedData: { [key: string]: number } = {};
+        let dateLabels: string[] = [];
 
-        salesSnapshot.docs.forEach(doc => {
-            const sale = doc.data();
-            const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+        const now = new Date();
+
+        if (filter === 'daily') {
+            const last7Days = Array.from({ length: 7 }, (_, i) => subDays(now, i)).reverse();
+            dateLabels = last7Days.map(date => format(date, 'EEE'));
+            aggregatedData = Object.fromEntries(last7Days.map(date => [format(date, 'yyyy-MM-dd'), 0]));
             
-            // Manual date filtering
-            if (saleDate >= sixMonthsAgo) {
-                const month = saleDate.toLocaleString('default', { month: 'short' });
-                if (salesByMonth[month]) {
-                    // Add a guard to ensure sale.total_amount is a number
-                    salesByMonth[month].sales += typeof sale.total_amount === 'number' ? sale.total_amount : 0;
+            allSales.forEach(sale => {
+                const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+                if (isWithinInterval(saleDate, { start: last7Days[0], end: now })) {
+                    const dayKey = format(saleDate, 'yyyy-MM-dd');
+                    aggregatedData[dayKey] = (aggregatedData[dayKey] || 0) + sale.total_amount;
                 }
-            }
-        });
+            });
 
-        const salesData: SalesData[] = Object.entries(salesByMonth).map(([month, data]) => ({
-            month,
-            sales: data.sales,
-        }));
-        
-        return salesData;
+            return last7Days.map(date => ({
+                month: format(date, 'EEE'),
+                sales: aggregatedData[format(date, 'yyyy-MM-dd')] || 0,
+            }));
+
+        } else if (filter === 'weekly') {
+            const last4Weeks = Array.from({ length: 4 }, (_, i) => startOfWeek(subDays(now, i * 7))).reverse();
+            dateLabels = last4Weeks.map(date => `W${format(date, 'w')}`);
+            aggregatedData = Object.fromEntries(last4Weeks.map(date => [format(date, 'yyyy-ww'), 0]));
+            
+            allSales.forEach(sale => {
+                const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+                if (isWithinInterval(saleDate, { start: last4Weeks[0], end: now })) {
+                    const weekKey = format(startOfWeek(saleDate), 'yyyy-ww');
+                    aggregatedData[weekKey] = (aggregatedData[weekKey] || 0) + sale.total_amount;
+                }
+            });
+
+             return last4Weeks.map(date => ({
+                month: `W${format(date, 'w')}`,
+                sales: aggregatedData[format(date, 'yyyy-ww')] || 0,
+            }));
+
+        } else if (filter === 'yearly') {
+            const currentYearStart = startOfYear(now);
+            dateLabels = Array.from({ length: 12 }, (_, i) => format(new Date(now.getFullYear(), i), 'MMM'));
+            aggregatedData = Object.fromEntries(dateLabels.map(label => [label, 0]));
+
+            allSales.forEach(sale => {
+                const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+                if (isWithinInterval(saleDate, { start: currentYearStart, end: endOfYear(now) })) {
+                    const monthKey = format(saleDate, 'MMM');
+                    aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + sale.total_amount;
+                }
+            });
+             return dateLabels.map(label => ({ month: label, sales: aggregatedData[label] || 0 }));
+        } else { // monthly (default)
+            const last6Months = Array.from({ length: 6 }, (_, i) => subMonths(now, i)).reverse();
+            dateLabels = last6Months.map(date => format(date, 'MMM'));
+            aggregatedData = Object.fromEntries(last6Months.map(date => [format(date, 'yyyy-MM'), 0]));
+            
+            allSales.forEach(sale => {
+                const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+                if (isWithinInterval(saleDate, { start: last6Months[0], end: now })) {
+                    const monthKey = format(saleDate, 'yyyy-MM');
+                    aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + sale.total_amount;
+                }
+            });
+            
+            return last6Months.map(date => ({
+                month: format(date, 'MMM'),
+                sales: aggregatedData[format(date, 'yyyy-MM')] || 0,
+            }));
+        }
 
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch sales data.');
     }
 }
+
 
 export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     noStore();
@@ -1206,3 +1251,5 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
+
+    

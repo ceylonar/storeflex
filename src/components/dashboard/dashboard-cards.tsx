@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import {
@@ -23,9 +24,11 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGri
 import type { Product, RecentActivity, SalesData, TopSellingProduct } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard } from 'lucide-react';
+import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
+import { fetchSalesData } from '@/lib/queries';
+import { useToast } from '@/hooks/use-toast';
 
 const icons = {
   DollarSign,
@@ -58,16 +61,58 @@ export function StatCard({ title, value, iconName, description }: StatCardProps)
   );
 }
 
-export function SalesChartCard({ salesData }: { salesData: SalesData[] }) {
+export function SalesChartCard({ initialData }: { initialData: SalesData[] }) {
+  const [data, setData] = useState(initialData);
+  const [filter, setFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [isPending, startTransition] = useTransition();
+  const { toast } = useToast();
+
+  const handleFilterChange = (newFilter: 'daily' | 'weekly' | 'monthly' | 'yearly') => {
+    if (newFilter === filter) return;
+
+    setFilter(newFilter);
+    startTransition(async () => {
+      try {
+        const newData = await fetchSalesData(newFilter);
+        setData(newData);
+        toast({
+          title: 'Chart Updated',
+          description: `Showing ${newFilter} sales data.`,
+        });
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to fetch new sales data.',
+        });
+      }
+    });
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sales Overview</CardTitle>
-        <CardDescription>Last 6 months performance.</CardDescription>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div>
+            <CardTitle>Sales Overview</CardTitle>
+            <CardDescription>Your sales performance over time.</CardDescription>
+          </div>
+          <div className="flex items-center gap-1 rounded-md bg-secondary p-1">
+            <Button size="sm" variant={filter === 'daily' ? 'default' : 'ghost'} onClick={() => handleFilterChange('daily')}>Daily</Button>
+            <Button size="sm" variant={filter === 'weekly' ? 'default' : 'ghost'} onClick={() => handleFilterChange('weekly')}>Weekly</Button>
+            <Button size="sm" variant={filter === 'monthly' ? 'default' : 'ghost'} onClick={() => handleFilterChange('monthly')}>Monthly</Button>
+            <Button size="sm" variant={filter === 'yearly' ? 'default' : 'ghost'} onClick={() => handleFilterChange('yearly')}>Yearly</Button>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="pl-2">
+      <CardContent className="pl-2 relative">
+         {isPending && (
+          <div className="absolute inset-0 flex items-center justify-center bg-card/50 z-10">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={salesData}>
+          <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="month"
@@ -94,6 +139,7 @@ export function SalesChartCard({ salesData }: { salesData: SalesData[] }) {
     </Card>
   );
 }
+
 
 export function TopSellingProductsCard({ products }: { products: TopSellingProduct[] }) {
   return (
@@ -209,7 +255,7 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
             <Avatar className="hidden h-9 w-9 sm:flex">
               <AvatarImage src={activity.product_image || 'https://placehold.co/40x40.png'} alt={activity.product_name} data-ai-hint="product avatar" />
               <AvatarFallback>
-                {activity.product_name?.charAt(0).toUpperCase() || (activity.type === 'sale' ? 'S' : activity.type === 'update' ? 'U' : activity.type === 'new' ? 'N' : 'A')}
+                {activity.product_name?.charAt(0).toUpperCase() || (activity.type === 'sale' ? 'S' : activity.type === 'update' ? 'U' : 'A')}
               </AvatarFallback>
             </Avatar>
             <div className="grid gap-1">
@@ -234,3 +280,5 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
     </Card>
   );
 }
+
+    

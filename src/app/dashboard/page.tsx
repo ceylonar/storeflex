@@ -5,7 +5,7 @@ import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-p
 
 export default async function DashboardPage() {
   const dashboardData = await fetchDashboardData();
-  const salesData = await fetchSalesData();
+  const salesData = await fetchSalesData('monthly'); // Fetch initial monthly data
   const topProducts = await fetchTopSellingProducts();
 
   return (
@@ -39,7 +39,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-6 md:gap-8 xl:grid-cols-3">
         <div className="xl:col-span-2">
-            <DynamicSalesChart salesData={salesData} />
+            <DynamicSalesChart initialData={salesData} />
         </div>
         <div className="xl:col-span-1">
              <DynamicTopSellingProductsChart products={topProducts} />
@@ -57,3 +57,5 @@ export default async function DashboardPage() {
     </div>
   );
 }
+
+    
