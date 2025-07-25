@@ -24,7 +24,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGri
 import type { Product, RecentActivity, SalesData, TopSellingProduct } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2 } from 'lucide-react';
+import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2, CheckCircle, XCircle, HandCoins } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useEffect, useState, useTransition } from 'react';
 import { fetchSalesData } from '@/lib/queries';
@@ -37,6 +37,17 @@ const icons = {
   Users,
   CreditCard
 };
+
+const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
+    sale: ShoppingCart,
+    purchase: DollarSign,
+    update: Package,
+    new: Package,
+    delete: Package,
+    credit_settled: HandCoins,
+    check_cleared: CheckCircle,
+    check_rejected: XCircle,
+}
 
 interface StatCardProps {
   title: string;
@@ -250,35 +261,45 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
         <CardDescription>What's been happening in your store.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-8">
-        {activities.map((activity) => (
-          <div key={activity.id} className="flex items-center gap-4">
-            <Avatar className="hidden h-9 w-9 sm:flex">
-              <AvatarImage src={activity.product_image || 'https://placehold.co/40x40.png'} alt={activity.product_name} data-ai-hint="product avatar" />
-              <AvatarFallback>
-                {activity.product_name?.charAt(0).toUpperCase() || (activity.type === 'sale' ? 'S' : activity.type === 'update' ? 'U' : 'A')}
-              </AvatarFallback>
-            </Avatar>
-            <div className="grid gap-1">
-              <p className="text-sm font-medium leading-none">
-                {activity.product_name}
-                <span className={cn('ml-2 capitalize text-xs font-semibold', 
-                  activity.type === 'sale' && 'text-accent-foreground',
-                  activity.type === 'update' && 'text-blue-500',
-                  activity.type === 'new' && 'text-purple-500',
-                  activity.type === 'delete' && 'text-destructive',
-                  activity.type === 'purchase' && 'text-green-600 dark:text-green-500',
-                )}>({activity.type})</span>
-              </p>
-              <p className="text-sm text-muted-foreground">{activity.details}</p>
+        {activities.map((activity) => {
+          const Icon = activityIcons[activity.type] || Package;
+          return (
+            <div key={activity.id} className="flex items-center gap-4">
+              <Avatar className="hidden h-9 w-9 sm:flex">
+                {activity.product_image ? (
+                  <AvatarImage src={activity.product_image} alt={activity.product_name || 'Activity'} data-ai-hint="product avatar" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center rounded-full bg-muted">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
+                <AvatarFallback>
+                  {activity.product_name?.charAt(0).toUpperCase() || (activity.type === 'sale' ? 'S' : 'A')}
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid gap-1">
+                <p className="text-sm font-medium leading-none">
+                  {activity.product_name && <span className="font-semibold">{activity.product_name}</span>}
+                  <span className={cn('ml-2 capitalize text-xs font-semibold', 
+                    activity.type === 'sale' && 'text-accent-foreground',
+                    activity.type === 'update' && 'text-blue-500',
+                    activity.type === 'new' && 'text-purple-500',
+                    activity.type === 'delete' && 'text-destructive',
+                    activity.type === 'purchase' && 'text-green-600 dark:text-green-500',
+                    activity.type === 'credit_settled' && 'text-green-600 dark:text-green-500',
+                    activity.type === 'check_cleared' && 'text-green-600 dark:text-green-500',
+                    activity.type === 'check_rejected' && 'text-destructive',
+                  )}>({activity.type.replace('_', ' ')})</span>
+                </p>
+                <p className="text-sm text-muted-foreground">{activity.details}</p>
+              </div>
+              <div className="ml-auto text-sm text-muted-foreground">
+                 <ActivityTime timestamp={activity.timestamp} />
+              </div>
             </div>
-            <div className="ml-auto text-sm text-muted-foreground">
-               <ActivityTime timestamp={activity.timestamp} />
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </CardContent>
     </Card>
   );
 }
-
-    

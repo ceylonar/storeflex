@@ -45,9 +45,9 @@ export type ProductSelect = {
 export type RecentActivity = {
   id: string;
   userId: string;
-  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase';
-  product_id: string;
-  product_name: string;
+  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected';
+  product_id?: string;
+  product_name?: string;
   product_image?: string;
   details: string;
   timestamp: string; // Should be ISO string date

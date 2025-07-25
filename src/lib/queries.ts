@@ -1445,35 +1445,70 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
 export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid'): Promise<{success: boolean, message: string}> {
     const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
 
     try {
         await runTransaction(db, async (t) => {
+            const activityCollection = collection(db, 'recent_activity');
+            const newActivityRef = doc(activityCollection);
+
             if (transaction.type === 'receivable') {
                 const saleRef = doc(db, 'sales', transaction.id);
                 const customerRef = doc(db, 'customers', transaction.partyId);
 
                 t.update(saleRef, { paymentStatus: status });
 
-                // Only adjust credit balance if the payment is accepted
+                let activityType: RecentActivity['type'] = 'credit_settled';
+                let details = `Credit payment of LKR ${transaction.amount.toFixed(2)} from ${transaction.partyName} settled.`;
+
+                if (transaction.paymentMethod === 'check') {
+                    activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
+                    details = `Check from ${transaction.partyName} for LKR ${transaction.amount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
+                }
+
                 if (status === 'paid') {
                     t.update(customerRef, { credit_balance: increment(-transaction.amount) });
                 }
+                
+                t.set(newActivityRef, {
+                    type: activityType,
+                    details: details,
+                    timestamp: serverTimestamp(),
+                    userId,
+                });
+
             } else { // payable
                 const purchaseRef = doc(db, 'purchases', transaction.id);
                 const supplierRef = doc(db, 'suppliers', transaction.partyId);
                 
                 t.update(purchaseRef, { paymentStatus: status });
 
-                // Only adjust credit balance if the payment is accepted
+                 let activityType: RecentActivity['type'] = 'credit_settled';
+                let details = `Credit payment of LKR ${transaction.amount.toFixed(2)} to ${transaction.partyName} settled.`;
+
+                if (transaction.paymentMethod === 'check') {
+                    activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
+                    details = `Check to ${transaction.partyName} for LKR ${transaction.amount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
+                }
+
+
                 if (status === 'paid') {
                     t.update(supplierRef, { credit_balance: increment(-transaction.amount) });
                 }
+
+                 t.set(newActivityRef, {
+                    type: activityType,
+                    details: details,
+                    timestamp: serverTimestamp(),
+                    userId,
+                });
             }
         });
 
         revalidatePath('/dashboard/moneyflow');
         revalidatePath('/dashboard/customers');
         revalidatePath('/dashboard/suppliers');
+        revalidatePath('/dashboard');
 
         return { success: true, message: 'Payment settled successfully.' };
     } catch (error) {
@@ -1481,8 +1516,3 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
         return { success: false, message: 'Failed to settle payment.' };
     }
 }
-
-
-    
-
-    
