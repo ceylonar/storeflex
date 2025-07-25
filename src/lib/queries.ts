@@ -644,7 +644,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(suppliersCollection, where('userId', '==', userId));
         const querySnapshot = await getDocs(q);
         const suppliers = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -654,6 +654,8 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Supplier
         });
+        
+        suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return suppliers;
 
