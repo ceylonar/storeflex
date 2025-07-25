@@ -45,6 +45,29 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 
+// Client-side only date formatter to prevent hydration errors
+function SafeFormattedDate({ timestamp }: { timestamp: string }) {
+    const [formattedDate, setFormattedDate] = useState('');
+
+    useEffect(() => {
+        if (timestamp) {
+            try {
+                const date = new Date(timestamp);
+                if (!isNaN(date.getTime())) {
+                    setFormattedDate(format(date, 'PPP p'));
+                } else {
+                    setFormattedDate('Invalid Date');
+                }
+            } catch (e) {
+                setFormattedDate('Invalid Date');
+            }
+        }
+    }, [timestamp]);
+
+    return <>{formattedDate || '...'}</>;
+}
+
+
 interface AdvancedReportClientProps {
   initialRecords: RecentActivity[];
   products: ProductSelect[];
@@ -325,7 +348,9 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">{activity.details}</TableCell>
-                                <TableCell className="text-right text-sm text-muted-foreground">{format(new Date(activity.timestamp), 'PPP p')}</TableCell>
+                                <TableCell className="text-right text-sm text-muted-foreground">
+                                    <SafeFormattedDate timestamp={activity.timestamp} />
+                                </TableCell>
                             </TableRow>
                         )) : (
                             <TableRow>
