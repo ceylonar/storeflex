@@ -940,6 +940,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
             } as Purchase
         });
         
+        // Sort in memory to avoid composite index requirement
         purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
 
         return purchases;
@@ -1386,47 +1387,46 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
 
-        salesSnapshot.docs.forEach(doc => {
-            const sale = doc.data() as Sale;
-            if (sale.paymentStatus !== 'paid') {
-                const creditAmount = sale.creditAmount || 0;
-                const transaction: MoneyflowTransaction = {
-                    id: doc.id,
-                    type: 'receivable',
-                    partyName: sale.customer_name,
-                    partyId: sale.customer_id!,
-                    paymentMethod: sale.paymentMethod as 'credit' | 'check',
-                    amount: creditAmount,
-                    date: (sale.sale_date as any).toDate().toISOString(),
-                    checkNumber: sale.checkNumber,
-                };
-                transactions.push(transaction);
-                receivablesTotal += creditAmount;
-                if (sale.paymentMethod === 'check') {
-                    pendingChecksTotal += sale.total_amount;
-                }
+        // In-memory filtering
+        const sales = salesSnapshot.docs.map(d => d.data() as Sale).filter(s => s.paymentStatus !== 'paid');
+        const purchases = purchasesSnapshot.docs.map(d => d.data() as Purchase).filter(p => p.paymentStatus !== 'paid');
+
+
+        sales.forEach(sale => {
+            const creditAmount = sale.creditAmount || 0;
+            const transaction: MoneyflowTransaction = {
+                id: sale.id,
+                type: 'receivable',
+                partyName: sale.customer_name,
+                partyId: sale.customer_id!,
+                paymentMethod: sale.paymentMethod as 'credit' | 'check',
+                amount: creditAmount,
+                date: (sale.sale_date as any).toDate().toISOString(),
+                checkNumber: sale.checkNumber,
+            };
+            transactions.push(transaction);
+            receivablesTotal += creditAmount;
+            if (sale.paymentMethod === 'check') {
+                pendingChecksTotal += sale.total_amount;
             }
         });
 
-        purchasesSnapshot.docs.forEach(doc => {
-            const purchase = doc.data() as Purchase;
-             if (purchase.paymentStatus !== 'paid') {
-                const creditAmount = purchase.creditAmount || 0;
-                const transaction: MoneyflowTransaction = {
-                    id: doc.id,
-                    type: 'payable',
-                    partyName: purchase.supplier_name,
-                    partyId: purchase.supplier_id,
-                    paymentMethod: purchase.paymentMethod as 'credit' | 'check',
-                    amount: creditAmount,
-                    date: (purchase.purchase_date as any).toDate().toISOString(),
-                    checkNumber: purchase.checkNumber,
-                };
-                transactions.push(transaction);
-                payablesTotal += creditAmount;
-                if (purchase.paymentMethod === 'check') {
-                    pendingChecksTotal += purchase.total_amount;
-                }
+        purchases.forEach(purchase => {
+            const creditAmount = purchase.creditAmount || 0;
+            const transaction: MoneyflowTransaction = {
+                id: purchase.id,
+                type: 'payable',
+                partyName: purchase.supplier_name,
+                partyId: purchase.supplier_id,
+                paymentMethod: purchase.paymentMethod as 'credit' | 'check',
+                amount: creditAmount,
+                date: (purchase.purchase_date as any).toDate().toISOString(),
+                checkNumber: purchase.checkNumber,
+            };
+            transactions.push(transaction);
+            payablesTotal += creditAmount;
+            if (purchase.paymentMethod === 'check') {
+                pendingChecksTotal += purchase.total_amount;
             }
         });
         
@@ -1441,9 +1441,8 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 }
 
 
-export async function settlePayment(transaction: MoneyflowTransaction): Promise<{success: boolean, message: string}> {
+export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid'): Promise<{success: boolean, message: string}> {
     const { db } = getFirebaseServices();
-    const userId = await getCurrentUserId();
 
     try {
         await runTransaction(db, async (t) => {
@@ -1451,14 +1450,22 @@ export async function settlePayment(transaction: MoneyflowTransaction): Promise<
                 const saleRef = doc(db, 'sales', transaction.id);
                 const customerRef = doc(db, 'customers', transaction.partyId);
 
-                t.update(saleRef, { paymentStatus: 'paid' });
-                t.update(customerRef, { credit_balance: increment(-transaction.amount) });
+                t.update(saleRef, { paymentStatus: status });
+
+                // Only adjust credit balance if the payment is accepted
+                if (status === 'paid') {
+                    t.update(customerRef, { credit_balance: increment(-transaction.amount) });
+                }
             } else { // payable
                 const purchaseRef = doc(db, 'purchases', transaction.id);
                 const supplierRef = doc(db, 'suppliers', transaction.partyId);
                 
-                t.update(purchaseRef, { paymentStatus: 'paid' });
-                t.update(supplierRef, { credit_balance: increment(-transaction.amount) });
+                t.update(purchaseRef, { paymentStatus: status });
+
+                // Only adjust credit balance if the payment is accepted
+                if (status === 'paid') {
+                    t.update(supplierRef, { credit_balance: increment(-transaction.amount) });
+                }
             }
         });
 

@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowDownLeft, ArrowUpRight, CheckCircle, Landmark, Loader2, IndianRupee, CreditCard, Receipt } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Check, CheckCircle, Landmark, Loader2, X, Receipt, CreditCard } from 'lucide-react';
 import { MoneyflowData, MoneyflowTransaction, settlePayment } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -70,10 +70,10 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
   const [isSettling, setIsSettling] = React.useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleSettlePayment = async (transaction: MoneyflowTransaction) => {
+  const handleSettlePayment = async (transaction: MoneyflowTransaction, status?: 'paid' | 'rejected') => {
     setIsSettling(transaction.id);
     try {
-      const result = await settlePayment(transaction);
+      const result = await settlePayment(transaction, status);
       if (result.success) {
         toast({ title: 'Success', description: 'Payment has been settled.' });
         // Optimistically update UI
@@ -171,7 +171,7 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
                     <TableCell>LKR {tx.amount.toFixed(2)}</TableCell>
                     <TableCell>{format(new Date(tx.date), 'PPP')}</TableCell>
                     <TableCell className="text-right">
-                      {tx.amount > 0 && (
+                       {tx.amount > 0 && tx.paymentMethod === 'credit' && (
                          <AlertDialog>
                             <AlertDialogTrigger asChild>
                                <Button size="sm" disabled={isSettling === tx.id}>
@@ -181,19 +181,59 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Settle Payment?</AlertDialogTitle>
+                                <AlertDialogTitle>Settle Credit Payment?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This will mark the transaction for LKR {tx.amount.toFixed(2)} with {tx.partyName} as settled. This action cannot be undone.
+                                  This will mark the credit payment of LKR {tx.amount.toFixed(2)} with {tx.partyName} as settled. This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleSettlePayment(tx)}>
+                                <AlertDialogAction onClick={() => handleSettlePayment(tx, 'paid')}>
                                   Continue
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                      )}
+                      {tx.paymentMethod === 'check' && (
+                        <div className="flex gap-2 justify-end">
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="outline" disabled={isSettling === tx.id}>
+                                        {isSettling === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                                        Accept
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                     <AlertDialogHeader>
+                                        <AlertDialogTitle>Accept Check Payment?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will mark check #{tx.checkNumber} as cleared and settle the transaction.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleSettlePayment(tx, 'paid')}>Accept</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                             <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="destructive" disabled={isSettling === tx.id}>
+                                        {isSettling === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                                        Reject
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Reject Check Payment?</AlertDialogTitle>
+                                        <AlertDialogDescription>This will mark check #{tx.checkNumber} as rejected/bounced. The balance will need to be settled via other means.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleSettlePayment(tx, 'rejected')} className={cn(buttonVariants({ variant: "destructive" }))}>Reject</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>

@@ -99,7 +99,7 @@ export type Sale = {
   amountPaid: number;
   creditAmount: number;
   checkNumber?: string;
-  paymentStatus: 'paid' | 'partial' | 'pending_check_clearance';
+  paymentStatus: 'paid' | 'partial' | 'pending_check_clearance' | 'rejected';
 };
 
 export type Customer = {
@@ -148,7 +148,7 @@ export type Purchase = {
   amountPaid: number;
   creditAmount: number;
   checkNumber?: string;
-  paymentStatus: 'paid' | 'partial' | 'pending_check_clearance';
+  paymentStatus: 'paid' | 'partial' | 'pending_check_clearance' | 'rejected';
 }
 
 export type ProductTransaction = {
