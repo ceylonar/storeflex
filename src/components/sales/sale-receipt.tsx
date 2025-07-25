@@ -44,6 +44,7 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
             width: 100%;
             margin: 0;
             padding: 1rem;
+            border: none;
           }
           .no-print {
             display: none !important;
