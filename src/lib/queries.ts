@@ -23,7 +23,7 @@ import {
   setDoc,
   increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, MoneyflowTransaction } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, endOfYear, format, subDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -552,6 +552,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/customers');
+    revalidatePath('/dashboard/moneyflow');
 
     const itemsToReturn = items.map(({stock, ...rest}) => rest);
     const creditAmount = validatedFields.data.total_amount - validatedFields.data.amountPaid;
@@ -795,13 +796,13 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
   try {
     const purchaseId = await runTransaction(db, async (transaction) => {
       const itemIds = items.map(item => item.id);
+      
       const productRefs: { [key: string]: any } = {};
-      const productDocs: { [key: string]: any } = {};
-
       for (const item of items) {
-        productRefs[item.id] = doc(db, 'products', item.id);
-        productDocs[item.id] = await transaction.get(productRefs[item.id]);
+          productRefs[item.id] = doc(db, 'products', item.id);
       }
+      const productDocs = await Promise.all(Object.values(productRefs).map(ref => transaction.get(ref)));
+      const productDocsMap = new Map(Object.keys(productRefs).map((id, i) => [id, productDocs[i]]));
       
       const counterRef = doc(db, 'counters', `purchases_${userId}`);
       const counterDoc = await transaction.get(counterRef);
@@ -809,7 +810,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const productUpdateData: { [key: string]: any } = {};
       
       for (const item of items) {
-        const productDoc = productDocs[item.id];
+        const productDoc = productDocsMap.get(item.id);
         if (!productDoc.exists()) {
           throw new Error(`Product ${item.name} not found.`);
         }
@@ -821,7 +822,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         const currentTotalValue = currentStock * currentCost;
         const purchaseTotalValue = item.quantity * item.cost_price;
         const newTotalStock = currentStock + item.quantity;
-        const newAverageCost = (currentTotalValue + purchaseTotalValue) / newTotalStock;
+        const newAverageCost = newTotalStock > 0 ? (currentTotalValue + purchaseTotalValue) / newTotalStock : 0;
 
         productUpdateData[item.id] = {
           stock: increment(item.quantity),
@@ -884,6 +885,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/suppliers');
+    revalidatePath('/dashboard/moneyflow');
 
     const creditAmount = validatedFields.data.total_amount - validatedFields.data.amountPaid;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
@@ -1344,4 +1346,117 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return transactions;
+}
+
+
+// --- MONEYFLOW QUERIES ---
+
+export type MoneyflowData = {
+    receivablesTotal: number;
+    payablesTotal: number;
+    pendingChecksTotal: number;
+    transactions: MoneyflowTransaction[];
+}
+
+export async function fetchMoneyflowData(): Promise<MoneyflowData> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) {
+        return { receivablesTotal: 0, payablesTotal: 0, pendingChecksTotal: 0, transactions: [] };
+    }
+
+    const { db } = getFirebaseServices();
+    try {
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
+        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
+
+        const [salesSnapshot, purchasesSnapshot] = await Promise.all([
+            getDocs(salesQuery),
+            getDocs(purchasesQuery),
+        ]);
+
+        const transactions: MoneyflowTransaction[] = [];
+        let receivablesTotal = 0;
+        let payablesTotal = 0;
+        let pendingChecksTotal = 0;
+
+        salesSnapshot.forEach(doc => {
+            const sale = doc.data() as Sale;
+            const transaction: MoneyflowTransaction = {
+                id: doc.id,
+                type: 'receivable',
+                partyName: sale.customer_name,
+                partyId: sale.customer_id!,
+                paymentMethod: sale.paymentMethod as 'credit' | 'check',
+                amount: sale.creditAmount,
+                date: (sale.sale_date as any).toDate().toISOString(),
+                checkNumber: sale.checkNumber,
+            };
+            transactions.push(transaction);
+            receivablesTotal += sale.creditAmount;
+            if (sale.paymentMethod === 'check') {
+                pendingChecksTotal += sale.total_amount;
+            }
+        });
+
+        purchasesSnapshot.forEach(doc => {
+            const purchase = doc.data() as Purchase;
+            const transaction: MoneyflowTransaction = {
+                id: doc.id,
+                type: 'payable',
+                partyName: purchase.supplier_name,
+                partyId: purchase.supplier_id,
+                paymentMethod: purchase.paymentMethod as 'credit' | 'check',
+                amount: purchase.creditAmount,
+                date: (purchase.purchase_date as any).toDate().toISOString(),
+                checkNumber: purchase.checkNumber,
+            };
+            transactions.push(transaction);
+            payablesTotal += purchase.creditAmount;
+            if (purchase.paymentMethod === 'check') {
+                pendingChecksTotal += purchase.total_amount;
+            }
+        });
+        
+        transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return { receivablesTotal, payablesTotal, pendingChecksTotal, transactions };
+
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch moneyflow data.');
+    }
+}
+
+
+export async function settlePayment(transaction: MoneyflowTransaction): Promise<{success: boolean, message: string}> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    try {
+        await runTransaction(db, async (t) => {
+            if (transaction.type === 'receivable') {
+                const saleRef = doc(db, 'sales', transaction.id);
+                const customerRef = doc(db, 'customers', transaction.partyId);
+
+                t.update(saleRef, { paymentStatus: 'paid' });
+                t.update(customerRef, { credit_balance: increment(-transaction.amount) });
+            } else { // payable
+                const purchaseRef = doc(db, 'purchases', transaction.id);
+                const supplierRef = doc(db, 'suppliers', transaction.partyId);
+                
+                t.update(purchaseRef, { paymentStatus: 'paid' });
+                t.update(supplierRef, { credit_balance: increment(-transaction.amount) });
+            }
+        });
+
+        revalidatePath('/dashboard/moneyflow');
+        revalidatePath('/dashboard/customers');
+        revalidatePath('/dashboard/suppliers');
+
+        return { success: true, message: 'Payment settled successfully.' };
+    } catch (error) {
+        console.error('Settle Payment Error:', error);
+        return { success: false, message: 'Failed to settle payment.' };
+    }
 }
