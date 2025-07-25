@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -121,7 +122,7 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
                     const isSale = rec.type === 'sale';
                     const saleItem = item as SaleItem;
                     const purchaseItem = item as PurchaseItem;
-                    const quantity = isSale ? -saleItem.quantity : `+${purchaseItem.quantity}`;
+                    const quantity = isSale ? `-${saleItem.quantity}` : `+${purchaseItem.quantity}`;
                     const unitPrice = isSale ? saleItem.price_per_unit : purchaseItem.cost_price;
                     const totalAmount = isSale ? (saleItem.price_per_unit * saleItem.quantity) : purchaseItem.total_cost;
                     const details = isSale ? `Sale to ${rec.details}` : `Purchase from ${rec.details}`;

@@ -23,7 +23,7 @@ import {
   setDoc,
   increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -353,7 +353,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(customersCollection, where('userId', '==', userId));
         const querySnapshot = await getDocs(q);
         const customers = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -364,6 +364,8 @@ export async function fetchCustomers(): Promise<Customer[]> {
             } as Customer
         });
         
+        customers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
         return customers;
     } catch(error) {
         console.error('Database Error:', error);
@@ -515,6 +517,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
         details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
+        id: newSaleRef.id // Add sale ID to activity log
       });
     });
 
@@ -794,6 +797,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${purchaseDetails.totalAmount.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
+        id: newPurchaseRef.id,
       });
     });
 
@@ -1059,7 +1063,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         let activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                id: doc.id,
+                id: data.id || doc.id,
                 ...data,
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
