@@ -803,9 +803,9 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       }
       
       const productDocsMap = new Map();
-      const productDocs = await Promise.all(
-        Object.values(productRefs).map(ref => transaction.get(ref as any))
-      );
+      const productDocRefs = Object.values(productRefs).map(ref => transaction.get(ref as any));
+      const productDocs = await Promise.all(productDocRefs);
+
       Object.keys(productRefs).forEach((id, i) => {
         productDocsMap.set(id, productDocs[i]);
       });
@@ -940,7 +940,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
             } as Purchase
         });
         
-        purchases.sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
 
         return purchases;
     } catch (error) {
@@ -1389,18 +1389,19 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Sale;
             if (sale.paymentStatus !== 'paid') {
+                const creditAmount = sale.creditAmount || 0;
                 const transaction: MoneyflowTransaction = {
                     id: doc.id,
                     type: 'receivable',
                     partyName: sale.customer_name,
                     partyId: sale.customer_id!,
                     paymentMethod: sale.paymentMethod as 'credit' | 'check',
-                    amount: sale.creditAmount,
+                    amount: creditAmount,
                     date: (sale.sale_date as any).toDate().toISOString(),
                     checkNumber: sale.checkNumber,
                 };
                 transactions.push(transaction);
-                receivablesTotal += sale.creditAmount;
+                receivablesTotal += creditAmount;
                 if (sale.paymentMethod === 'check') {
                     pendingChecksTotal += sale.total_amount;
                 }
@@ -1410,18 +1411,19 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         purchasesSnapshot.docs.forEach(doc => {
             const purchase = doc.data() as Purchase;
              if (purchase.paymentStatus !== 'paid') {
+                const creditAmount = purchase.creditAmount || 0;
                 const transaction: MoneyflowTransaction = {
                     id: doc.id,
                     type: 'payable',
                     partyName: purchase.supplier_name,
                     partyId: purchase.supplier_id,
                     paymentMethod: purchase.paymentMethod as 'credit' | 'check',
-                    amount: purchase.creditAmount,
+                    amount: creditAmount,
                     date: (purchase.purchase_date as any).toDate().toISOString(),
                     checkNumber: purchase.checkNumber,
                 };
                 transactions.push(transaction);
-                payablesTotal += purchase.creditAmount;
+                payablesTotal += creditAmount;
                 if (purchase.paymentMethod === 'check') {
                     pendingChecksTotal += purchase.total_amount;
                 }
@@ -1470,3 +1472,6 @@ export async function settlePayment(transaction: MoneyflowTransaction): Promise<
         return { success: false, message: 'Failed to settle payment.' };
     }
 }
+
+
+    
