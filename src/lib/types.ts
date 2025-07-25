@@ -95,6 +95,11 @@ export type Sale = {
   total_amount: number;
   sale_date: string; // Should be ISO string date
   product_image?: string;
+  paymentMethod: 'cash' | 'credit' | 'check';
+  amountPaid: number;
+  creditAmount: number;
+  checkNumber?: string;
+  paymentStatus: 'paid' | 'partial' | 'pending_check_clearance';
 };
 
 export type Customer = {
@@ -103,6 +108,7 @@ export type Customer = {
   name: string;
   phone: string;
   created_at: string;
+  credit_balance: number;
 };
 
 export type Supplier = {
@@ -111,6 +117,7 @@ export type Supplier = {
   name: string;
   phone: string;
   created_at: string;
+  credit_balance: number;
 };
 
 export type PurchaseItem = {
@@ -137,6 +144,11 @@ export type Purchase = {
   service_charge: number;
   total_amount: number;
   purchase_date: string; // ISO String
+  paymentMethod: 'cash' | 'credit' | 'check';
+  amountPaid: number;
+  creditAmount: number;
+  checkNumber?: string;
+  paymentStatus: 'paid' | 'partial' | 'pending_check_clearance';
 }
 
 export type ProductTransaction = {

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -30,6 +31,8 @@ import { SupplierSelection } from './supplier-selection';
 import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PurchaseReceipt } from './purchase-receipt';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Separator } from '../ui/separator';
 
 export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
@@ -42,6 +45,11 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [serviceCharge, setServiceCharge] = React.useState(0);
   const [lastCompletedPurchase, setLastCompletedPurchase] = React.useState<Purchase | null>(null);
+
+  // Payment State
+  const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'credit' | 'check'>('cash');
+  const [amountPaid, setAmountPaid] = React.useState(0);
+  const [checkNumber, setCheckNumber] = React.useState('');
 
   const { toast } = useToast();
 
@@ -94,6 +102,12 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const subtotal = cart.reduce((acc, item) => acc + item.total_cost, 0);
   const taxAmount = subtotal * (taxPercentage / 100);
   const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
+  
+  React.useEffect(() => {
+    if (paymentMethod === 'cash' || paymentMethod === 'check') {
+      setAmountPaid(totalCost);
+    }
+  }, [totalCost, paymentMethod]);
 
 
   const handleCheckout = async () => {
@@ -118,6 +132,9 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             discount_amount: discountAmount,
             service_charge: serviceCharge,
             total_amount: totalCost,
+            paymentMethod,
+            amountPaid,
+            checkNumber
         };
       const completedPurchase = await createPurchase(purchaseData);
 
@@ -146,6 +163,9 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     setTaxPercentage(0);
     setDiscountAmount(0);
     setServiceCharge(0);
+    setPaymentMethod('cash');
+    setAmountPaid(0);
+    setCheckNumber('');
   }
 
   if (!isMounted) {
@@ -170,7 +190,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
       </Dialog>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
-        {/* Left Column: Product Search */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Products</CardTitle>
@@ -222,7 +241,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
           </CardContent>
         </Card>
 
-        {/* Right Column: Bill */}
         <div className="lg:col-span-2">
           <Card className="sticky top-24">
             <CardHeader>
@@ -230,7 +248,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
               <CardDescription>Items to be purchased.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Supplier Details */}
               <SupplierSelection 
                   suppliers={suppliers}
                   selectedSupplier={selectedSupplier}
@@ -238,8 +255,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                   onSupplierCreated={handleSupplierCreated}
               />
 
-              {/* Cart Items */}
-              <ScrollArea className="h-[40vh] border-t border-b py-2">
+              <ScrollArea className="h-[30vh] border-t border-b py-2">
                   {cart.length > 0 ? (
                       cart.map((item) => (
                       <div key={item.id} className="flex flex-col gap-2 py-2 border-b last:border-b-0">
@@ -284,58 +300,38 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                       <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
                           <Truck className="h-10 w-10" />
                           <p className="mt-2 text-sm">Your purchase order is empty.</p>
-                          <p className="text-xs">Add products from the left.</p>
                       </div>
                   )}
               </ScrollArea>
               
-              {/* Bill Summary */}
               {cart.length > 0 && (
                   <div className="space-y-2 text-sm">
-                       <div className="flex justify-between">
-                          <span className="text-muted-foreground">Subtotal</span>
-                          <span>LKR {subtotal.toFixed(2)}</span>
-                      </div>
-                       <div className="flex items-center justify-between gap-2">
-                          <Label htmlFor="service_charge" className="text-muted-foreground flex-1">Service Charge (LKR)</Label>
-                          <Input 
-                              id="service_charge" 
-                              type="number" 
-                              value={serviceCharge} 
-                              onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} 
-                              className="h-8 w-24 text-right"
-                              placeholder="0.00"
-                          />
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                          <Label htmlFor="tax" className="text-muted-foreground flex-1">Tax (%)</Label>
-                          <Input 
-                              id="tax" 
-                              type="number" 
-                              value={taxPercentage} 
-                              onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} 
-                              className="h-8 w-24 text-right"
-                              placeholder="0"
-                          />
-                      </div>
-                      <div className="flex justify-between">
-                          <span className="text-muted-foreground">Calculated Tax</span>
-                          <span>LKR {taxAmount.toFixed(2)}</span>
-                      </div>
-                       <div className="flex items-center justify-between gap-2">
-                          <Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label>
-                          <Input 
-                              id="discount" 
-                              type="number" 
-                              value={discountAmount} 
-                              onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} 
-                              className="h-8 w-24 text-right"
-                              placeholder="0.00"
-                          />
-                      </div>
-                      <div className="flex justify-between border-t pt-2 font-bold text-base">
-                          <span>Total</span>
-                          <span>LKR {totalCost.toFixed(2)}</span>
+                       <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {subtotal.toFixed(2)}</span></div>
+                       <div className="flex items-center justify-between gap-2"><Label htmlFor="service_charge" className="text-muted-foreground flex-1">Service Charge (LKR)</Label><Input id="service_charge" type="number" value={serviceCharge} onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
+                      <div className="flex items-center justify-between gap-2"><Label htmlFor="tax" className="text-muted-foreground flex-1">Tax (%)</Label><Input id="tax" type="number" value={taxPercentage} onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0" /></div>
+                      <div className="flex justify-between"><span className="text-muted-foreground">Calculated Tax</span><span>LKR {taxAmount.toFixed(2)}</span></div>
+                       <div className="flex items-center justify-between gap-2"><Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
+                      <Separator />
+                      <div className="flex justify-between font-bold text-base"><span className="text-primary">Total</span><span className="text-primary">LKR {totalCost.toFixed(2)}</span></div>
+                      <Separator />
+                      
+                      <div className="space-y-4 pt-2">
+                        <Label>Payment Method</Label>
+                        <RadioGroup value={paymentMethod} onValueChange={(value: 'cash' | 'credit' | 'check') => setPaymentMethod(value)} className="flex gap-4">
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="cash" id="pur-cash" /><Label htmlFor="pur-cash">Cash</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="credit" id="pur-credit" /><Label htmlFor="pur-credit">Credit</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="check" id="pur-check" /><Label htmlFor="pur-check">Check</Label></div>
+                        </RadioGroup>
+
+                        {paymentMethod === 'credit' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><Label htmlFor="pur-amountPaid">Amount Paid</Label><Input id="pur-amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
+                                <div><Label htmlFor="pur-creditAmount">Credit Amount</Label><Input id="pur-creditAmount" type="number" readOnly value={(totalCost - amountPaid).toFixed(2)} /></div>
+                            </div>
+                        )}
+                        {paymentMethod === 'check' && (
+                            <div><Label htmlFor="pur-checkNumber">Check Number</Label><Input id="pur-checkNumber" type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} /></div>
+                        )}
                       </div>
                   </div>
               )}

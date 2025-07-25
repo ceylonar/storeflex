@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { Purchase, UserProfile } from '@/lib/types';
@@ -60,7 +61,6 @@ export function PurchaseReceipt({ purchase, onNewPurchase }: PurchaseReceiptProp
         }
       `}</style>
       <div id="printable-receipt" ref={receiptRef} className="p-6 text-sm font-mono">
-        {/* Header */}
         <div className="text-center mb-4">
           <div className="flex items-center justify-center gap-2 mb-2">
             {renderLogo()}
@@ -72,14 +72,13 @@ export function PurchaseReceipt({ purchase, onNewPurchase }: PurchaseReceiptProp
 
         <Separator className="my-3 border-dashed" />
 
-        {/* Purchase Info */}
         <div className="mb-4 text-xs">
           <div className="flex justify-between"><span>Purchase ID:</span> <span>{purchase.id}</span></div>
           <div className="flex justify-between"><span>Date:</span> <span>{format(new Date(purchase.purchase_date), 'yyyy-MM-dd HH:mm')}</span></div>
           <div className="flex justify-between"><span>Supplier:</span> <span>{purchase.supplier_name}</span></div>
+          <div className="flex justify-between"><span>Payment:</span> <span className="uppercase">{purchase.paymentMethod}</span></div>
         </div>
         
-        {/* Items Table */}
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-dashed">
@@ -101,7 +100,6 @@ export function PurchaseReceipt({ purchase, onNewPurchase }: PurchaseReceiptProp
           </tbody>
         </table>
 
-        {/* Totals */}
         <div className="mt-4 ml-auto max-w-[150px] text-xs space-y-1">
           <div className="flex justify-between"><span>Subtotal</span> <span>{purchase.subtotal.toFixed(2)}</span></div>
           <div className="flex justify-between"><span>Service</span> <span>{purchase.service_charge.toFixed(2)}</span></div>
@@ -116,15 +114,25 @@ export function PurchaseReceipt({ purchase, onNewPurchase }: PurchaseReceiptProp
           <span>LKR {purchase.total_amount.toFixed(2)}</span>
         </div>
         
+        {(purchase.paymentMethod === 'credit' || purchase.paymentMethod === 'check') && (
+            <>
+                <Separator className="my-2 border-dashed" />
+                <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
+                    <div className="flex justify-between"><span>Paid</span> <span>{purchase.amountPaid.toFixed(2)}</span></div>
+                    {purchase.paymentMethod === 'credit' && (
+                        <div className="flex justify-between font-bold"><span>Credit</span> <span>{purchase.creditAmount.toFixed(2)}</span></div>
+                    )}
+                </div>
+            </>
+        )}
+
         <Separator className="my-2 border-dashed" />
 
-        {/* Footer */}
         <div className="text-center mt-4">
             <p className="text-xs font-semibold">Purchase Order Generated</p>
         </div>
       </div>
 
-      {/* Action Buttons */}
       <div className="flex gap-2 p-4 border-t bg-muted/50 no-print">
         <Button variant="outline" className="w-full" onClick={onNewPurchase}>
           <X className="mr-2 h-4 w-4" /> New Purchase

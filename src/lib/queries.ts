@@ -57,12 +57,14 @@ const CustomerSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1, "Customer name is required"),
     phone: z.string().optional(),
+    credit_balance: z.coerce.number().default(0),
 });
 
 const SupplierSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1, "Supplier name is required"),
     phone: z.string().optional(),
+    credit_balance: z.coerce.number().default(0),
 });
 
 
@@ -86,6 +88,9 @@ const POSSaleSchema = z.object({
   discount_amount: z.number().nonnegative(),
   service_charge: z.number().nonnegative(),
   total_amount: z.number().nonnegative(),
+  paymentMethod: z.enum(['cash', 'credit', 'check']),
+  amountPaid: z.coerce.number().nonnegative(),
+  checkNumber: z.string().optional(),
 });
 
 const PurchaseItemSchema = z.object({
@@ -107,6 +112,9 @@ const POSPurchaseSchema = z.object({
   discount_amount: z.number().nonnegative(),
   service_charge: z.number().nonnegative(),
   total_amount: z.number().nonnegative(),
+  paymentMethod: z.enum(['cash', 'credit', 'check']),
+  amountPaid: z.coerce.number().nonnegative(),
+  checkNumber: z.string().optional(),
 });
 
 const ProfileSchema = z.object({
@@ -338,6 +346,7 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
             ...validatedFields.data,
             userId,
             created_at: serverTimestamp(),
+            credit_balance: 0,
         }
 
         transaction.set(newCustomerRef, newCustomerData);
@@ -348,6 +357,7 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
           userId,
           name: validatedFields.data.name,
           phone: validatedFields.data.phone || '',
+          credit_balance: 0,
           created_at: new Date().toISOString()
         } as Customer;
       });
@@ -466,9 +476,8 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
   try {
     const saleId = await runTransaction(db, async (transaction) => {
         const productRefsAndData = [];
-        const itemIds = items.map(item => item.id); // For indexing
+        const itemIds = items.map(item => item.id);
 
-        // Phase 1: Read all product documents first.
         for (const item of items) {
             const productRef = doc(db, 'products', item.id);
             const productDoc = await transaction.get(productRef);
@@ -486,7 +495,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             productRefsAndData.push({ ref: productRef, newStock: newStock });
         }
 
-        // Phase 2: Get new Sale ID
         const counterRef = doc(db, 'counters', `sales_${userId}`);
         let nextId = 1;
         const counterDoc = await transaction.get(counterRef);
@@ -495,30 +503,38 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         }
         const formattedId = `sale${String(nextId).padStart(6, '0')}`;
 
-
-        // Phase 3: Perform all writes.
-        // 3a. Update stock for all items
         for (const prod of productRefsAndData) {
             transaction.update(prod.ref, { stock: prod.newStock });
         }
+      
+      const creditAmount = saleDetails.total_amount - saleDetails.amountPaid;
+      let paymentStatus: Sale['paymentStatus'] = 'paid';
+      if (saleDetails.paymentMethod === 'credit' && creditAmount > 0) {
+          paymentStatus = 'partial';
+      } else if (saleDetails.paymentMethod === 'check') {
+          paymentStatus = 'pending_check_clearance';
+      }
 
-      // 3b. Create a single sale document
+      if (saleDetails.paymentMethod === 'credit' && saleDetails.customer_id && creditAmount > 0) {
+          const customerRef = doc(db, 'customers', saleDetails.customer_id);
+          transaction.update(customerRef, { credit_balance: increment(creditAmount) });
+      }
+
       const newSaleRef = doc(db, 'sales', formattedId);
-      const itemsToSave = items.map(({ stock, ...rest }) => rest); // Don't save client-side stock
+      const itemsToSave = items.map(({ stock, ...rest }) => rest);
       transaction.set(newSaleRef, {
         userId,
         items: itemsToSave,
         item_ids: itemIds,
         ...saleDetails,
         sale_date: serverTimestamp(),
+        creditAmount: creditAmount,
+        paymentStatus: paymentStatus,
       });
 
-      // 3c. Update sale counter
       transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
-      // 3d. Create a single activity log for the entire transaction
-      const activityCollection = collection(db, 'recent_activity');
-      const newActivityRef = doc(activityCollection);
+      const newActivityRef = doc(collection(db, 'recent_activity'));
       transaction.set(newActivityRef, {
         type: 'sale',
         product_id: 'multiple',
@@ -537,14 +553,23 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/customers');
 
-    // Return the newly created sale object for receipt printing
     const itemsToReturn = items.map(({stock, ...rest}) => rest);
+    const creditAmount = validatedFields.data.total_amount - validatedFields.data.amountPaid;
+    let paymentStatus: Sale['paymentStatus'] = 'paid';
+      if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
+          paymentStatus = 'partial';
+      } else if (validatedFields.data.paymentMethod === 'check') {
+          paymentStatus = 'pending_check_clearance';
+      }
+    
     return {
         id: saleId,
         userId,
         items: itemsToReturn,
         item_ids: items.map(i => i.id),
-        ...saleDetails,
+        ...validatedFields.data,
+        creditAmount: creditAmount,
+        paymentStatus: paymentStatus,
         sale_date: new Date().toISOString(),
     };
   } catch (error) {
@@ -591,8 +616,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
         const q = query(
             salesCollection, 
             where('userId', '==', userId), 
-            where('customer_id', '==', customerId),
-            orderBy('sale_date', 'desc')
+            where('customer_id', '==', customerId)
         );
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
@@ -604,6 +628,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
             } as Sale
         });
         
+        sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
         return sales;
     } catch (error) {
         console.error('Database Error:', error);
@@ -640,6 +665,7 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
               ...validatedFields.data,
               userId,
               created_at: serverTimestamp(),
+              credit_balance: 0,
           }
   
           transaction.set(newSupplierRef, newSupplierData);
@@ -650,6 +676,7 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
             userId,
             name: validatedFields.data.name,
             phone: validatedFields.data.phone || '',
+            credit_balance: 0,
             created_at: new Date().toISOString()
           } as Supplier;
         });
@@ -771,18 +798,14 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const productRefs: { [key: string]: any } = {};
       const productDocs: { [key: string]: any } = {};
 
-      // --- 1. READ PHASE ---
-      // 1a. Read all product documents
       for (const item of items) {
         productRefs[item.id] = doc(db, 'products', item.id);
         productDocs[item.id] = await transaction.get(productRefs[item.id]);
       }
       
-      // 1b. Read purchase counter
       const counterRef = doc(db, 'counters', `purchases_${userId}`);
       const counterDoc = await transaction.get(counterRef);
       
-      // --- 2. VALIDATION & CALCULATION PHASE ---
       const productUpdateData: { [key: string]: any } = {};
       
       for (const item of items) {
@@ -812,13 +835,23 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       }
       const formattedId = `pur${String(nextId).padStart(6, '0')}`;
 
-      // --- 3. WRITE PHASE ---
-      // 3a. Update all product documents
       for (const item of items) {
         transaction.update(productRefs[item.id], productUpdateData[item.id]);
       }
       
-      // 3b. Create new purchase record
+      const creditAmount = purchaseDetails.total_amount - purchaseDetails.amountPaid;
+      let paymentStatus: Purchase['paymentStatus'] = 'paid';
+      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) {
+          paymentStatus = 'partial';
+      } else if (purchaseDetails.paymentMethod === 'check') {
+          paymentStatus = 'pending_check_clearance';
+      }
+
+      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) {
+          const supplierRef = doc(db, 'suppliers', purchaseDetails.supplier_id);
+          transaction.update(supplierRef, { credit_balance: increment(creditAmount) });
+      }
+
       const newPurchaseRef = doc(db, 'purchases', formattedId);
       transaction.set(newPurchaseRef, {
         userId,
@@ -826,12 +859,12 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         item_ids: itemIds,
         ...purchaseDetails,
         purchase_date: serverTimestamp(),
+        creditAmount,
+        paymentStatus,
       });
 
-      // 3c. Update purchase counter
       transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
-      // 3d. Create a single activity log for the purchase
       const newActivityRef = doc(collection(db, 'recent_activity'));
       transaction.set(newActivityRef, {
         type: 'purchase',
@@ -851,6 +884,14 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/suppliers');
+
+    const creditAmount = validatedFields.data.total_amount - validatedFields.data.amountPaid;
+    let paymentStatus: Purchase['paymentStatus'] = 'paid';
+    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
+        paymentStatus = 'partial';
+    } else if (validatedFields.data.paymentMethod === 'check') {
+        paymentStatus = 'pending_check_clearance';
+    }
     
     return {
         id: purchaseId,
@@ -859,6 +900,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         item_ids: items.map(i => i.id),
         ...purchaseDetails,
         purchase_date: new Date().toISOString(),
+        creditAmount,
+        paymentStatus,
     };
   } catch (error) {
     console.error('Database Error:', error);
@@ -1302,4 +1345,3 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
-
