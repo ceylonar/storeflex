@@ -23,11 +23,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { createPurchase } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductSelect, PurchaseItem, Supplier } from '@/lib/types';
+import type { ProductSelect, PurchaseItem, Supplier, Purchase } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, Truck, Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { SupplierSelection } from './supplier-selection';
 import { Label } from '../ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PurchaseReceipt } from './purchase-receipt';
 
 export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
@@ -36,6 +38,10 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const [suppliers, setSuppliers] = React.useState<Supplier[]>(initialSuppliers);
   const [selectedSupplier, setSelectedSupplier] = React.useState<Supplier | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [taxPercentage, setTaxPercentage] = React.useState(0);
+  const [discountAmount, setDiscountAmount] = React.useState(0);
+  const [serviceCharge, setServiceCharge] = React.useState(0);
+  const [lastCompletedPurchase, setLastCompletedPurchase] = React.useState<Purchase | null>(null);
 
   const { toast } = useToast();
 
@@ -84,8 +90,11 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const removeFromCart = (productId: string) => {
     setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
   };
+  
+  const subtotal = cart.reduce((acc, item) => acc + item.total_cost, 0);
+  const taxAmount = subtotal * (taxPercentage / 100);
+  const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
 
-  const totalCost = cart.reduce((acc, item) => acc + item.total_cost, 0);
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
@@ -103,16 +112,22 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             items: cart,
             supplier_id: selectedSupplier.id,
             supplier_name: selectedSupplier.name,
-            totalAmount: totalCost,
+            subtotal,
+            tax_percentage: taxPercentage,
+            tax_amount: taxAmount,
+            discount_amount: discountAmount,
+            service_charge: serviceCharge,
+            total_amount: totalCost,
         };
-      await createPurchase(purchaseData);
-      toast({
-        title: 'Purchase Complete!',
-        description: 'The transaction has been recorded and stock updated.',
-      });
-      // Reset state
-      setCart([]);
-      setSelectedSupplier(null);
+      const completedPurchase = await createPurchase(purchaseData);
+
+      if (completedPurchase) {
+          setLastCompletedPurchase(completedPurchase);
+          toast({
+            title: 'Purchase Complete!',
+            description: 'The transaction has been recorded and stock updated.',
+          });
+      }
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -124,6 +139,15 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     }
   };
 
+  const handleStartNewPurchase = () => {
+    setLastCompletedPurchase(null);
+    setCart([]);
+    setSelectedSupplier(null);
+    setTaxPercentage(0);
+    setDiscountAmount(0);
+    setServiceCharge(0);
+  }
+
   if (!isMounted) {
     return (
         <div className="flex items-center justify-center p-12">
@@ -133,144 +157,198 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
-      {/* Left Column: Product Search */}
-      <Card className="lg:col-span-3">
-        <CardHeader>
-          <CardTitle>Products</CardTitle>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search for products..."
-              className="w-full pl-8 sm:w-80"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[60vh]">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">Image</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Current Stock</TableHead>
-                  <TableHead className="w-[100px] text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <Avatar className="h-12 w-12 rounded-md">
-                        <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" />
-                        <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                    </TableCell>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>{product.stock}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" onClick={() => addToCart(product)}>Add</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-             {filteredProducts.length === 0 && (
-                <div className="py-8 text-center text-muted-foreground">
-                    <p>No products match your search.</p>
-                </div>
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
+    <>
+      <Dialog open={!!lastCompletedPurchase} onOpenChange={(isOpen) => !isOpen && handleStartNewPurchase()}>
+        <DialogContent className="max-w-sm p-0">
+           <DialogHeader className="p-0">
+             <DialogTitle className="sr-only">Purchase Receipt</DialogTitle>
+           </DialogHeader>
+          {lastCompletedPurchase && (
+            <PurchaseReceipt purchase={lastCompletedPurchase} onNewPurchase={handleStartNewPurchase} />
+          )}
+        </DialogContent>
+      </Dialog>
 
-      {/* Right Column: Bill */}
-      <div className="lg:col-span-2">
-        <Card className="sticky top-24">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
+        {/* Left Column: Product Search */}
+        <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Purchase Order</CardTitle>
-            <CardDescription>Items to be purchased.</CardDescription>
+            <CardTitle>Products</CardTitle>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search for products..."
+                className="w-full pl-8 sm:w-80"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Supplier Details */}
-             <SupplierSelection 
-                suppliers={suppliers}
-                selectedSupplier={selectedSupplier}
-                onSelectSupplier={setSelectedSupplier}
-                onSupplierCreated={handleSupplierCreated}
-             />
-
-            {/* Cart Items */}
-            <ScrollArea className="h-[40vh] border-t border-b py-2">
-                {cart.length > 0 ? (
-                    cart.map((item) => (
-                    <div key={item.id} className="flex flex-col gap-2 py-2 border-b last:border-b-0">
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-10 w-10 rounded-md">
-                          <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
-                          <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
+          <CardContent>
+            <ScrollArea className="h-[60vh]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">Image</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Current Stock</TableHead>
+                    <TableHead className="w-[100px] text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell>
+                        <Avatar className="h-12 w-12 rounded-md">
+                          <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" />
+                          <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <div className="flex-1">
-                          <p className="font-medium truncate text-sm">{item.name}</p>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(item.id)}>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 pl-14">
-                        <div className="space-y-1">
-                            <Label htmlFor={`quantity-${item.id}`} className="text-xs">Quantity</Label>
-                            <Input 
-                                id={`quantity-${item.id}`}
-                                type="number"
-                                value={item.quantity}
-                                onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                                className="h-8"
-                            />
-                        </div>
-                         <div className="space-y-1">
-                            <Label htmlFor={`cost-${item.id}`} className="text-xs">Cost Price (LKR)</Label>
-                            <Input
-                                id={`cost-${item.id}`}
-                                type="number"
-                                step="0.01"
-                                value={item.cost_price}
-                                onChange={(e) => updateCartItem(item.id, 'cost_price', parseFloat(e.target.value) || 0)}
-                                className="h-8"
-                            />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-                        <Truck className="h-10 w-10" />
-                        <p className="mt-2 text-sm">Your purchase order is empty.</p>
-                        <p className="text-xs">Add products from the left.</p>
-                    </div>
-                )}
+                      </TableCell>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.stock}</TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" onClick={() => addToCart(product)}>Add</Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredProducts.length === 0 && (
+                  <div className="py-8 text-center text-muted-foreground">
+                      <p>No products match your search.</p>
+                  </div>
+              )}
             </ScrollArea>
-            
-            {/* Bill Summary */}
-            {cart.length > 0 && (
-                <div className="space-y-2 text-sm">
-                    <div className="flex justify-between border-t pt-2 font-bold text-base">
-                        <span>Total</span>
-                        <span>LKR {totalCost.toFixed(2)}</span>
-                    </div>
-                </div>
-            )}
           </CardContent>
-          <CardFooter>
-            <Button className="w-full" onClick={handleCheckout} disabled={isSubmitting || cart.length === 0}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Complete Purchase
-            </Button>
-          </CardFooter>
         </Card>
+
+        {/* Right Column: Bill */}
+        <div className="lg:col-span-2">
+          <Card className="sticky top-24">
+            <CardHeader>
+              <CardTitle>Purchase Order</CardTitle>
+              <CardDescription>Items to be purchased.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Supplier Details */}
+              <SupplierSelection 
+                  suppliers={suppliers}
+                  selectedSupplier={selectedSupplier}
+                  onSelectSupplier={setSelectedSupplier}
+                  onSupplierCreated={handleSupplierCreated}
+              />
+
+              {/* Cart Items */}
+              <ScrollArea className="h-[40vh] border-t border-b py-2">
+                  {cart.length > 0 ? (
+                      cart.map((item) => (
+                      <div key={item.id} className="flex flex-col gap-2 py-2 border-b last:border-b-0">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-10 w-10 rounded-md">
+                            <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
+                            <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium truncate text-sm">{item.name}</p>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(item.id)}>
+                              <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 pl-14">
+                          <div className="space-y-1">
+                              <Label htmlFor={`quantity-${item.id}`} className="text-xs">Quantity</Label>
+                              <Input 
+                                  id={`quantity-${item.id}`}
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                  className="h-8"
+                              />
+                          </div>
+                          <div className="space-y-1">
+                              <Label htmlFor={`cost-${item.id}`} className="text-xs">Cost Price (LKR)</Label>
+                              <Input
+                                  id={`cost-${item.id}`}
+                                  type="number"
+                                  step="0.01"
+                                  value={item.cost_price}
+                                  onChange={(e) => updateCartItem(item.id, 'cost_price', parseFloat(e.target.value) || 0)}
+                                  className="h-8"
+                              />
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                      <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+                          <Truck className="h-10 w-10" />
+                          <p className="mt-2 text-sm">Your purchase order is empty.</p>
+                          <p className="text-xs">Add products from the left.</p>
+                      </div>
+                  )}
+              </ScrollArea>
+              
+              {/* Bill Summary */}
+              {cart.length > 0 && (
+                  <div className="space-y-2 text-sm">
+                       <div className="flex justify-between">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span>LKR {subtotal.toFixed(2)}</span>
+                      </div>
+                       <div className="flex items-center justify-between gap-2">
+                          <Label htmlFor="service_charge" className="text-muted-foreground flex-1">Service Charge (LKR)</Label>
+                          <Input 
+                              id="service_charge" 
+                              type="number" 
+                              value={serviceCharge} 
+                              onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} 
+                              className="h-8 w-24 text-right"
+                              placeholder="0.00"
+                          />
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                          <Label htmlFor="tax" className="text-muted-foreground flex-1">Tax (%)</Label>
+                          <Input 
+                              id="tax" 
+                              type="number" 
+                              value={taxPercentage} 
+                              onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} 
+                              className="h-8 w-24 text-right"
+                              placeholder="0"
+                          />
+                      </div>
+                      <div className="flex justify-between">
+                          <span className="text-muted-foreground">Calculated Tax</span>
+                          <span>LKR {taxAmount.toFixed(2)}</span>
+                      </div>
+                       <div className="flex items-center justify-between gap-2">
+                          <Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label>
+                          <Input 
+                              id="discount" 
+                              type="number" 
+                              value={discountAmount} 
+                              onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} 
+                              className="h-8 w-24 text-right"
+                              placeholder="0.00"
+                          />
+                      </div>
+                      <div className="flex justify-between border-t pt-2 font-bold text-base">
+                          <span>Total</span>
+                          <span>LKR {totalCost.toFixed(2)}</span>
+                      </div>
+                  </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button className="w-full" onClick={handleCheckout} disabled={isSubmitting || cart.length === 0}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Complete Purchase
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -100,7 +100,12 @@ const POSPurchaseSchema = z.object({
   items: z.array(PurchaseItemSchema).min(1, 'At least one item is required.'),
   supplier_id: z.string(),
   supplier_name: z.string(),
-  totalAmount: z.number().nonnegative(),
+  subtotal: z.number().nonnegative(),
+  tax_percentage: z.number().nonnegative(),
+  tax_amount: z.number().nonnegative(),
+  discount_amount: z.number().nonnegative(),
+  service_charge: z.number().nonnegative(),
+  total_amount: z.number().nonnegative(),
 });
 
 const ProfileSchema = z.object({
@@ -747,7 +752,7 @@ export async function deleteSupplier(id: string) {
     }
 }
 
-export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSchema>) {
+export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSchema>): Promise<Purchase | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
 
@@ -760,7 +765,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
   const { items, ...purchaseDetails } = validatedFields.data;
   
   try {
-    await runTransaction(db, async (transaction) => {
+    const purchaseId = await runTransaction(db, async (transaction) => {
       const itemIds = items.map(item => item.id); // For indexing
 
       // Phase 1: Update product stock and calculate weighted average cost
@@ -788,20 +793,30 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         });
       }
 
-      // Phase 2: Create purchase record
-      const purchasesCollection = collection(db, 'purchases');
-      const newPurchaseRef = doc(purchasesCollection);
+      // Phase 2: Get new Purchase ID
+      const counterRef = doc(db, 'counters', `purchases_${userId}`);
+      let nextId = 1;
+      const counterDoc = await transaction.get(counterRef);
+      if (counterDoc.exists()) {
+          nextId = (counterDoc.data().lastId || 0) + 1;
+      }
+      const formattedId = `pur${String(nextId).padStart(6, '0')}`;
+
+
+      // Phase 3: Create purchase record
+      const newPurchaseRef = doc(db, 'purchases', formattedId);
       transaction.set(newPurchaseRef, {
         userId,
         items,
         item_ids: itemIds,
-        supplier_id: purchaseDetails.supplier_id,
-        supplier_name: purchaseDetails.supplier_name,
-        total_amount: purchaseDetails.totalAmount,
+        ...purchaseDetails,
         purchase_date: serverTimestamp(),
       });
 
-      // Phase 3: Create a single activity log for the purchase
+      // Phase 4: Update purchase counter
+      transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
+      // Phase 5: Create a single activity log for the purchase
       const activityCollection = collection(db, 'recent_activity');
       const newActivityRef = doc(activityCollection);
       transaction.set(newActivityRef, {
@@ -809,18 +824,28 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         product_id: 'multiple',
         product_name: `${items.length} item(s)`,
         product_image: items[0]?.image || '',
-        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${purchaseDetails.totalAmount.toFixed(2)}`,
+        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${purchaseDetails.total_amount.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
         id: newPurchaseRef.id,
       });
+
+      return formattedId;
     });
 
     revalidatePath('/dashboard/buy');
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/suppliers');
-    return { success: true, message: 'Purchase recorded and stock updated.' };
+    
+    return {
+        id: purchaseId,
+        userId,
+        items,
+        item_ids: items.map(i => i.id),
+        ...purchaseDetails,
+        purchase_date: new Date().toISOString(),
+    };
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error((error as Error).message || 'Failed to record purchase.');

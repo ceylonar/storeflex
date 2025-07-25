@@ -130,6 +130,11 @@ export type Purchase = {
   supplier_name: string;
   items: PurchaseItem[];
   item_ids: string[];
+  subtotal: number;
+  tax_percentage: number;
+  tax_amount: number;
+  discount_amount: number;
+  service_charge: number;
   total_amount: number;
   purchase_date: string; // ISO String
 }
