@@ -29,7 +29,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { CustomerSelection } from './customer-selection';
 import { Badge } from '../ui/badge';
 import { Label } from '../ui/label';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SaleReceipt } from './sale-receipt';
 
 
@@ -203,6 +203,9 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     <>
       <Dialog open={!!lastCompletedSale} onOpenChange={(isOpen) => !isOpen && handleStartNewSale()}>
         <DialogContent className="max-w-sm p-0">
+           <DialogHeader className="p-0">
+             <DialogTitle className="sr-only">Sale Receipt</DialogTitle>
+           </DialogHeader>
           {lastCompletedSale && (
             <SaleReceipt sale={lastCompletedSale} onNewSale={handleStartNewSale} />
           )}
