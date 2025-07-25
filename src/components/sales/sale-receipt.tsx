@@ -42,9 +42,11 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
             left: 0;
             top: 0;
             width: 100%;
+            margin: 0;
+            padding: 1rem;
           }
           .no-print {
-            display: none;
+            display: none !important;
           }
         }
       `}</style>
