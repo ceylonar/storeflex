@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -42,6 +42,7 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
+import { Skeleton } from '../ui/skeleton';
 
 interface RecordsClientProps {
   initialRecords: RecentActivity[];
@@ -49,12 +50,24 @@ interface RecordsClientProps {
 }
 
 export function RecordsClient({ initialRecords, products }: RecordsClientProps) {
+  const [isLoading, setIsLoading] = useState(true);
   const [date, setDate] = useState<DateRange | undefined>();
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
-  const [records, setRecords] = useState<RecentActivity[]>(initialRecords);
+  const [records, setRecords] = useState<RecentActivity[]>([]);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Fetch fresh data on mount to ensure it's up-to-date
+    fetchInventoryRecords({}).then(data => {
+        setRecords(data);
+        setIsLoading(false);
+    }).catch(() => {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to load records.' });
+        setIsLoading(false);
+    });
+  }, [toast]);
 
   const handleGenerateReport = () => {
     startTransition(async () => {
@@ -217,9 +230,18 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
             </Button>
         </CardHeader>
         <CardContent>
-            {isPending ? (
-                 <div className="flex items-center justify-center p-8 h-64">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            {isLoading || isPending ? (
+                 <div className="space-y-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-center space-x-4 p-2">
+                            <Skeleton className="h-12 w-12 rounded-md" />
+                            <div className="flex-1 space-y-2">
+                                <Skeleton className="h-4 w-1/2" />
+                                <Skeleton className="h-4 w-3/4" />
+                            </div>
+                            <Skeleton className="h-4 w-24" />
+                        </div>
+                    ))}
                 </div>
             ) : (
                 <ScrollArea className="h-[60vh]">
@@ -239,7 +261,7 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
                                 <TableCell className="hidden sm:table-cell">
                                 <Avatar className="h-12 w-12 rounded-md">
                                     <AvatarImage src={activity.product_image || 'https://placehold.co/64x64.png'} alt={activity.product_name} data-ai-hint="product image" className="aspect-square object-cover" />
-                                    <AvatarFallback>{activity.product_name.charAt(0)}</AvatarFallback>
+                                    <AvatarFallback>{activity.product_name?.charAt(0) || 'P'}</AvatarFallback>
                                 </Avatar>
                                 </TableCell>
                                 <TableCell className="font-medium">{activity.product_name}</TableCell>
