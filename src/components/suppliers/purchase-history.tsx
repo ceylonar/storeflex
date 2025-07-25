@@ -122,8 +122,8 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
                                     <p className="text-sm text-muted-foreground"><FormattedDate timestamp={purchase.purchase_date} /></p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-bold text-lg">LKR {purchase.total_amount.toFixed(2)}</p>
-                                    <p className="text-sm text-muted-foreground">{purchase.items.length} item(s)</p>
+                                    <p className="font-bold text-lg">LKR {(purchase.total_amount || 0).toFixed(2)}</p>
+                                    <p className="text-sm text-muted-foreground">{(purchase.items || []).length} item(s)</p>
                                 </div>
                             </div>
                         </AccordionTrigger>
@@ -140,7 +140,7 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {purchase.items.map(item => (
+                                        {(purchase.items || []).map(item => (
                                             <TableRow key={`${purchase.id}-${item.id}`}>
                                                 <TableCell className="hidden sm:table-cell">
                                                 <Avatar className="h-9 w-9">
@@ -150,19 +150,19 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
                                                 </TableCell>
                                                 <TableCell className="font-medium">{item.name}</TableCell>
                                                 <TableCell>{item.quantity}</TableCell>
-                                                <TableCell>LKR {item.cost_price.toFixed(2)}</TableCell>
-                                                <TableCell className="text-right">LKR {item.total_cost.toFixed(2)}</TableCell>
+                                                <TableCell>LKR {(item.cost_price || 0).toFixed(2)}</TableCell>
+                                                <TableCell className="text-right">LKR {(item.total_cost || 0).toFixed(2)}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
 
                                 <div className="max-w-sm ml-auto space-y-2 text-sm">
-                                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {purchase.subtotal.toFixed(2)}</span></div>
-                                    <div className="flex justify-between"><span className="text-muted-foreground">Service Charge</span><span>LKR {purchase.service_charge.toFixed(2)}</span></div>
-                                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({purchase.tax_percentage}%)</span><span>LKR {purchase.tax_amount.toFixed(2)}</span></div>
-                                    <div className="flex justify-between text-destructive"><span >Discount</span><span>- LKR {purchase.discount_amount.toFixed(2)}</span></div>
-                                    <div className="flex justify-between border-t pt-2 font-bold"><span >Total Cost</span><span>LKR {purchase.total_amount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {(purchase.subtotal || 0).toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Service Charge</span><span>LKR {(purchase.service_charge || 0).toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({(purchase.tax_percentage || 0)}%)</span><span>LKR {(purchase.tax_amount || 0).toFixed(2)}</span></div>
+                                    <div className="flex justify-between text-destructive"><span >Discount</span><span>- LKR {(purchase.discount_amount || 0).toFixed(2)}</span></div>
+                                    <div className="flex justify-between border-t pt-2 font-bold"><span >Total Cost</span><span>LKR {(purchase.total_amount || 0).toFixed(2)}</span></div>
                                 </div>
                            </div>
                         </AccordionContent>
@@ -175,4 +175,3 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
     </Card>
   );
 }
-
