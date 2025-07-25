@@ -1,7 +1,7 @@
 
-import { AccountForm } from "@/components/account/account-form";
 import { fetchUserProfile } from "@/lib/queries";
 import { User } from "lucide-react";
+import DynamicAccountForm from "@/components/account/dynamic-account-form";
 
 export default async function AccountPage() {
   const userProfile = await fetchUserProfile();
@@ -18,7 +18,7 @@ export default async function AccountPage() {
         </div>
       </div>
       
-      <AccountForm userProfile={userProfile} />
+      <DynamicAccountForm userProfile={userProfile} />
     </div>
   );
 }
