@@ -101,6 +101,14 @@ const POSPurchaseSchema = z.object({
   totalAmount: z.number().nonnegative(),
 });
 
+const ProfileSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email address'),
+  businessName: z.string().min(1, 'Business name is required'),
+  address: z.string().optional(),
+  contactNumber: z.string().optional(),
+});
+
 
 // --- PRODUCT QUERIES ---
 
@@ -862,16 +870,60 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
     noStore();
     const userId = await getCurrentUserId();
     if (!userId) return null;
+
+    const { db } = getFirebaseServices();
+    const profileRef = doc(db, 'users', userId);
     
-    // Return mock data since there's no auth
-    return {
-        id: userId,
-        email: 'user@example.com',
-        name: 'Demo User',
-        businessName: "Demo Store",
+    try {
+        const profileDoc = await getDoc(profileRef);
+        if (profileDoc.exists()) {
+            return { id: profileDoc.id, ...profileDoc.data() } as UserProfile;
+        } else {
+            // If no profile exists, create a default one
+            const defaultProfile: UserProfile = {
+                id: userId,
+                email: 'user@example.com',
+                name: 'Demo User',
+                businessName: "Demo Store",
+                address: "123 Demo Street, Colombo",
+                contactNumber: "011-123-4567",
+            };
+            await setDoc(profileRef, defaultProfile);
+            return defaultProfile;
+        }
+    } catch (error) {
+        console.error("Failed to fetch user profile:", error);
+        return null;
     }
 }
 
+export async function updateUserProfile(formData: FormData): Promise<{ success: boolean; message: string }> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    const validatedFields = ProfileSchema.safeParse(Object.fromEntries(formData.entries()));
+
+    if (!validatedFields.success) {
+        const errorMessages = Object.entries(validatedFields.error.flatten().fieldErrors)
+            .map(([field, errors]) => `${field}: ${errors.join(', ')}`)
+            .join('; ');
+        return { success: false, message: `Invalid data: ${errorMessages}` };
+    }
+
+    try {
+        const profileRef = doc(db, 'users', userId);
+        await setDoc(profileRef, validatedFields.data, { merge: true });
+
+        revalidatePath('/dashboard/account');
+        revalidatePath('/dashboard/sales'); // For receipt
+        revalidatePath('/dashboard'); // For header
+
+        return { success: true, message: 'Profile updated successfully.' };
+
+    } catch (error) {
+        return { success: false, message: 'Failed to update profile.' };
+    }
+}
 
 export async function fetchDashboardData() {
     noStore();
