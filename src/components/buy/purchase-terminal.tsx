@@ -274,4 +274,3 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     </div>
   );
 }
-

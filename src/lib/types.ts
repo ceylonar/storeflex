@@ -141,5 +141,3 @@ export type ProductTransaction = {
     price: number; // cost_price for purchase, selling_price for sale
     source_or_destination: string; // e.g., "Sale to John Doe" or "Purchase from Supplier Inc."
 }
-
-    

@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1264,7 +1263,3 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
-
-    
-
-    
