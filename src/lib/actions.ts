@@ -2,12 +2,13 @@
 'use server';
 
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, Timestamp, getDoc, doc } from 'firebase/firestore';
 import { getFirebaseServices } from './firebase';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
-import type { Sale, ProductTransaction } from './types';
+import type { Sale, ProductTransaction, RecentActivity, DetailedRecord } from './types';
 import type { DateRange } from 'react-day-picker';
+import { fetchInventoryRecords } from './queries';
 
 
 const FormSchema = z.object({
@@ -173,3 +174,46 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
+
+interface InventoryRecordsFilter {
+    date?: DateRange;
+    type?: string;
+    productId?: string;
+}
+
+export async function fetchDetailedRecordsForExport(filters: InventoryRecordsFilter): Promise<DetailedRecord[]> {
+    const { db } = getFirebaseServices();
+    const records = await fetchInventoryRecords(filters);
+    const detailedRecords: DetailedRecord[] = [];
+
+    for (const rec of records) {
+        let detailedRec: DetailedRecord = { ...rec };
+
+        if (rec.type === 'sale') {
+            const saleDoc = await getDoc(doc(db, 'sales', rec.id));
+            if (saleDoc.exists()) {
+                const saleData = saleDoc.data();
+                detailedRec.items = saleData.items;
+                detailedRec.details = saleData.customer_name;
+            }
+        } else if (rec.type === 'purchase') {
+            const purchaseDoc = await getDoc(doc(db, 'purchases', rec.id));
+             if (purchaseDoc.exists()) {
+                const purchaseData = purchaseDoc.data();
+                detailedRec.items = purchaseData.items;
+                detailedRec.details = purchaseData.supplier_name;
+            }
+        } else if (rec.product_id && rec.product_id !== 'multiple') {
+             const productDoc = await getDoc(doc(db, 'products', rec.product_id));
+             if(productDoc.exists()) {
+                 detailedRec.product_sku = productDoc.data().sku;
+             }
+        }
+
+        detailedRecords.push(detailedRec);
+    }
+    
+    return detailedRecords;
+}
+
+    

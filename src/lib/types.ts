@@ -1,4 +1,5 @@
 
+
 export type Store = {
   id: string;
   name: string;
@@ -48,6 +49,11 @@ export type RecentActivity = {
   timestamp: string; // Should be ISO string date
 };
 
+export type DetailedRecord = RecentActivity & {
+    items?: (SaleItem | PurchaseItem)[];
+    product_sku?: string;
+};
+
 export type SalesData = {
     month: string;
     sales: number;
@@ -66,6 +72,7 @@ export type SaleItem = {
     price_per_unit: number;
     total_amount: number;
     stock: number;
+    sku?: string;
 };
 
 export type Sale = {
@@ -108,6 +115,7 @@ export type PurchaseItem = {
   quantity: number;
   cost_price: number;
   total_cost: number;
+  sku?: string;
 };
 
 export type Purchase = {
@@ -128,3 +136,5 @@ export type ProductTransaction = {
     price: number; // cost_price for purchase, selling_price for sale
     source_or_destination: string; // e.g., "Sale to John Doe" or "Purchase from Supplier Inc."
 }
+
+    

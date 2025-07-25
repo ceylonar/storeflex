@@ -32,8 +32,9 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import type { RecentActivity, ProductSelect } from '@/lib/types';
+import type { RecentActivity, ProductSelect, DetailedRecord } from '@/lib/types';
 import { fetchInventoryRecords } from '@/lib/queries';
+import { fetchDetailedRecordsForExport } from '@/lib/actions';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
@@ -51,6 +52,7 @@ interface RecordsClientProps {
 
 export function RecordsClient({ initialRecords, products }: RecordsClientProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [date, setDate] = useState<DateRange | undefined>();
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
@@ -59,7 +61,6 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
   const { toast } = useToast();
 
   useEffect(() => {
-    // Fetch fresh data on mount to ensure it's up-to-date
     fetchInventoryRecords({}).then(data => {
         setRecords(data);
         setIsLoading(false);
@@ -94,7 +95,7 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
     });
   }
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!records || records.length === 0) {
         toast({
             variant: 'destructive',
@@ -104,68 +105,79 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
         return;
     }
     
-    const headers = [
-      'ID', 'Type', 'Product Name', 'Quantity Change', 'Amount (LKR)', 'Source/Destination', 'Timestamp'
-    ];
-    
-    const csvContent = [
-      headers.join(','),
-      ...records.map(rec => {
-        let quantityChange = '';
-        let amount = '';
-        let sourceDestination = '';
+    setIsDownloading(true);
+    toast({ title: 'Preparing Download', description: 'Fetching detailed records for export...' });
 
-        if (rec.type === 'sale' || rec.type === 'purchase') {
-            const details = rec.details || '';
-            const amountMatch = details.match(/for LKR ([\d,]+\.\d{2})/);
-            if (amountMatch) {
-                amount = amountMatch[1].replace(/,/g, '');
-            }
-
-            if(rec.type === 'sale') {
-                const quantityMatch = rec.details.match(/Sold (\d+) unit\(s\)/);
-                if(quantityMatch) quantityChange = `-${quantityMatch[1]}`;
-
-                const customerMatch = details.match(/Sale to (.+?) for/);
-                if(customerMatch) sourceDestination = `Customer: ${customerMatch[1].trim()}`;
-            } else { // purchase
-                const quantityMatch = rec.details.match(/Purchased (\d+) unit\(s\)/);
-                if(quantityMatch) quantityChange = `+${quantityMatch[1]}`;
-                
-                const supplierMatch = details.match(/Purchase from (.+?) for/);
-                if(supplierMatch) sourceDestination = `Supplier: ${supplierMatch[1].trim()}`;
-            }
-        }
+    try {
+        const detailedRecords = await fetchDetailedRecordsForExport({ date, type, productId });
         
-        // Handle multi-item transactions
-        if (rec.product_id === 'multiple') {
-             sourceDestination = rec.details;
-        }
-
-
-        const row = [
-          rec.id,
-          rec.type,
-          `"${rec.product_name}"`,
-          quantityChange,
-          amount,
-          `"${sourceDestination}"`,
-          format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss')
+        const headers = [
+          'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details'
         ];
         
-        return row.join(',');
+        const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
+            if (rec.type === 'sale' && rec.items) {
+                return rec.items.map(item => [
+                    rec.id,
+                    format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+                    rec.type,
+                    `"${item.name}"`,
+                    `"${item.sku || ''}"`,
+                    -item.quantity,
+                    item.price_per_unit.toFixed(2),
+                    (item.price_per_unit * item.quantity).toFixed(2),
+                    `"Sale to ${rec.details}"`
+                ].join(','));
+            }
+             if (rec.type === 'purchase' && rec.items) {
+                return rec.items.map(item => [
+                    rec.id,
+                    format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+                    rec.type,
+                    `"${item.name}"`,
+                    `"${item.sku || ''}"`,
+                    `+${item.quantity}`,
+                    item.cost_price.toFixed(2),
+                    (item.cost_price * item.quantity).toFixed(2),
+                    `"Purchase from ${rec.details}"`
+                ].join(','));
+            }
+            // For other types or if items are missing
+            return [[
+                rec.id,
+                format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+                rec.type,
+                `"${rec.product_name}"`,
+                `"${rec.product_sku || ''}"`,
+                '', // Quantity
+                '', // Unit Price
+                '', // Total
+                `"${rec.details}"`,
+            ].join(',')];
+        });
 
-      }).join('\n')
-    ].join('\n');
+        const csvContent = [headers.join(','), ...csvRows].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `inventory_records_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `inventory_records_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast({ title: 'Download Started', description: 'Your inventory report is being downloaded.' });
+
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Download Failed',
+            description: (error as Error).message || 'Could not generate the detailed report.',
+        });
+    } finally {
+        setIsDownloading(false);
+    }
   }
 
   return (
@@ -262,8 +274,8 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
                     {`Displaying ${records.length} of all inventory transactions.`}
                 </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={handleDownload} disabled={records.length === 0}>
-                <Download className="mr-2 h-4 w-4"/>
+            <Button variant="outline" size="sm" onClick={handleDownload} disabled={records.length === 0 || isDownloading}>
+                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4"/>}
                 Download CSV
             </Button>
         </CardHeader>
