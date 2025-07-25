@@ -801,9 +801,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         const newAverageCost = (currentTotalValue + purchaseTotalValue) / newTotalStock;
 
         productUpdateData[item.id] = {
-          stock: newTotalStock,
+          stock: increment(item.quantity),
           cost_price: newAverageCost,
-          updated_at: serverTimestamp(),
         };
       }
       
@@ -878,8 +877,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
         const q = query(
             purchasesCollection, 
             where('userId', '==', userId), 
-            where('supplier_id', '==', supplierId),
-            orderBy('purchase_date', 'desc')
+            where('supplier_id', '==', supplierId)
         );
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
@@ -891,6 +889,8 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
             } as Purchase
         });
         
+        purchases.sort((a, b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+
         return purchases;
     } catch (error) {
         console.error('Database Error:', error);
@@ -1302,3 +1302,4 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
+

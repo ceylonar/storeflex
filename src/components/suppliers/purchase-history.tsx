@@ -63,7 +63,9 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
       setIsLoading(true);
       fetchPurchasesBySupplier(selectedSupplier.id)
         .then(setPurchases)
-        .catch(console.error)
+        .catch((err) => {
+            console.error(err)
+        })
         .finally(() => setIsLoading(false));
     } else {
       setPurchases([]);
@@ -173,3 +175,4 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
     </Card>
   );
 }
+
