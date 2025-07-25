@@ -878,7 +878,8 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
         const q = query(
             purchasesCollection, 
             where('userId', '==', userId), 
-            where('supplier_id', '==', supplierId)
+            where('supplier_id', '==', supplierId),
+            orderBy('purchase_date', 'desc')
         );
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
@@ -889,8 +890,6 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
                 purchase_date: (data.purchase_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Purchase
         });
-        
-        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
         
         return purchases;
     } catch (error) {
@@ -1303,4 +1302,3 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
-

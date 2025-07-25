@@ -11,6 +11,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -22,6 +28,8 @@ import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { fetchPurchasesBySupplier } from '@/lib/queries';
 import { Loader2 } from 'lucide-react';
+import { ScrollArea } from '../ui/scroll-area';
+import { Separator } from '../ui/separator';
 
 function FormattedDate({ timestamp }: { timestamp: string }) {
     const [date, setDate] = React.useState('');
@@ -101,41 +109,65 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
         {purchases.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No purchases recorded for this supplier yet.</p>
         ) : (
-            <Table>
-            <TableHeader>
-                <TableRow>
-                <TableHead className="hidden w-[100px] sm:table-cell">
-                    <span className="sr-only">Image</span>
-                </TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Cost Price</TableHead>
-                <TableHead className="text-right">Date</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {purchases.flatMap((purchase) => 
-                    purchase.items.map(item => (
-                        <TableRow key={`${purchase.id}-${item.id}`}>
-                            <TableCell className="hidden sm:table-cell">
-                            <Avatar className="h-9 w-9">
-                                <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product avatar" />
-                                <AvatarFallback>
-                                    {item.name?.charAt(0).toUpperCase() || 'P'}
-                                </AvatarFallback>
-                            </Avatar>
-                            </TableCell>
-                            <TableCell className="font-medium">{item.name}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>LKR {item.cost_price.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">
-                            <FormattedDate timestamp={purchase.purchase_date} />
-                            </TableCell>
-                        </TableRow>
-                    ))
-                )}
-            </TableBody>
-            </Table>
+            <ScrollArea className="h-[60vh]">
+              <Accordion type="single" collapsible className="w-full">
+                {purchases.map((purchase) => (
+                    <AccordionItem value={purchase.id} key={purchase.id} className="border-b">
+                        <AccordionTrigger className="p-4 hover:no-underline">
+                            <div className="flex justify-between w-full">
+                                <div className="text-left">
+                                    <p className="font-semibold text-primary">Purchase ID: {purchase.id}</p>
+                                    <p className="text-sm text-muted-foreground"><FormattedDate timestamp={purchase.purchase_date} /></p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-lg">LKR {purchase.total_amount.toFixed(2)}</p>
+                                    <p className="text-sm text-muted-foreground">{purchase.items.length} item(s)</p>
+                                </div>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="p-4 pt-0">
+                           <div className="space-y-4">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
+                                            <TableHead>Product</TableHead>
+                                            <TableHead>Quantity</TableHead>
+                                            <TableHead>Unit Cost</TableHead>
+                                            <TableHead className="text-right">Total</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {purchase.items.map(item => (
+                                            <TableRow key={`${purchase.id}-${item.id}`}>
+                                                <TableCell className="hidden sm:table-cell">
+                                                <Avatar className="h-9 w-9">
+                                                    <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product avatar" />
+                                                    <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
+                                                </Avatar>
+                                                </TableCell>
+                                                <TableCell className="font-medium">{item.name}</TableCell>
+                                                <TableCell>{item.quantity}</TableCell>
+                                                <TableCell>LKR {item.cost_price.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right">LKR {item.total_cost.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+
+                                <div className="max-w-sm ml-auto space-y-2 text-sm">
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {purchase.subtotal.toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Service Charge</span><span>LKR {purchase.service_charge.toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Tax ({purchase.tax_percentage}%)</span><span>LKR {purchase.tax_amount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between text-destructive"><span >Discount</span><span>- LKR {purchase.discount_amount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between border-t pt-2 font-bold"><span >Total Cost</span><span>LKR {purchase.total_amount.toFixed(2)}</span></div>
+                                </div>
+                           </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+              </Accordion>
+            </ScrollArea>
         )}
       </CardContent>
     </Card>
