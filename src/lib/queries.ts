@@ -1535,9 +1535,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         const q = query(
             activityCollection, 
             where('userId', '==', userId), 
-            where('type', 'in', financialTypes),
-            orderBy('timestamp', 'desc'),
-            limit(20) // Get the last 20 financial activities
+            where('type', 'in', financialTypes)
         );
         
         const activitySnapshot = await getDocs(q);
@@ -1549,6 +1547,8 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
+
+        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return activities;
     } catch (error) {
