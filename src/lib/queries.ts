@@ -1388,14 +1388,15 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let pendingChecksTotal = 0;
 
         // In-memory filtering
-        const sales = salesSnapshot.docs.map(d => d.data() as Sale).filter(s => s.paymentStatus !== 'paid');
-        const purchases = purchasesSnapshot.docs.map(d => d.data() as Purchase).filter(p => p.paymentStatus !== 'paid');
+        const salesDocs = salesSnapshot.docs.filter(doc => (doc.data() as Sale).paymentStatus !== 'paid');
+        const purchasesDocs = purchasesSnapshot.docs.filter(doc => (doc.data() as Purchase).paymentStatus !== 'paid');
 
 
-        sales.forEach(sale => {
+        salesDocs.forEach(doc => {
+            const sale = doc.data() as Sale;
             const creditAmount = sale.creditAmount || 0;
             const transaction: MoneyflowTransaction = {
-                id: sale.id,
+                id: doc.id,
                 type: 'receivable',
                 partyName: sale.customer_name,
                 partyId: sale.customer_id!,
@@ -1411,10 +1412,11 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
 
-        purchases.forEach(purchase => {
+        purchasesDocs.forEach(doc => {
+            const purchase = doc.data() as Purchase;
             const creditAmount = purchase.creditAmount || 0;
             const transaction: MoneyflowTransaction = {
-                id: purchase.id,
+                id: doc.id,
                 type: 'payable',
                 partyName: purchase.supplier_name,
                 partyId: purchase.supplier_id,
@@ -1480,5 +1482,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
     }
 }
 
+
+    
 
     
