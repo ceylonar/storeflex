@@ -171,28 +171,30 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
                     <TableCell>LKR {tx.amount.toFixed(2)}</TableCell>
                     <TableCell>{format(new Date(tx.date), 'PPP')}</TableCell>
                     <TableCell className="text-right">
-                       <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                             <Button size="sm" disabled={isSettling === tx.id}>
-                                {isSettling === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
-                                Settle
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Settle Payment?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will mark the transaction for LKR {tx.amount.toFixed(2)} with {tx.partyName} as settled. This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleSettlePayment(tx)}>
-                                Continue
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                      {tx.amount > 0 && (
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                               <Button size="sm" disabled={isSettling === tx.id}>
+                                  {isSettling === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                                  Settle
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Settle Payment?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will mark the transaction for LKR {tx.amount.toFixed(2)} with {tx.partyName} as settled. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleSettlePayment(tx)}>
+                                  Continue
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
