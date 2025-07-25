@@ -71,6 +71,7 @@ export type Sale = {
   id: string;
   userId: string;
   items: Omit<SaleItem, 'stock'>[];
+  item_ids: string[];
   customer_id: string | null;
   customer_name: string;
   subtotal: number;
@@ -114,6 +115,15 @@ export type Purchase = {
   supplier_id: string;
   supplier_name: string;
   items: PurchaseItem[];
+  item_ids: string[];
   total_amount: number;
   purchase_date: string; // ISO String
+}
+
+export type ProductTransaction = {
+    type: 'sale' | 'purchase';
+    date: string; // ISO String
+    quantity: number;
+    price: number; // cost_price for purchase, selling_price for sale
+    source_or_destination: string; // e.g., "Sale to John Doe" or "Purchase from Supplier Inc."
 }

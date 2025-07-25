@@ -40,7 +40,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -64,8 +64,15 @@ const initialProductState: Partial<Product> = {
   low_stock_threshold: 5,
 };
 
-export function InventoryTable({ initialProducts }: { initialProducts: Product[] }) {
-  const [products, setProducts] = React.useState<Product[]>(initialProducts);
+interface InventoryTableProps {
+    products: Product[];
+    onProductCreated: (product: Product) => void;
+    onProductUpdated: (product: Product) => void;
+    onProductDeleted: (id: string) => void;
+    onViewHistory: (product: Product) => void;
+}
+
+export function InventoryTable({ products, onProductCreated, onProductUpdated, onProductDeleted, onViewHistory }: InventoryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedProduct, setSelectedProduct] = React.useState<Partial<Product>>(initialProductState);
@@ -81,7 +88,7 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
   const handleDelete = async (id: string) => {
     try {
       await deleteProduct(id);
-      setProducts(products.filter(p => p.id !== id));
+      onProductDeleted(id);
       toast({
         title: 'Success',
         description: 'Product deleted successfully.',
@@ -100,14 +107,14 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
     const formData = new FormData(event.currentTarget);
     try {
       if (formState === 'add') {
-        await createProduct(formData);
+        const newProduct = await createProduct(formData);
+        if (newProduct) onProductCreated(newProduct);
         toast({ title: 'Success', description: 'Product added.' });
       } else if (selectedProduct.id) {
-        await updateProduct(selectedProduct.id, formData);
+        const updatedProduct = await updateProduct(selectedProduct.id, formData);
+        if (updatedProduct) onProductUpdated(updatedProduct);
         toast({ title: 'Success', description: 'Product updated.' });
       }
-      // This is a simple way to refresh data, a more robust solution might involve re-fetching.
-      window.location.reload();
       setIsDialogOpen(false);
     } catch (error) {
        toast({
@@ -166,40 +173,46 @@ export function InventoryTable({ initialProducts }: { initialProducts: Product[]
                 <TableCell>{product.stock}</TableCell>
                 <TableCell>LKR {Number(product.selling_price).toFixed(2)}</TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button aria-haspopup="true" size="icon" variant="ghost">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Toggle menu</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleOpenDialog('edit', product)}>
-                        <Pencil className="mr-2 h-4 w-4" /> Edit
-                      </DropdownMenuItem>
-                       <DropdownMenuSeparator />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the product.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(product.id)}>Continue</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                 <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => onViewHistory(product)}>
+                        <History className="h-4 w-4 mr-2" />
+                        View History
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Toggle menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handleOpenDialog('edit', product)}>
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete the product.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(product.id)}>Continue</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -22,7 +22,7 @@ import {
   setDoc,
   increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
 
@@ -103,7 +103,7 @@ const POSPurchaseSchema = z.object({
 // --- PRODUCT QUERIES ---
 
 // CREATE
-export async function createProduct(formData: FormData) {
+export async function createProduct(formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
 
@@ -121,14 +121,16 @@ export async function createProduct(formData: FormData) {
     
     const productsCollection = collection(db, 'products');
     const newProductRef = doc(productsCollection);
-    batch.set(newProductRef, {
+    
+    const newProductData = {
       ...productData,
       name,
       image: image || '',
       userId,
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
-    });
+    }
+    batch.set(newProductRef, newProductData);
     
     const activityCollection = collection(db, 'recent_activity');
     const newActivityRef = doc(activityCollection);
@@ -145,7 +147,14 @@ export async function createProduct(formData: FormData) {
 
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard');
-    return { success: true, message: 'Product created successfully.' };
+
+    return {
+        id: newProductRef.id,
+        userId,
+        ...validatedFields.data,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+    }
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to create product.');
@@ -153,7 +162,7 @@ export async function createProduct(formData: FormData) {
 }
 
 // READ
-export async function fetchProducts() {
+export async function fetchProducts(): Promise<Product[]> {
   noStore();
   const userId = await getCurrentUserId();
   if (!userId) return []; // Return empty array if no user
@@ -180,7 +189,7 @@ export async function fetchProducts() {
 }
 
 // UPDATE
-export async function updateProduct(id: string, formData: FormData) {
+export async function updateProduct(id: string, formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
 
@@ -203,12 +212,13 @@ export async function updateProduct(id: string, formData: FormData) {
         throw new Error('Product not found or access denied.');
     }
 
-    batch.update(productRef, {
+    const updatedData = {
       ...productData,
       name,
       image: image || '',
       updated_at: serverTimestamp(),
-    });
+    }
+    batch.update(productRef, updatedData);
     
     const activityCollection = collection(db, 'recent_activity');
     const newActivityRef = doc(activityCollection);
@@ -225,7 +235,14 @@ export async function updateProduct(id: string, formData: FormData) {
 
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard');
-    return { success: true, message: 'Product updated successfully.' };
+    
+    return {
+        id,
+        userId,
+        ...validatedFields.data,
+        created_at: productDoc.data().created_at.toDate().toISOString(),
+        updated_at: new Date().toISOString(),
+    }
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to update product.');
@@ -428,6 +445,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
   try {
     await runTransaction(db, async (transaction) => {
         const productRefsAndData = [];
+        const itemIds = items.map(item => item.id); // For indexing
 
         // Phase 1: Read all product documents first.
         for (const item of items) {
@@ -469,6 +487,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
       transaction.set(newSaleRef, {
         userId,
         items: itemsToSave,
+        item_ids: itemIds,
         customer_id: saleDetails.customer_id || null,
         customer_name: saleDetails.customer_name,
         subtotal: saleDetails.subtotal,
@@ -724,6 +743,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
   
   try {
     await runTransaction(db, async (transaction) => {
+      const itemIds = items.map(item => item.id); // For indexing
+
       // Phase 1: Update product stock and prepare activity logs
       for (const item of items) {
         const productRef = doc(db, 'products', item.id);
@@ -740,6 +761,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       transaction.set(newPurchaseRef, {
         userId,
         items,
+        item_ids: itemIds,
         supplier_id: purchaseDetails.supplier_id,
         supplier_name: purchaseDetails.supplier_name,
         total_amount: purchaseDetails.totalAmount,
@@ -895,9 +917,9 @@ export async function fetchDashboardData() {
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
-        
-        // Sort in-memory
-        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        // Sort activities in-memory after fetching
+        recentActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return {
             inventoryValue,
@@ -1030,3 +1052,55 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
     }
 }
 
+
+export async function fetchProductHistory(productId: string): Promise<ProductTransaction[]> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+
+    const salesCollection = collection(db, 'sales');
+    const purchasesCollection = collection(db, 'purchases');
+
+    // Queries to find transactions containing the product
+    const salesQuery = query(salesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
+    const purchasesQuery = query(purchasesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
+    
+    const [salesSnapshot, purchasesSnapshot] = await Promise.all([
+        getDocs(salesQuery),
+        getDocs(purchasesQuery)
+    ]);
+    
+    const transactions: ProductTransaction[] = [];
+
+    salesSnapshot.forEach(doc => {
+        const sale = doc.data();
+        const item = sale.items.find((i: any) => i.id === productId);
+        if (item) {
+            transactions.push({
+                type: 'sale',
+                date: (sale.sale_date as Timestamp).toDate().toISOString(),
+                quantity: item.quantity,
+                price: item.price_per_unit,
+                source_or_destination: `Sale to ${sale.customer_name}`,
+            });
+        }
+    });
+
+    purchasesSnapshot.forEach(doc => {
+        const purchase = doc.data();
+        const item = purchase.items.find((i: any) => i.id === productId);
+        if (item) {
+            transactions.push({
+                type: 'purchase',
+                date: (purchase.purchase_date as Timestamp).toDate().toISOString(),
+                quantity: item.quantity,
+                price: item.cost_price,
+                source_or_destination: `Purchase from ${purchase.supplier_name}`,
+            });
+        }
+    });
+
+    // Sort all transactions by date
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return transactions;
+}

@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore
 import { getFirebaseServices } from './firebase';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
-import type { Sale } from './types';
+import type { Sale, ProductTransaction } from './types';
 import type { DateRange } from 'react-day-picker';
 
 
@@ -120,4 +120,56 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
       message: `Failed to generate report: ${errorMessage}`,
     };
   }
+}
+
+export async function fetchProductHistory(productId: string): Promise<ProductTransaction[]> {
+    const { db } = getFirebaseServices();
+    const userId = MOCK_USER_ID;
+
+    const salesCollection = collection(db, 'sales');
+    const purchasesCollection = collection(db, 'purchases');
+
+    // Queries to find transactions containing the product
+    const salesQuery = query(salesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
+    const purchasesQuery = query(purchasesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
+    
+    const [salesSnapshot, purchasesSnapshot] = await Promise.all([
+        getDocs(salesQuery),
+        getDocs(purchasesQuery)
+    ]);
+    
+    const transactions: ProductTransaction[] = [];
+
+    salesSnapshot.forEach(doc => {
+        const sale = doc.data();
+        const item = sale.items.find((i: any) => i.id === productId);
+        if (item) {
+            transactions.push({
+                type: 'sale',
+                date: (sale.sale_date as Timestamp).toDate().toISOString(),
+                quantity: item.quantity,
+                price: item.price_per_unit,
+                source_or_destination: `Sale to ${sale.customer_name}`,
+            });
+        }
+    });
+
+    purchasesSnapshot.forEach(doc => {
+        const purchase = doc.data();
+        const item = purchase.items.find((i: any) => i.id === productId);
+        if (item) {
+            transactions.push({
+                type: 'purchase',
+                date: (purchase.purchase_date as Timestamp).toDate().toISOString(),
+                quantity: item.quantity,
+                price: item.cost_price,
+                source_or_destination: `Purchase from ${purchase.supplier_name}`,
+            });
+        }
+    });
+
+    // Sort all transactions by date
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return transactions;
 }
