@@ -51,88 +51,68 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
           }
         }
       `}</style>
-      <div id="printable-receipt" ref={receiptRef} className="p-6 text-sm">
+      <div id="printable-receipt" ref={receiptRef} className="p-6 text-sm font-mono">
         {/* Header */}
         <div className="text-center mb-4">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Logo className="h-8 w-8 text-primary" />
-            <h1 className="text-xl font-bold">{userProfile?.businessName || 'StoreFlex Lite'}</h1>
+            <h1 className="text-xl font-bold tracking-wider">{userProfile?.businessName || 'StoreFlex Lite'}</h1>
           </div>
-          <p>{userProfile?.address || '123 Demo Street, Colombo'}</p>
-          <p>{userProfile?.contactNumber || '011-123-4567'}</p>
+          <p className="text-xs">{userProfile?.address || '123 Demo Street, Colombo'}</p>
+          <p className="text-xs">{userProfile?.contactNumber || '011-123-4567'}</p>
         </div>
 
-        <Separator className="my-2" />
+        <Separator className="my-3 border-dashed" />
 
         {/* Sale Info */}
-        <div className="flex justify-between mb-2">
-          <span>Sale ID:</span>
-          <span>{sale.id}</span>
+        <div className="mb-4 text-xs">
+          <div className="flex justify-between"><span>Sale ID:</span> <span>{sale.id}</span></div>
+          <div className="flex justify-between"><span>Date:</span> <span>{format(new Date(sale.sale_date), 'yyyy-MM-dd HH:mm')}</span></div>
+          <div className="flex justify-between"><span>Customer:</span> <span>{sale.customer_name}</span></div>
         </div>
-        <div className="flex justify-between mb-2">
-          <span>Date:</span>
-          <span>{format(new Date(sale.sale_date), 'PPP p')}</span>
-        </div>
-        <div className="flex justify-between mb-4">
-          <span>Customer:</span>
-          <span>{sale.customer_name}</span>
-        </div>
-
-        <Separator className="my-2" />
         
         {/* Items Table */}
-        <table className="w-full">
+        <table className="w-full text-xs">
           <thead>
-            <tr>
-              <th className="text-left font-semibold">Item</th>
-              <th className="text-center font-semibold">Qty</th>
-              <th className="text-right font-semibold">Price</th>
-              <th className="text-right font-semibold">Total</th>
+            <tr className="border-b border-dashed">
+              <th className="text-left font-semibold pb-1">ITEM</th>
+              <th className="text-center font-semibold pb-1">QTY</th>
+              <th className="text-right font-semibold pb-1">PRICE</th>
+              <th className="text-right font-semibold pb-1">TOTAL</th>
             </tr>
           </thead>
           <tbody>
             {sale.items.map(item => (
-              <tr key={item.id}>
-                <td>{item.name}</td>
-                <td className="text-center">{item.quantity}</td>
-                <td className="text-right">{item.price_per_unit.toFixed(2)}</td>
-                <td className="text-right">{item.total_amount.toFixed(2)}</td>
+              <tr key={item.id} className="border-b border-dotted">
+                <td className="py-1 pr-1">{item.name}</td>
+                <td className="text-center py-1">{item.quantity}</td>
+                <td className="text-right py-1">{item.price_per_unit.toFixed(2)}</td>
+                <td className="text-right py-1">{item.total_amount.toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <Separator className="my-2" />
-
         {/* Totals */}
-        <div className="space-y-1">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>{sale.subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Service Charge</span>
-            <span>{sale.service_charge.toFixed(2)}</span>
-          </div>
-           <div className="flex justify-between">
-            <span>Tax ({sale.tax_percentage}%)</span>
-            <span>{sale.tax_amount.toFixed(2)}</span>
-          </div>
-           <div className="flex justify-between">
-            <span>Discount</span>
-            <span>- {sale.discount_amount.toFixed(2)}</span>
-          </div>
-           <div className="flex justify-between font-bold text-base border-t pt-1">
-            <span>Total</span>
-            <span>LKR {sale.total_amount.toFixed(2)}</span>
-          </div>
+        <div className="mt-4 ml-auto max-w-[150px] text-xs space-y-1">
+          <div className="flex justify-between"><span>Subtotal</span> <span>{sale.subtotal.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Service</span> <span>{sale.service_charge.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Tax ({sale.tax_percentage}%)</span> <span>{sale.tax_amount.toFixed(2)}</span></div>
+          <div className="flex justify-between"><span>Discount</span> <span>- {sale.discount_amount.toFixed(2)}</span></div>
+        </div>
+
+         <Separator className="my-2 border-dashed" />
+
+        <div className="flex justify-between font-bold text-base">
+          <span>TOTAL</span>
+          <span>LKR {sale.total_amount.toFixed(2)}</span>
         </div>
         
-        <Separator className="my-2" />
+        <Separator className="my-2 border-dashed" />
 
         {/* Footer */}
         <div className="text-center mt-4">
-            <p className="text-xs">Thank you for your purchase!</p>
+            <p className="text-xs font-semibold">Thank you for your purchase!</p>
             <p className="text-xs">Come again soon.</p>
         </div>
       </div>
