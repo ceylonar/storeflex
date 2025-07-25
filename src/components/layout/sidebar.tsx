@@ -14,7 +14,6 @@ import Image from 'next/image';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
-  { name: 'Inventory Records', href: '/dashboard/inventory/records', icon: History },
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
   { name: 'Buy', href: '/dashboard/buy', icon: Truck },
   { name: 'Customers', href: '/dashboard/customers', icon: Users },

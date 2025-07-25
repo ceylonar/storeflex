@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -46,12 +45,12 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 
-interface RecordsClientProps {
+interface AdvancedReportClientProps {
   initialRecords: RecentActivity[];
   products: ProductSelect[];
 }
 
-export function RecordsClient({ initialRecords, products }: RecordsClientProps) {
+export function AdvancedReportClient({ initialRecords, products }: AdvancedReportClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [date, setDate] = useState<DateRange | undefined>();
@@ -179,8 +178,8 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Filter Records</CardTitle>
-          <CardDescription>Select filters and generate a targeted report.</CardDescription>
+          <CardTitle>Filter Report</CardTitle>
+          <CardDescription>Select filters and generate a targeted report of inventory activities.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-4">
            <Popover>
@@ -264,9 +263,9 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
-                <CardTitle>Activity Log</CardTitle>
+                <CardTitle>Report Results</CardTitle>
                 <CardDescription>
-                    {`Displaying ${records.length} of all inventory transactions.`}
+                    {`Displaying ${records.length} of all matching inventory transactions.`}
                 </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={handleDownload} disabled={records.length === 0 || isDownloading}>
@@ -344,7 +343,3 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
     </div>
   );
 }
-
-    
-
-    

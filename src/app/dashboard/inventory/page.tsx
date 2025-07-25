@@ -16,12 +16,6 @@ export default async function InventoryPage() {
             Manage your products and view their transaction history.
           </p>
         </div>
-        <Link href="/dashboard/inventory/records">
-            <Button variant="outline">
-                <History className="mr-2 h-4 w-4" />
-                View Full History
-            </Button>
-        </Link>
       </div>
       <InventoryClient initialProducts={products} />
     </div>
