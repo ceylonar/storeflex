@@ -52,24 +52,21 @@ interface RecordsClientProps {
 }
 
 export function RecordsClient({ initialRecords, products }: RecordsClientProps) {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [date, setDate] = useState<DateRange | undefined>();
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
-  const [records, setRecords] = useState<RecentActivity[]>([]);
+  const [records, setRecords] = useState<RecentActivity[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchInventoryRecords({}).then(data => {
-        setRecords(data);
-        setIsLoading(false);
-    }).catch(() => {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to load records.' });
-        setIsLoading(false);
-    });
-  }, [toast]);
+    // The initial load is now handled by the page server component
+    if(initialRecords) {
+        setRecords(initialRecords);
+    }
+  }, [initialRecords]);
 
   const handleGenerateReport = () => {
     startTransition(async () => {
@@ -278,7 +275,7 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
             </Button>
         </CardHeader>
         <CardContent>
-            {isLoading || isPending ? (
+            {isPending ? (
                  <div className="space-y-4">
                     {Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className="flex items-center space-x-4 p-2">
@@ -347,5 +344,7 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
     </div>
   );
 }
+
+    
 
     

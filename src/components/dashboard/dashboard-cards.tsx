@@ -239,7 +239,7 @@ function ActivityTime({ timestamp }: { timestamp: string }) {
     }
   }, [timestamp]);
 
-  return <>{timeAgo}</>;
+  return <>{timeAgo || '...'}</>;
 }
 
 export function RecentActivityCard({ activities }: { activities: RecentActivity[] }) {
