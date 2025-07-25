@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -766,44 +767,59 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
   
   try {
     const purchaseId = await runTransaction(db, async (transaction) => {
-      const itemIds = items.map(item => item.id); // For indexing
+      const itemIds = items.map(item => item.id);
+      const productRefs: { [key: string]: any } = {};
+      const productDocs: { [key: string]: any } = {};
 
-      // Phase 1: Update product stock and calculate weighted average cost
+      // --- 1. READ PHASE ---
+      // 1a. Read all product documents
       for (const item of items) {
-        const productRef = doc(db, 'products', item.id);
-        const productDoc = await transaction.get(productRef);
+        productRefs[item.id] = doc(db, 'products', item.id);
+        productDocs[item.id] = await transaction.get(productRefs[item.id]);
+      }
+      
+      // 1b. Read purchase counter
+      const counterRef = doc(db, 'counters', `purchases_${userId}`);
+      const counterDoc = await transaction.get(counterRef);
+      
+      // --- 2. VALIDATION & CALCULATION PHASE ---
+      const productUpdateData: { [key: string]: any } = {};
+      
+      for (const item of items) {
+        const productDoc = productDocs[item.id];
         if (!productDoc.exists()) {
-            throw new Error(`Product ${item.name} not found.`);
+          throw new Error(`Product ${item.name} not found.`);
         }
         
         const product = productDoc.data() as Product;
         const currentStock = product.stock || 0;
         const currentCost = product.cost_price || 0;
         
-        // Calculate new weighted average cost
         const currentTotalValue = currentStock * currentCost;
         const purchaseTotalValue = item.quantity * item.cost_price;
         const newTotalStock = currentStock + item.quantity;
         const newAverageCost = (currentTotalValue + purchaseTotalValue) / newTotalStock;
 
-        transaction.update(productRef, { 
-            stock: newTotalStock,
-            cost_price: newAverageCost,
-            updated_at: serverTimestamp(),
-        });
+        productUpdateData[item.id] = {
+          stock: newTotalStock,
+          cost_price: newAverageCost,
+          updated_at: serverTimestamp(),
+        };
       }
-
-      // Phase 2: Get new Purchase ID
-      const counterRef = doc(db, 'counters', `purchases_${userId}`);
+      
       let nextId = 1;
-      const counterDoc = await transaction.get(counterRef);
       if (counterDoc.exists()) {
-          nextId = (counterDoc.data().lastId || 0) + 1;
+        nextId = (counterDoc.data().lastId || 0) + 1;
       }
       const formattedId = `pur${String(nextId).padStart(6, '0')}`;
 
-
-      // Phase 3: Create purchase record
+      // --- 3. WRITE PHASE ---
+      // 3a. Update all product documents
+      for (const item of items) {
+        transaction.update(productRefs[item.id], productUpdateData[item.id]);
+      }
+      
+      // 3b. Create new purchase record
       const newPurchaseRef = doc(db, 'purchases', formattedId);
       transaction.set(newPurchaseRef, {
         userId,
@@ -813,12 +829,11 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         purchase_date: serverTimestamp(),
       });
 
-      // Phase 4: Update purchase counter
+      // 3c. Update purchase counter
       transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
-      // Phase 5: Create a single activity log for the purchase
-      const activityCollection = collection(db, 'recent_activity');
-      const newActivityRef = doc(activityCollection);
+      // 3d. Create a single activity log for the purchase
+      const newActivityRef = doc(collection(db, 'recent_activity'));
       transaction.set(newActivityRef, {
         type: 'purchase',
         product_id: 'multiple',
@@ -1288,3 +1303,4 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
+
