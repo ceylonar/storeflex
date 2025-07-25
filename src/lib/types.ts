@@ -49,9 +49,10 @@ export type RecentActivity = {
   timestamp: string; // Should be ISO string date
 };
 
-export type DetailedRecord = RecentActivity & {
+export type DetailedRecord = Omit<RecentActivity, 'details'> & {
     items?: (SaleItem | PurchaseItem)[];
     product_sku?: string;
+    details?: string;
 };
 
 export type SalesData = {

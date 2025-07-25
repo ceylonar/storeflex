@@ -6,7 +6,7 @@ import { collection, getDocs, query, where, Timestamp, getDoc, doc } from 'fireb
 import { getFirebaseServices } from './firebase';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
-import type { Sale, ProductTransaction, RecentActivity, DetailedRecord } from './types';
+import type { Sale, ProductTransaction, RecentActivity, DetailedRecord, SaleItem, PurchaseItem, Product } from './types';
 import type { DateRange } from 'react-day-picker';
 import { fetchInventoryRecords } from './queries';
 
@@ -184,36 +184,60 @@ interface InventoryRecordsFilter {
 export async function fetchDetailedRecordsForExport(filters: InventoryRecordsFilter): Promise<DetailedRecord[]> {
     const { db } = getFirebaseServices();
     const records = await fetchInventoryRecords(filters);
-    const detailedRecords: DetailedRecord[] = [];
+    
+    const productCache = new Map<string, Product>();
 
-    for (const rec of records) {
-        let detailedRec: DetailedRecord = { ...rec };
+    const getProduct = async (id: string) => {
+        if (productCache.has(id)) {
+            return productCache.get(id);
+        }
+        const productDoc = await getDoc(doc(db, 'products', id));
+        if (productDoc.exists()) {
+            const productData = productDoc.data() as Product;
+            productCache.set(id, productData);
+            return productData;
+        }
+        return null;
+    }
+
+    const detailedRecordsPromises = records.map(async (rec): Promise<DetailedRecord> => {
+        let detailedRec: DetailedRecord = { ...rec, items: [] };
 
         if (rec.type === 'sale') {
             const saleDoc = await getDoc(doc(db, 'sales', rec.id));
             if (saleDoc.exists()) {
                 const saleData = saleDoc.data();
-                detailedRec.items = saleData.items;
                 detailedRec.details = saleData.customer_name;
+                if (saleData.items) {
+                    detailedRec.items = await Promise.all(saleData.items.map(async (item: SaleItem) => ({
+                        ...item,
+                        sku: (await getProduct(item.id))?.sku || ''
+                    })));
+                }
             }
         } else if (rec.type === 'purchase') {
             const purchaseDoc = await getDoc(doc(db, 'purchases', rec.id));
              if (purchaseDoc.exists()) {
                 const purchaseData = purchaseDoc.data();
-                detailedRec.items = purchaseData.items;
                 detailedRec.details = purchaseData.supplier_name;
+                 if (purchaseData.items) {
+                    detailedRec.items = await Promise.all(purchaseData.items.map(async (item: PurchaseItem) => ({
+                        ...item,
+                        sku: (await getProduct(item.id))?.sku || ''
+                    })));
+                }
             }
         } else if (rec.product_id && rec.product_id !== 'multiple') {
-             const productDoc = await getDoc(doc(db, 'products', rec.product_id));
-             if(productDoc.exists()) {
-                 detailedRec.product_sku = productDoc.data().sku;
+             const product = await getProduct(rec.product_id);
+             if(product) {
+                 detailedRec.product_sku = product.sku;
              }
         }
 
-        detailedRecords.push(detailedRec);
-    }
+        return detailedRec;
+    });
     
-    return detailedRecords;
+    return Promise.all(detailedRecordsPromises);
 }
 
     

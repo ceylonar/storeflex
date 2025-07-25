@@ -32,7 +32,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import type { RecentActivity, ProductSelect, DetailedRecord } from '@/lib/types';
+import type { RecentActivity, ProductSelect, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
 import { fetchInventoryRecords } from '@/lib/queries';
 import { fetchDetailedRecordsForExport } from '@/lib/actions';
 import { format } from 'date-fns';
@@ -116,31 +116,28 @@ export function RecordsClient({ initialRecords, products }: RecordsClientProps) 
         ];
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
-            if (rec.type === 'sale' && rec.items) {
-                return rec.items.map(item => [
-                    rec.id,
-                    format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                    rec.type,
-                    `"${item.name}"`,
-                    `"${item.sku || ''}"`,
-                    -item.quantity,
-                    item.price_per_unit.toFixed(2),
-                    (item.price_per_unit * item.quantity).toFixed(2),
-                    `"Sale to ${rec.details}"`
-                ].join(','));
-            }
-             if (rec.type === 'purchase' && rec.items) {
-                return rec.items.map(item => [
-                    rec.id,
-                    format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                    rec.type,
-                    `"${item.name}"`,
-                    `"${item.sku || ''}"`,
-                    `+${item.quantity}`,
-                    item.cost_price.toFixed(2),
-                    (item.cost_price * item.quantity).toFixed(2),
-                    `"Purchase from ${rec.details}"`
-                ].join(','));
+            if ((rec.type === 'sale' || rec.type === 'purchase') && rec.items && rec.items.length > 0) {
+                return rec.items.map(item => {
+                    const isSale = rec.type === 'sale';
+                    const saleItem = item as SaleItem;
+                    const purchaseItem = item as PurchaseItem;
+                    const quantity = isSale ? -saleItem.quantity : `+${purchaseItem.quantity}`;
+                    const unitPrice = isSale ? saleItem.price_per_unit : purchaseItem.cost_price;
+                    const totalAmount = isSale ? (saleItem.price_per_unit * saleItem.quantity) : purchaseItem.total_cost;
+                    const details = isSale ? `Sale to ${rec.details}` : `Purchase from ${rec.details}`;
+
+                    return [
+                        rec.id,
+                        format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+                        rec.type,
+                        `"${item.name}"`,
+                        `"${item.sku || ''}"`,
+                        quantity,
+                        unitPrice.toFixed(2),
+                        totalAmount.toFixed(2),
+                        `"${details}"`
+                    ].join(',');
+                });
             }
             // For other types or if items are missing
             return [[
