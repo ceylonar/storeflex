@@ -97,6 +97,18 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             title: 'Stock Limit Exceeded',
             description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
         });
+        // Revert to max stock available
+        setCart((prevCart) =>
+            prevCart.map((item) =>
+                item.id === productId
+                ? {
+                    ...item,
+                    quantity: item.stock,
+                    total_amount: item.stock * item.price_per_unit,
+                    }
+                : item
+            )
+        );
         return;
     }
 
@@ -269,11 +281,17 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                           LKR {item.price_per_unit.toFixed(2)}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
                           <MinusCircle className="h-4 w-4" />
                         </Button>
-                        <span className="w-6 text-center">{item.quantity}</span>
+                        <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                            className="h-8 w-14 text-center"
+                            min="0"
+                        />
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
                           <PlusCircle className="h-4 w-4" />
                         </Button>
