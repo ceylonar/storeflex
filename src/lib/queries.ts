@@ -26,6 +26,7 @@ import {
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval } from 'date-fns';
+import { DateRange } from 'react-day-picker';
 
 
 // Helper to get a mock user ID
@@ -137,6 +138,7 @@ export async function createProduct(formData: FormData): Promise<Product | null>
     const newActivityRef = doc(activityCollection);
     batch.set(newActivityRef, {
       type: 'new',
+      product_id: newProductRef.id,
       product_name: name,
       product_image: image || '',
       details: 'New product added to inventory',
@@ -225,6 +227,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
     const newActivityRef = doc(activityCollection);
     batch.set(newActivityRef, {
         type: 'update',
+        product_id: id,
         product_name: name,
         product_image: image || '',
         details: 'Product details updated',
@@ -271,6 +274,7 @@ export async function deleteProduct(id: string) {
     const newActivityRef = doc(activityCollection);
     batch.set(newActivityRef, {
         type: 'delete',
+        product_id: id,
         product_name: name,
         product_image: image || '',
         details: 'Product removed from inventory',
@@ -505,6 +509,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>) {
       const newActivityRef = doc(activityCollection);
       transaction.set(newActivityRef, {
         type: 'sale',
+        product_id: items.length > 1 ? 'multiple' : items[0].id,
         product_name: `${items.length} items`,
         product_image: items[0]?.image || '',
         details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total.toFixed(2)}`,
@@ -783,6 +788,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const newActivityRef = doc(activityCollection);
       transaction.set(newActivityRef, {
         type: 'purchase',
+        product_id: items.length > 1 ? 'multiple' : items[0].id,
         product_name: `${items.length} items`,
         product_image: items[0]?.image || '',
         details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${purchaseDetails.totalAmount.toFixed(2)}`,
@@ -1033,8 +1039,13 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     }
 }
 
+interface InventoryRecordsFilter {
+    date?: DateRange;
+    type?: string;
+    productId?: string;
+}
 
-export async function fetchAllActivities(): Promise<RecentActivity[]> {
+export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Promise<RecentActivity[]> {
     noStore();
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -1042,9 +1053,10 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
     const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        const activityQuery = query(activityCollection, where('userId', '==', userId));
-        const activitySnapshot = await getDocs(activityQuery);
-        const activities = activitySnapshot.docs.map(doc => {
+        const q = query(activityCollection, where('userId', '==', userId));
+        
+        const activitySnapshot = await getDocs(q);
+        let activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -1053,6 +1065,23 @@ export async function fetchAllActivities(): Promise<RecentActivity[]> {
             }
         }) as RecentActivity[];
         
+        // In-memory filtering
+        if (filters.date?.from) {
+            const from = startOfDay(filters.date.from);
+            const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
+            activities = activities.filter(act => 
+                isWithinInterval(new Date(act.timestamp), { start: from, end: to })
+            );
+        }
+
+        if (filters.type) {
+            activities = activities.filter(act => act.type === filters.type);
+        }
+
+        if (filters.productId) {
+            activities = activities.filter(act => act.product_id === filters.productId);
+        }
+
         // Sort in-memory to avoid composite index requirement
         activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
