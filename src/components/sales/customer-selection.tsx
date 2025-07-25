@@ -21,13 +21,19 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { createCustomer } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Customer } from '@/lib/types';
-import { UserPlus, Users, X } from 'lucide-react';
+import { UserPlus, Users, X, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CustomerSelectionProps {
   customers: Customer[];
@@ -69,44 +75,39 @@ export function CustomerSelection({
   return (
     <div className="space-y-2">
       <Label>Customer</Label>
-      <div className="flex items-center gap-2 rounded-md border border-input p-2">
-        <div className="flex-1">
-          <p className="text-sm font-medium">
-            {selectedCustomer ? selectedCustomer.name : 'Walk-in Customer'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {selectedCustomer ? selectedCustomer.phone : 'No customer selected'}
-          </p>
-        </div>
-        {selectedCustomer && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => onSelectCustomer(null)}
-          >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Clear customer</span>
-          </Button>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <Dialog open={isSelectOpen} onOpenChange={setIsSelectOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="w-full">
-              <Users className="mr-2 h-4 w-4" /> Select Customer
+        <div className="flex gap-2">
+        <Popover open={isSelectOpen} onOpenChange={setIsSelectOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={isSelectOpen}
+              className="w-full justify-between"
+            >
+              <span className="truncate">
+                {selectedCustomer
+                  ? selectedCustomer.name
+                  : 'Walk-in Customer'}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Select an Existing Customer</DialogTitle>
-            </DialogHeader>
-            <Command>
+          </PopoverTrigger>
+          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+             <Command>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList>
                 <ScrollArea className="h-[300px]">
-                  <CommandEmpty>No customer found.</CommandEmpty>
-                  <CommandGroup>
+                   <CommandEmpty>No customer found.</CommandEmpty>
+                   <CommandGroup>
+                    <CommandItem
+                        value="walk-in"
+                        onSelect={() => {
+                          onSelectCustomer(null);
+                          setIsSelectOpen(false);
+                        }}
+                      >
+                       Walk-in Customer
+                      </CommandItem>
                     {customers.map((customer) => (
                       <CommandItem
                         key={customer.id}
@@ -126,12 +127,12 @@ export function CustomerSelection({
                 </ScrollArea>
               </CommandList>
             </Command>
-          </DialogContent>
-        </Dialog>
+          </PopoverContent>
+        </Popover>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full">
+            <Button>
               <UserPlus className="mr-2 h-4 w-4" /> Add New
             </Button>
           </DialogTrigger>
