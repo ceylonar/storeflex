@@ -369,7 +369,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                         <Label>Payment Method</Label>
                         <RadioGroup value={paymentMethod} onValueChange={(value: 'cash' | 'credit' | 'check') => setPaymentMethod(value)} className="flex gap-4">
                             <div className="flex items-center space-x-2"><RadioGroupItem value="cash" id="cash" /><Label htmlFor="cash">Cash</Label></div>
-                            <div className="flex items-center space-x-2"><RadioGroupItem value="credit" id="credit" disabled={!selectedCustomer} /><Label htmlFor="credit" className={!selectedCustomer ? 'text-muted-foreground' : ''}>Credit</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="credit" id="credit" disabled={!selectedCustomer} /><Label htmlFor="credit" className={!selectedCustomer ? 'text-muted-foreground cursor-not-allowed' : ''}>Credit</Label></div>
                             <div className="flex items-center space-x-2"><RadioGroupItem value="check" id="check" /><Label htmlFor="check">Check</Label></div>
                         </RadioGroup>
 
