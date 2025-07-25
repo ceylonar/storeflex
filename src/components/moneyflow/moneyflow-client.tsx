@@ -70,7 +70,7 @@ export function MoneyflowClient({ initialData }: MoneyflowClientProps) {
   const [isSettling, setIsSettling] = React.useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleSettlePayment = async (transaction: MoneyflowTransaction, status?: 'paid' | 'rejected') => {
+  const handleSettlePayment = async (transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid') => {
     setIsSettling(transaction.id);
     try {
       const result = await settlePayment(transaction, status);
