@@ -107,6 +107,7 @@ const ProfileSchema = z.object({
   businessName: z.string().min(1, 'Business name is required'),
   address: z.string().optional(),
   contactNumber: z.string().optional(),
+  logoUrl: z.string().url().optional().or(z.literal('')),
 });
 
 
@@ -887,6 +888,7 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
                 businessName: "Demo Store",
                 address: "123 Demo Street, Colombo",
                 contactNumber: "011-123-4567",
+                logoUrl: '',
             };
             await setDoc(profileRef, defaultProfile);
             return defaultProfile;

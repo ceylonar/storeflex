@@ -9,6 +9,7 @@ import { Printer, X } from 'lucide-react';
 import React from 'react';
 import { fetchUserProfile } from '@/lib/queries';
 import { Logo } from '../icons/logo';
+import Image from 'next/image';
 
 interface SaleReceiptProps {
   sale: Sale;
@@ -22,6 +23,13 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
   React.useEffect(() => {
     fetchUserProfile().then(setUserProfile);
   }, []);
+
+  const renderLogo = () => {
+    if (userProfile?.logoUrl) {
+      return <Image src={userProfile.logoUrl} alt="Store Logo" width={32} height={32} className="h-8 w-8" />;
+    }
+    return <Logo className="h-8 w-8 text-primary" />;
+  };
   
   const handlePrint = () => {
     window.print();
@@ -55,7 +63,7 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
         {/* Header */}
         <div className="text-center mb-4">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Logo className="h-8 w-8 text-primary" />
+            {renderLogo()}
             <h1 className="text-xl font-bold tracking-wider">{userProfile?.businessName || 'StoreFlex Lite'}</h1>
           </div>
           <p className="text-xs">{userProfile?.address || '123 Demo Street, Colombo'}</p>

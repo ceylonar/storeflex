@@ -35,6 +35,7 @@ const ProfileSchema = z.object({
   businessName: z.string().min(1, 'Business name is required'),
   address: z.string().optional(),
   contactNumber: z.string().optional(),
+  logoUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
 });
 
 type ProfileFormValues = z.infer<typeof ProfileSchema>;
@@ -55,6 +56,7 @@ export function AccountForm({ userProfile }: AccountFormProps) {
       businessName: userProfile?.businessName || '',
       address: userProfile?.address || '',
       contactNumber: userProfile?.contactNumber || '',
+      logoUrl: userProfile?.logoUrl || '',
     },
   });
 
@@ -140,6 +142,19 @@ export function AccountForm({ userProfile }: AccountFormProps) {
                   <FormLabel>Business Name</FormLabel>
                   <FormControl>
                     <Input placeholder="Your Business Name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="logoUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Logo URL</FormLabel>
+                  <FormControl>
+                    <Input placeholder="https://example.com/logo.png" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

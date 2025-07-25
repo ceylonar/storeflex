@@ -12,6 +12,7 @@ export type UserProfile = {
     businessName: string;
     address?: string;
     contactNumber?: string;
+    logoUrl?: string;
     googleSheetUrl?: string;
 };
 

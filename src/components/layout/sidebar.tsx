@@ -6,6 +6,10 @@ import { usePathname } from 'next/navigation';
 import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
+import { useEffect, useState } from 'react';
+import type { UserProfile } from '@/lib/types';
+import { fetchUserProfile } from '@/lib/queries';
+import Image from 'next/image';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -21,12 +25,24 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    fetchUserProfile().then(setUserProfile);
+  }, []);
+
+  const renderLogo = () => {
+    if (userProfile?.logoUrl) {
+      return <Image src={userProfile.logoUrl} alt="Store Logo" width={24} height={24} className="h-6 w-6" />;
+    }
+    return <Logo className="h-6 w-6" />;
+  };
 
   return (
     <aside className="hidden w-64 flex-col border-r bg-card sm:flex">
       <div className="flex h-16 shrink-0 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-primary">
-          <Logo className="h-6 w-6" />
+          {renderLogo()}
           <span className="text-lg text-foreground">StoreFlex Lite</span>
         </Link>
       </div>

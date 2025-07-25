@@ -31,6 +31,7 @@ import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { Logo } from '../icons/logo';
+import Image from 'next/image';
 
 
 const navigation = [
@@ -66,6 +67,13 @@ export function Header() {
     getData();
   }, []);
 
+  const renderLogo = () => {
+    if (userProfile?.logoUrl) {
+      return <Image src={userProfile.logoUrl} alt="Store Logo" width={24} height={24} className="h-6 w-6" />;
+    }
+    return <Logo className="h-6 w-6" />;
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
       <Sheet>
@@ -81,7 +89,7 @@ export function Header() {
               href="/dashboard"
               className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary"
             >
-              <Logo className="h-6 w-6" />
+              {renderLogo()}
               <span className="text-foreground">StoreFlex Lite</span>
             </Link>
             {navigation.map((item) => (
