@@ -29,6 +29,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { fetchSalesByCustomer } from '@/lib/queries';
 import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
+import { Separator } from '../ui/separator';
 
 function FormattedDate({ timestamp }: { timestamp: string }) {
     const [date, setDate] = React.useState('');
@@ -159,7 +160,13 @@ export function SalesHistory({ selectedCustomer }: SalesHistoryProps) {
                                     <div className="flex justify-between"><span className="text-muted-foreground">Service Charge</span><span>LKR {sale.service_charge.toFixed(2)}</span></div>
                                     <div className="flex justify-between"><span className="text-muted-foreground">Tax ({sale.tax_percentage}%)</span><span>LKR {sale.tax_amount.toFixed(2)}</span></div>
                                     <div className="flex justify-between text-destructive"><span >Discount</span><span>- LKR {sale.discount_amount.toFixed(2)}</span></div>
-                                    <div className="flex justify-between border-t pt-2 font-bold"><span >Total</span><span>LKR {sale.total_amount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between border-t pt-2 font-bold"><span >Bill Total</span><span>LKR {sale.total_amount.toFixed(2)}</span></div>
+                                    <Separator className="my-1" />
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Payment Method</span><span className="capitalize">{sale.paymentMethod}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Amount Paid</span><span>LKR {sale.amountPaid.toFixed(2)}</span></div>
+                                    {sale.creditAmount > 0 && (
+                                        <div className="flex justify-between font-semibold text-destructive"><span >Credit Added</span><span>LKR {sale.creditAmount.toFixed(2)}</span></div>
+                                    )}
                                 </div>
                            </div>
                         </AccordionContent>
