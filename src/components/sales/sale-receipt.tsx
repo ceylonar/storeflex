@@ -108,23 +108,29 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
         </div>
 
          <Separator className="my-2 border-dashed" />
+        
+        {(sale.previousBalance || 0) > 0 && (
+          <>
+            <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
+                <div className="flex justify-between"><span>Bill Total</span> <span>{sale.total_amount.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>Prev. Balance</span> <span>{sale.previousBalance.toFixed(2)}</span></div>
+            </div>
+            <Separator className="my-2 border-dashed" />
+          </>
+        )}
 
         <div className="flex justify-between font-bold text-base">
-          <span>TOTAL</span>
-          <span>LKR {sale.total_amount.toFixed(2)}</span>
+          <span>TOTAL DUE</span>
+          <span>LKR {((sale.previousBalance || 0) + sale.total_amount).toFixed(2)}</span>
         </div>
 
-        {(sale.paymentMethod === 'credit' || sale.paymentMethod === 'check') && (
-            <>
-                <Separator className="my-2 border-dashed" />
-                <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
-                    <div className="flex justify-between"><span>Paid</span> <span>{sale.amountPaid.toFixed(2)}</span></div>
-                    {sale.paymentMethod === 'credit' && (
-                        <div className="flex justify-between font-bold"><span>Credit</span> <span>{sale.creditAmount.toFixed(2)}</span></div>
-                    )}
-                </div>
-            </>
-        )}
+        
+        <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
+          <div className="flex justify-between"><span>Paid Amount</span> <span>{sale.amountPaid.toFixed(2)}</span></div>
+            {sale.creditAmount > 0 && (
+              <div className="flex justify-between font-bold"><span>New Credit</span> <span>{sale.creditAmount.toFixed(2)}</span></div>
+            )}
+        </div>
         
         <Separator className="my-2 border-dashed" />
 
