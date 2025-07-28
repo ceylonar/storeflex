@@ -522,15 +522,16 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         // If a previous balance was settled, clear old pending transactions for that customer
         if (saleDetails.customer_id && saleDetails.previousBalance > 0 && (saleDetails.previousBalance <= (saleDetails.amountPaid - saleDetails.total_amount))) {
             const salesCollection = collection(db, 'sales');
-            const pendingSalesQuery = query(
+            // Simplified query to avoid composite index
+            const allSalesForCustomerQuery = query(
                 salesCollection,
                 where('userId', '==', userId),
-                where('customer_id', '==', saleDetails.customer_id),
-                where('paymentStatus', '!=', 'paid')
+                where('customer_id', '==', saleDetails.customer_id)
             );
-            const pendingSalesSnapshot = await getDocs(pendingSalesQuery);
-            pendingSalesSnapshot.forEach(doc => {
-                if(doc.id !== formattedId) { // Don't update the sale we are currently creating
+            const allSalesSnapshot = await getDocs(allSalesForCustomerQuery);
+            allSalesSnapshot.docs.forEach(doc => {
+                const sale = doc.data();
+                if (sale.paymentStatus !== 'paid' && doc.id !== formattedId) {
                     transaction.update(doc.ref, { paymentStatus: 'paid' });
                 }
             });
@@ -886,15 +887,16 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       // If a previous balance was settled, clear old pending transactions for that supplier
       if (purchaseDetails.supplier_id && purchaseDetails.previousBalance > 0 && (purchaseDetails.previousBalance <= (purchaseDetails.amountPaid - purchaseDetails.total_amount))) {
           const purchasesCollection = collection(db, 'purchases');
-          const pendingPurchasesQuery = query(
+          // Simplified query to avoid composite index
+          const allPurchasesForSupplierQuery = query(
               purchasesCollection,
               where('userId', '==', userId),
-              where('supplier_id', '==', purchaseDetails.supplier_id),
-              where('paymentStatus', '!=', 'paid')
+              where('supplier_id', '==', purchaseDetails.supplier_id)
           );
-          const pendingPurchasesSnapshot = await getDocs(pendingPurchasesQuery);
-          pendingPurchasesSnapshot.forEach(doc => {
-              if (doc.id !== formattedId) { // Don't update the purchase we are currently creating
+          const allPurchasesSnapshot = await getDocs(allPurchasesForSupplierQuery);
+          allPurchasesSnapshot.docs.forEach(doc => {
+              const purchase = doc.data();
+              if (purchase.paymentStatus !== 'paid' && doc.id !== formattedId) {
                   transaction.update(doc.ref, { paymentStatus: 'paid' });
               }
           });
@@ -1506,7 +1508,8 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
         return { success: false, message: 'Settlement amount must be positive.' };
     }
     
-    if (settlementAmount > transaction.amount) {
+    // Use a small epsilon for float comparison to avoid floating point issues
+    if (settlementAmount > transaction.amount + 0.001) {
         return { success: false, message: 'Settlement amount cannot exceed outstanding balance.' };
     }
 
@@ -1529,7 +1532,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                         amountPaid: increment(settlementAmount) 
                     };
 
-                    if (newCreditAmount <= 0.001) { // Use a small epsilon for float comparison
+                    if (newCreditAmount < 0.01) { // Use a small epsilon for float comparison
                         updateData.paymentStatus = 'paid';
                     }
                     t.update(saleRef, updateData);
@@ -1559,7 +1562,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                         amountPaid: increment(settlementAmount) 
                     };
 
-                    if (newCreditAmount <= 0.001) { // Use a small epsilon for float comparison
+                    if (newCreditAmount < 0.01) { // Use a small epsilon for float comparison
                         updateData.paymentStatus = 'paid';
                     }
                     t.update(purchaseRef, updateData);
