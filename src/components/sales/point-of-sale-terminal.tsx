@@ -42,7 +42,9 @@ import {
 } from "@/components/ui/accordion"
 
 type GroupedProducts = {
-  [category: string]: ProductSelect[];
+  [category: string]: {
+    [brand: string]: ProductSelect[];
+  };
 };
 
 export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
@@ -90,12 +92,17 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     });
 
     return filtered.reduce((acc, product) => {
-      const category = product.category || 'Uncategorized';
-      if (!acc[category]) {
-        acc[category] = [];
-      }
-      acc[category].push(product);
-      return acc;
+        const category = product.category || 'Uncategorized';
+        const brand = product.brand || 'No Brand';
+
+        if (!acc[category]) {
+            acc[category] = {};
+        }
+        if (!acc[category][brand]) {
+            acc[category][brand] = [];
+        }
+        acc[category][brand].push(product);
+        return acc;
     }, {} as GroupedProducts);
 
   }, [products, searchTerm, cart]);
@@ -278,48 +285,57 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             </div>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[60vh]">
+             <ScrollArea className="h-[60vh]">
               {Object.keys(filteredAndGroupedProducts).length > 0 ? (
-                <Accordion type="multiple" defaultValue={Object.keys(filteredAndGroupedProducts)}>
-                  {Object.entries(filteredAndGroupedProducts).map(([category, items]) => (
+                <Accordion type="multiple" defaultValue={Object.keys(filteredAndGroupedProducts)} className="w-full">
+                  {Object.entries(filteredAndGroupedProducts).map(([category, brands]) => (
                     <AccordionItem value={category} key={category}>
                       <AccordionTrigger className="text-base font-semibold">{category}</AccordionTrigger>
                       <AccordionContent>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[80px]">Image</TableHead>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Price</TableHead>
-                              <TableHead>Stock</TableHead>
-                              <TableHead className="w-[100px] text-right">Action</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {items.map((product) => (
-                              <TableRow key={product.id}>
-                                <TableCell>
-                                  <Avatar className="h-12 w-12 rounded-md">
-                                    <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" />
-                                    <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
-                                  </Avatar>
-                                </TableCell>
-                                <TableCell className="font-medium">{product.name}</TableCell>
-                                <TableCell>LKR {product.selling_price.toFixed(2)}</TableCell>
-                                <TableCell>
-                                  {product.stock > 0 ? (
-                                    <span>{product.stock}</span>
-                                  ) : (
-                                    <Badge variant="destructive">Out</Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button size="sm" onClick={() => addToCart(product)} disabled={product.stock <= 0}>Add</Button>
-                                </TableCell>
-                              </TableRow>
+                        <Accordion type="multiple" defaultValue={Object.keys(brands)} className="w-full space-y-2 pl-4">
+                            {Object.entries(brands).map(([brand, items]) => (
+                                <AccordionItem value={brand} key={brand}>
+                                    <AccordionTrigger className="text-sm py-2">{brand}</AccordionTrigger>
+                                    <AccordionContent className="p-0">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow>
+                                              <TableHead className="w-[80px]">Image</TableHead>
+                                              <TableHead>Name</TableHead>
+                                              <TableHead>Price</TableHead>
+                                              <TableHead>Stock</TableHead>
+                                              <TableHead className="w-[100px] text-right">Action</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {items.map((product) => (
+                                              <TableRow key={product.id}>
+                                                <TableCell>
+                                                  <Avatar className="h-12 w-12 rounded-md">
+                                                    <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" />
+                                                    <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
+                                                  </Avatar>
+                                                </TableCell>
+                                                <TableCell className="font-medium">{product.name}</TableCell>
+                                                <TableCell>LKR {product.selling_price.toFixed(2)}</TableCell>
+                                                <TableCell>
+                                                  {product.stock > 0 ? (
+                                                    <span>{product.stock}</span>
+                                                  ) : (
+                                                    <Badge variant="destructive">Out</Badge>
+                                                  )}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                  <Button size="sm" onClick={() => addToCart(product)} disabled={product.stock <= 0}>Add</Button>
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                    </AccordionContent>
+                                </AccordionItem>
                             ))}
-                          </TableBody>
-                        </Table>
+                        </Accordion>
                       </AccordionContent>
                     </AccordionItem>
                   ))}
