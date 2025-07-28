@@ -186,7 +186,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     );
   }
 
-  const newCreditFromSupplier = Math.max(0, totalPayable - amountPaid);
+  const newBalanceDue = Math.max(0, totalPayable - amountPaid);
 
   return (
     <>
@@ -346,7 +346,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                         {paymentMethod === 'credit' ? (
                             <div className="grid grid-cols-2 gap-4">
                                 <div><Label htmlFor="pur-amountPaid">Amount Paid</Label><Input id="pur-amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
-                                <div><Label htmlFor="pur-creditAmount">New Credit from Supplier</Label><Input id="pur-creditAmount" type="number" readOnly value={newCreditFromSupplier.toFixed(2)} className={cn(newCreditFromSupplier > 0 && "text-green-600 font-bold")} /></div>
+                                <div><Label htmlFor="pur-creditAmount">New Balance Due</Label><Input id="pur-creditAmount" type="number" readOnly value={newBalanceDue.toFixed(2)} className={cn(newBalanceDue > 0 && "text-destructive font-bold")} /></div>
                             </div>
                         ) : paymentMethod === 'cash' ? (
                            <div className="grid grid-cols-2 gap-4">

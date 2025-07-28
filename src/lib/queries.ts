@@ -482,7 +482,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         const itemIds = items.map(item => item.id);
 
         // --- ALL READS MUST HAPPEN FIRST ---
-
         const productRefsAndData = await Promise.all(items.map(async (item) => {
             const productRef = doc(db, 'products', item.id);
             const productDoc = await transaction.get(productRef);
@@ -494,32 +493,24 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         let customerRef: any = null;
         let customerDoc: any = null;
-        let oldSalesToUpdateRefs: any[] = [];
+        let allSalesForCustomerSnapshot;
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
             customerDoc = await transaction.get(customerRef);
             if (!customerDoc.exists()) {
                 throw new Error('Customer not found for balance update.');
             }
-            // Read previous unpaid sales if settling a balance
             if (saleDetails.previousBalance > 0 && (saleDetails.amountPaid > saleDetails.total_amount)) {
                 const allSalesForCustomerQuery = query(
                     collection(db, 'sales'),
                     where('userId', '==', userId),
                     where('customer_id', '==', saleDetails.customer_id),
                 );
-                // Can't do a getDocs in a transaction, so we're simplifying the query
-                // and will filter in memory. This might miss some edge cases if there are many unpaid sales.
-                // A better approach would be to handle settlements in a separate flow.
-                // For now, let's read all sales for this customer.
-                const allSalesSnapshot = await getDocs(allSalesForCustomerQuery); // This is outside transaction
-                const unpaidSales = allSalesSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
-                oldSalesToUpdateRefs = unpaidSales.map(doc => doc.ref);
+                allSalesForCustomerSnapshot = await getDocs(allSalesForCustomerQuery);
             }
         }
         
         // --- ALL WRITES HAPPEN AFTER READS ---
-
         for (const { doc: productDoc, ref: productRef } of productRefsAndData) {
             const item = items.find(i => i.id === productDoc.id)!;
             if (!productDoc.exists() || productDoc.data().userId !== userId) {
@@ -531,6 +522,18 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             }
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
+        
+        if (allSalesForCustomerSnapshot) {
+            const unpaidSales = allSalesForCustomerSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
+            unpaidSales.forEach(saleDoc => {
+                transaction.update(saleDoc.ref, { paymentStatus: 'paid' });
+            });
+        }
+
+        if (customerDoc && customerRef) {
+            const newBalance = saleDetails.previousBalance + saleDetails.total_amount - saleDetails.amountPaid;
+            transaction.update(customerRef, { credit_balance: newBalance });
+        }
 
         const { creditAmount } = saleDetails;
         let paymentStatus: Sale['paymentStatus'] = 'paid';
@@ -540,15 +543,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             paymentStatus = 'pending_check_clearance';
         }
         
-        oldSalesToUpdateRefs.forEach(saleRef => {
-            transaction.update(saleRef, { paymentStatus: 'paid' });
-        });
-
-        if (customerDoc && customerRef) {
-            const newBalance = saleDetails.previousBalance + saleDetails.total_amount - saleDetails.amountPaid;
-            transaction.update(customerRef, { credit_balance: newBalance });
-        }
-
         const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
         const formattedId = `sale${String(nextId).padStart(6, '0')}`;
         const newSaleRef = doc(db, 'sales', formattedId);
@@ -848,16 +842,14 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           throw new Error('Supplier not found for balance update.');
       }
       
-      let oldPurchasesToUpdateRefs: any[] = [];
-      if (purchaseDetails.supplier_id && purchaseDetails.previousBalance > 0 && (purchaseDetails.amountPaid > purchaseDetails.total_amount)) {
+      let allPurchasesForSupplierSnapshot;
+      if (purchaseDetails.previousBalance > 0 && (purchaseDetails.amountPaid > purchaseDetails.total_amount)) {
           const allPurchasesForSupplierQuery = query(
               collection(db, 'purchases'),
               where('userId', '==', userId),
               where('supplier_id', '==', purchaseDetails.supplier_id),
           );
-          const allPurchasesSnapshot = await getDocs(allPurchasesForSupplierQuery);
-          const unpaidPurchases = allPurchasesSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
-          oldPurchasesToUpdateRefs = unpaidPurchases.map(doc => doc.ref);
+          allPurchasesForSupplierSnapshot = await getDocs(allPurchasesForSupplierQuery);
       }
 
       // --- ALL WRITES HAPPEN AFTER READS ---
@@ -881,6 +873,16 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         });
       }
       
+      if (allPurchasesForSupplierSnapshot) {
+        const unpaidPurchases = allPurchasesForSupplierSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
+        unpaidPurchases.forEach(purchaseDoc => {
+            transaction.update(purchaseDoc.ref, { paymentStatus: 'paid' });
+        });
+      }
+
+      const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
+      transaction.update(supplierRef, { credit_balance: newBalance });
+
       const { creditAmount } = purchaseDetails;
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
       if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) { 
@@ -888,13 +890,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       } else if (purchaseDetails.paymentMethod === 'check') {
           paymentStatus = 'pending_check_clearance';
       }
-
-      oldPurchasesToUpdateRefs.forEach(purchaseRef => {
-          transaction.update(purchaseRef, { paymentStatus: 'paid' });
-      });
-
-      const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
-      transaction.update(supplierRef, { credit_balance: newBalance });
       
       const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
       const formattedId = `pur${String(nextId).padStart(6, '0')}`;
