@@ -1450,9 +1450,14 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 }
 
 
-export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid'): Promise<{success: boolean, message: string}> {
+export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number): Promise<{success: boolean, message: string}> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    const settlementAmount = amount ?? transaction.amount;
+
+    if (settlementAmount <= 0) {
+        return { success: false, message: 'Settlement amount must be positive.' };
+    }
 
     try {
         await runTransaction(db, async (t) => {
@@ -1462,53 +1467,58 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             if (transaction.type === 'receivable') {
                 const saleRef = doc(db, 'sales', transaction.id);
                 const customerRef = doc(db, 'customers', transaction.partyId);
-
-                t.update(saleRef, { paymentStatus: status });
+                const saleDoc = await t.get(saleRef);
+                const saleData = saleDoc.data() as Sale;
 
                 let activityType: RecentActivity['type'] = 'credit_settled';
-                let details = `Credit payment of LKR ${transaction.amount.toFixed(2)} from ${transaction.partyName} settled.`;
+                let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
 
-                if (transaction.paymentMethod === 'check') {
+                if (transaction.paymentMethod === 'credit') {
+                    const newCreditAmount = saleData.creditAmount - settlementAmount;
+                    if (newCreditAmount > 0) {
+                        t.update(saleRef, { creditAmount: newCreditAmount, amountPaid: increment(settlementAmount) });
+                    } else {
+                        t.update(saleRef, { creditAmount: 0, paymentStatus: 'paid', amountPaid: increment(settlementAmount) });
+                    }
+                } else { // Check
+                    t.update(saleRef, { paymentStatus: status });
                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
-                    details = `Check from ${transaction.partyName} for LKR ${transaction.amount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
+                    details = `Check from ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
 
                 if (status === 'paid') {
-                    t.update(customerRef, { credit_balance: increment(-transaction.amount) });
+                    t.update(customerRef, { credit_balance: increment(-settlementAmount) });
                 }
                 
-                t.set(newActivityRef, {
-                    type: activityType,
-                    details: details,
-                    timestamp: serverTimestamp(),
-                    userId,
-                });
+                t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
 
             } else { // payable
                 const purchaseRef = doc(db, 'purchases', transaction.id);
                 const supplierRef = doc(db, 'suppliers', transaction.partyId);
-                
-                t.update(purchaseRef, { paymentStatus: status });
+                const purchaseDoc = await t.get(purchaseRef);
+                const purchaseData = purchaseDoc.data() as Purchase;
 
-                 let activityType: RecentActivity['type'] = 'credit_settled';
-                let details = `Credit payment of LKR ${transaction.amount.toFixed(2)} to ${transaction.partyName} settled.`;
+                let activityType: RecentActivity['type'] = 'credit_settled';
+                let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
 
-                if (transaction.paymentMethod === 'check') {
+                if (transaction.paymentMethod === 'credit') {
+                     const newCreditAmount = purchaseData.creditAmount - settlementAmount;
+                    if (newCreditAmount > 0) {
+                        t.update(purchaseRef, { creditAmount: newCreditAmount, amountPaid: increment(settlementAmount) });
+                    } else {
+                        t.update(purchaseRef, { creditAmount: 0, paymentStatus: 'paid', amountPaid: increment(settlementAmount) });
+                    }
+                } else { // Check
+                    t.update(purchaseRef, { paymentStatus: status });
                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
-                    details = `Check to ${transaction.partyName} for LKR ${transaction.amount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
+                    details = `Check to ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
-
 
                 if (status === 'paid') {
-                    t.update(supplierRef, { credit_balance: increment(-transaction.amount) });
+                    t.update(supplierRef, { credit_balance: increment(-settlementAmount) });
                 }
 
-                 t.set(newActivityRef, {
-                    type: activityType,
-                    details: details,
-                    timestamp: serverTimestamp(),
-                    userId,
-                });
+                t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
             }
         });
 

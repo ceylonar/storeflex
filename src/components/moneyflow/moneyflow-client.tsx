@@ -42,6 +42,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { FinancialHistory } from './financial-history';
 
 
@@ -70,20 +82,27 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
   const [data, setData] = React.useState<MoneyflowData>(initialData);
   const [filter, setFilter] = React.useState('all');
   const [isSettling, setIsSettling] = React.useState<string | null>(null);
+  const [settlementAmount, setSettlementAmount] = React.useState(0);
   const { toast } = useToast();
 
-  const handleSettlePayment = async (transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid') => {
+  const handleSettlePayment = async (transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number) => {
     setIsSettling(transaction.id);
     try {
-      const result = await settlePayment(transaction, status);
+      // For credit, use the specified amount, otherwise use the full transaction amount
+      const finalAmount = transaction.paymentMethod === 'credit' ? amount : transaction.amount;
+      if (finalAmount === undefined) {
+          throw new Error("Settlement amount not specified.");
+      }
+
+      const result = await settlePayment(transaction, status, finalAmount);
       if (result.success) {
         toast({ title: 'Success', description: 'Payment has been settled.' });
         // Optimistically update UI
         setData(prevData => {
             const newTransactions = prevData.transactions.filter(t => t.id !== transaction.id);
             const newPendingChecksTotal = transaction.paymentMethod === 'check' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
-            const newReceivables = transaction.type === 'receivable' ? prevData.receivablesTotal - transaction.amount : prevData.receivablesTotal;
-            const newPayables = transaction.type === 'payable' ? prevData.payablesTotal - transaction.amount : prevData.payablesTotal;
+            const newReceivables = transaction.type === 'receivable' ? prevData.receivablesTotal - finalAmount : prevData.receivablesTotal;
+            const newPayables = transaction.type === 'payable' ? prevData.payablesTotal - finalAmount : prevData.payablesTotal;
 
             return {
                 ...prevData,
@@ -98,7 +117,7 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
         toast({ variant: 'destructive', title: 'Error', description: result.message });
       }
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'An unexpected error occurred.' });
+      toast({ variant: 'destructive', title: 'Error', description: (error as Error).message || 'An unexpected error occurred.' });
     } finally {
       setIsSettling(null);
     }
@@ -174,28 +193,40 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
                     <TableCell>{format(new Date(tx.date), 'PPP')}</TableCell>
                     <TableCell className="text-right">
                        {tx.amount > 0 && tx.paymentMethod === 'credit' && (
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                               <Button size="sm" disabled={isSettling === tx.id}>
+                         <Dialog onOpenChange={(open) => { if(!open) setSettlementAmount(0) }}>
+                            <DialogTrigger asChild>
+                               <Button size="sm" disabled={isSettling === tx.id} onClick={() => setSettlementAmount(tx.amount)}>
                                   {isSettling === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
                                   Settle
                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Settle Credit Payment?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will mark the credit payment of LKR {tx.amount.toFixed(2)} with {tx.partyName} as settled. This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleSettlePayment(tx, 'paid')}>
-                                  Continue
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Settle Credit Payment</DialogTitle>
+                                <DialogDescription>
+                                  Enter the amount being paid by {tx.partyName}. The outstanding amount is LKR {tx.amount.toFixed(2)}.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-2 py-4">
+                                <Label htmlFor="settlement-amount">Settlement Amount (LKR)</Label>
+                                <Input 
+                                  id="settlement-amount"
+                                  type="number"
+                                  value={settlementAmount}
+                                  onChange={(e) => setSettlementAmount(Number(e.target.value))}
+                                  max={tx.amount}
+                                />
+                              </div>
+                              <DialogFooter>
+                                <DialogClose asChild>
+                                  <Button variant="secondary">Cancel</Button>
+                                </DialogClose>
+                                <Button onClick={() => handleSettlePayment(tx, 'paid', settlementAmount)} disabled={settlementAmount <= 0 || settlementAmount > tx.amount}>
+                                  Confirm Settlement
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                       )}
                       {tx.paymentMethod === 'check' && (
                         <div className="flex gap-2 justify-end">
