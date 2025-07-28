@@ -40,6 +40,7 @@ export type ProductSelect = {
   selling_price: number;
   image?: string;
   stock: number;
+  category: string;
 }
 
 export type RecentActivity = {

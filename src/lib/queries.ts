@@ -25,7 +25,7 @@ import {
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, MoneyflowTransaction } from './types';
 import { z } from 'zod';
-import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, endOfYear, format, subDays } from 'date-fns';
+import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 
 
@@ -597,6 +597,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         selling_price: data.selling_price as number,
         stock: data.stock as number,
         image: data.image as string || '',
+        category: data.category as string,
       }
     });
     return products.sort((a,b) => a.name.localeCompare(b.name));
