@@ -1,5 +1,3 @@
-
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -511,44 +509,62 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(prod.ref, { stock: prod.newStock });
         }
       
-      const { creditAmount } = saleDetails;
-      let paymentStatus: Sale['paymentStatus'] = 'paid';
-      if (saleDetails.paymentMethod === 'credit' && creditAmount > 0) {
-          paymentStatus = 'partial';
-      } else if (saleDetails.paymentMethod === 'check') {
-          paymentStatus = 'pending_check_clearance';
-      }
+        const { creditAmount } = saleDetails;
+        let paymentStatus: Sale['paymentStatus'] = 'paid';
+        if (saleDetails.paymentMethod === 'credit' && creditAmount > 0) {
+            paymentStatus = 'partial';
+        } else if (saleDetails.paymentMethod === 'check') {
+            paymentStatus = 'pending_check_clearance';
+        }
+        
+        // If a previous balance was settled, clear old pending transactions for that customer
+        if (saleDetails.customer_id && saleDetails.previousBalance > 0 && (saleDetails.previousBalance <= (saleDetails.amountPaid - saleDetails.total_amount))) {
+            const salesCollection = collection(db, 'sales');
+            const pendingSalesQuery = query(
+                salesCollection,
+                where('userId', '==', userId),
+                where('customer_id', '==', saleDetails.customer_id),
+                where('paymentStatus', '!=', 'paid')
+            );
+            const pendingSalesSnapshot = await getDocs(pendingSalesQuery);
+            pendingSalesSnapshot.forEach(doc => {
+                if(doc.id !== formattedId) { // Don't update the sale we are currently creating
+                    transaction.update(doc.ref, { paymentStatus: 'paid' });
+                }
+            });
+        }
 
-      if (saleDetails.customer_id) {
-          const customerRef = doc(db, 'customers', saleDetails.customer_id);
-          // Set the new balance directly instead of incrementing
-          transaction.update(customerRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
-      }
 
-      const newSaleRef = doc(db, 'sales', formattedId);
-      const itemsToSave = items.map(({ stock, ...rest }) => rest);
-      transaction.set(newSaleRef, {
-        userId,
-        items: itemsToSave,
-        item_ids: itemIds,
-        ...saleDetails,
-        sale_date: serverTimestamp(),
-      });
+        if (saleDetails.customer_id) {
+            const customerRef = doc(db, 'customers', saleDetails.customer_id);
+            transaction.update(customerRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
+        }
 
-      transaction.set(counterRef, { lastId: nextId }, { merge: true });
+        const newSaleRef = doc(db, 'sales', formattedId);
+        const itemsToSave = items.map(({ stock, ...rest }) => rest);
+        transaction.set(newSaleRef, {
+            userId,
+            items: itemsToSave,
+            item_ids: itemIds,
+            ...saleDetails,
+            paymentStatus,
+            sale_date: serverTimestamp(),
+        });
 
-      const newActivityRef = doc(collection(db, 'recent_activity'));
-      transaction.set(newActivityRef, {
-        type: 'sale',
-        product_id: 'multiple',
-        product_name: `${items.length} item(s)`,
-        product_image: items[0]?.image || '',
-        details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total_amount.toFixed(2)}`,
-        timestamp: serverTimestamp(),
-        userId,
-        id: newSaleRef.id,
-      });
-      return formattedId;
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
+        const newActivityRef = doc(collection(db, 'recent_activity'));
+        transaction.set(newActivityRef, {
+            type: 'sale',
+            product_id: 'multiple',
+            product_name: `${items.length} item(s)`,
+            product_image: items[0]?.image || '',
+            details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total_amount.toFixed(2)}`,
+            timestamp: serverTimestamp(),
+            userId,
+            id: newSaleRef.id,
+        });
+        return formattedId;
     });
 
     revalidatePath('/dashboard/sales');
@@ -560,11 +576,11 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     const itemsToReturn = items.map(({stock, ...rest}) => rest);
     const { creditAmount } = validatedFields.data;
     let paymentStatus: Sale['paymentStatus'] = 'paid';
-      if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
-          paymentStatus = 'partial';
-      } else if (validatedFields.data.paymentMethod === 'check') {
-          paymentStatus = 'pending_check_clearance';
-      }
+    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
+        paymentStatus = 'partial';
+    } else if (validatedFields.data.paymentMethod === 'check') {
+        paymentStatus = 'pending_check_clearance';
+    }
     
     return {
         id: saleId,
@@ -859,9 +875,25 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           paymentStatus = 'pending_check_clearance';
       }
 
+      // If a previous balance was settled, clear old pending transactions for that supplier
+      if (purchaseDetails.supplier_id && purchaseDetails.previousBalance > 0 && (purchaseDetails.previousBalance <= (purchaseDetails.amountPaid - purchaseDetails.total_amount))) {
+          const purchasesCollection = collection(db, 'purchases');
+          const pendingPurchasesQuery = query(
+              purchasesCollection,
+              where('userId', '==', userId),
+              where('supplier_id', '==', purchaseDetails.supplier_id),
+              where('paymentStatus', '!=', 'paid')
+          );
+          const pendingPurchasesSnapshot = await getDocs(pendingPurchasesQuery);
+          pendingPurchasesSnapshot.forEach(doc => {
+              if (doc.id !== formattedId) { // Don't update the purchase we are currently creating
+                  transaction.update(doc.ref, { paymentStatus: 'paid' });
+              }
+          });
+      }
+
       if (purchaseDetails.supplier_id) {
           const supplierRef = doc(db, 'suppliers', purchaseDetails.supplier_id);
-          // Set new balance directly
           transaction.update(supplierRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
       }
 
@@ -871,6 +903,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         items,
         item_ids: itemIds,
         ...purchaseDetails,
+        paymentStatus,
         purchase_date: serverTimestamp(),
       });
 
@@ -1378,8 +1411,8 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
     const { db } = getFirebaseServices();
     try {
-        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
+        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
 
         const [salesSnapshot, purchasesSnapshot] = await Promise.all([
             getDocs(salesQuery),
@@ -1391,12 +1424,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
 
-        // In-memory filtering
-        const salesDocs = salesSnapshot.docs.filter(doc => (doc.data() as Sale).paymentStatus !== 'paid');
-        const purchasesDocs = purchasesSnapshot.docs.filter(doc => (doc.data() as Purchase).paymentStatus !== 'paid');
-
-
-        salesDocs.forEach(doc => {
+        salesSnapshot.forEach(doc => {
             const sale = doc.data() as Sale;
             const creditAmount = sale.creditAmount ?? 0;
             if (creditAmount > 0 || sale.paymentMethod === 'check') {
@@ -1418,7 +1446,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
 
-        purchasesDocs.forEach(doc => {
+        purchasesSnapshot.forEach(doc => {
             const purchase = doc.data() as Purchase;
             const creditAmount = purchase.creditAmount ?? 0;
             if (creditAmount > 0 || purchase.paymentMethod === 'check') {
@@ -1479,7 +1507,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 if (transaction.paymentMethod === 'credit') {
                     const newCreditAmount = transaction.amount - settlementAmount;
                     const updateData: any = { 
-                        creditAmount: increment(-settlementAmount), 
+                        creditAmount: newCreditAmount, 
                         amountPaid: increment(settlementAmount) 
                     };
 
@@ -1509,7 +1537,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 if (transaction.paymentMethod === 'credit') {
                     const newCreditAmount = transaction.amount - settlementAmount;
                     const updateData: any = { 
-                        creditAmount: increment(-settlementAmount),
+                        creditAmount: newCreditAmount,
                         amountPaid: increment(settlementAmount) 
                     };
 
