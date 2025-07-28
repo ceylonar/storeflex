@@ -1,10 +1,11 @@
 
+
 import { MoneyflowClient } from "@/components/moneyflow/moneyflow-client";
 import { fetchMoneyflowData, fetchFinancialActivities } from "@/lib/queries";
 
 export default async function MoneyflowPage() {
   const initialData = await fetchMoneyflowData();
-  const financialHistory = await fetchFinancialActivities();
+  const initialHistory = await fetchFinancialActivities();
 
   return (
     <div className="space-y-4">
@@ -14,7 +15,7 @@ export default async function MoneyflowPage() {
           Track your assets, manage credit, and clear pending payments.
         </p>
       </div>
-      <MoneyflowClient initialData={initialData} initialHistory={financialHistory} />
+      <MoneyflowClient initialData={initialData} initialHistory={initialHistory} />
     </div>
   );
 }

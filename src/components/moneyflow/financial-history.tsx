@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -54,9 +55,12 @@ const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
     check_rejected: XCircle,
 }
 
+interface FinancialHistoryProps {
+  history: RecentActivity[];
+}
 
-export function FinancialHistory({ initialHistory }: { initialHistory: RecentActivity[] }) {
-  if (!initialHistory || initialHistory.length === 0) {
+export function FinancialHistory({ history }: FinancialHistoryProps) {
+  if (!history || history.length === 0) {
       return (
           <Card>
               <CardHeader>
@@ -91,7 +95,7 @@ export function FinancialHistory({ initialHistory }: { initialHistory: RecentAct
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {initialHistory.map((activity) => {
+                {history.map((activity) => {
                     const Icon = activityIcons[activity.type] || Scroll;
                     return (
                         <TableRow key={activity.id}>

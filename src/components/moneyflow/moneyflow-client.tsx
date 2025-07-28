@@ -81,6 +81,7 @@ interface MoneyflowClientProps {
 
 export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClientProps) {
   const [data, setData] = React.useState<MoneyflowData>(initialData);
+  const [history, setHistory] = React.useState<RecentActivity[]>(initialHistory);
   const [filter, setFilter] = React.useState('all');
   const [isSettling, setIsSettling] = React.useState<string | null>(null);
   const [settlementAmount, setSettlementAmount] = React.useState(0);
@@ -89,27 +90,25 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
   const handleSettlePayment = async (transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number) => {
     setIsSettling(transaction.id);
     try {
-      // For credit, use the specified amount, otherwise use the full transaction amount
-      const finalAmount = transaction.paymentMethod === 'credit' ? amount : transaction.amount;
-      if (finalAmount === undefined) {
-          throw new Error("Settlement amount not specified.");
-      }
+      const finalAmount = amount ?? transaction.amount;
 
       const result = await settlePayment(transaction, status, finalAmount);
       if (result.success) {
         toast({ title: 'Success', description: 'Payment has been settled.' });
+        
         // Optimistically update UI
         setData(prevData => {
             const updatedTransactions = prevData.transactions.map(t => {
                 if (t.id === transaction.id) {
                     const newAmount = t.amount - finalAmount;
-                    return newAmount > 0 ? { ...t, amount: newAmount } : null;
+                    // Use a small epsilon for float comparison
+                    return newAmount > 0.001 ? { ...t, amount: newAmount } : null; 
                 }
                 return t;
             }).filter(Boolean) as MoneyflowTransaction[];
 
 
-            const newPendingChecksTotal = transaction.paymentMethod === 'check' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
+            const newPendingChecksTotal = transaction.paymentMethod === 'check' && status === 'paid' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
             const newReceivables = transaction.type === 'receivable' ? prevData.receivablesTotal - finalAmount : prevData.receivablesTotal;
             const newPayables = transaction.type === 'payable' ? prevData.payablesTotal - finalAmount : prevData.payablesTotal;
 
@@ -121,6 +120,23 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
                 payablesTotal: newPayables,
             };
         });
+        
+        // Add to history
+        let activityType: RecentActivity['type'] = 'credit_settled';
+        let details = `Credit payment of LKR ${finalAmount.toFixed(2)} from ${transaction.partyName} settled.`;
+        if (transaction.paymentMethod === 'check') {
+            activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
+            details = `Check from ${transaction.partyName} for LKR ${transaction.amount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
+        }
+
+        const newHistoryItem: RecentActivity = {
+            id: `local-${Date.now()}`,
+            type: activityType,
+            details: details,
+            timestamp: new Date().toISOString(),
+            userId: 'user-123-abc' // Mock user ID
+        };
+        setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
 
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.message });
@@ -230,9 +246,11 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
                                 <DialogClose asChild>
                                   <Button variant="secondary">Cancel</Button>
                                 </DialogClose>
-                                <Button onClick={() => handleSettlePayment(tx, 'paid', settlementAmount)} disabled={settlementAmount <= 0 || settlementAmount > tx.amount}>
-                                  Confirm Settlement
-                                </Button>
+                                <DialogClose asChild>
+                                    <Button onClick={() => handleSettlePayment(tx, 'paid', settlementAmount)} disabled={settlementAmount <= 0 || settlementAmount > tx.amount}>
+                                    Confirm Settlement
+                                    </Button>
+                                </DialogClose>
                               </DialogFooter>
                             </DialogContent>
                           </Dialog>
@@ -292,7 +310,7 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
         </CardContent>
       </Card>
       
-      <FinancialHistory initialHistory={initialHistory} />
+      <FinancialHistory history={history} />
     </div>
   );
 }
