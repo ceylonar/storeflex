@@ -493,7 +493,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         let customerRef: any = null;
         let customerDoc: any = null;
-        let allSalesForCustomerDocs: any[] = [];
+        let allPendingSalesForCustomerDocs: any[] = [];
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
             customerDoc = await transaction.get(customerRef);
@@ -508,7 +508,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
                     where('customer_id', '==', saleDetails.customer_id)
                 );
                 const snapshot = await getDocs(allSalesForCustomerQuery);
-                allSalesForCustomerDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
+                allPendingSalesForCustomerDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
             }
         }
         
@@ -525,8 +525,8 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
         
-        if (allSalesForCustomerDocs.length > 0) {
-            allSalesForCustomerDocs.forEach(saleDoc => {
+        if (allPendingSalesForCustomerDocs.length > 0) {
+            allPendingSalesForCustomerDocs.forEach(saleDoc => {
                 transaction.update(saleDoc.ref, { paymentStatus: 'paid' });
             });
         }
@@ -843,7 +843,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           throw new Error('Supplier not found for balance update.');
       }
       
-      let allPurchasesForSupplierDocs: any[] = [];
+      let allPendingPurchasesForSupplierDocs: any[] = [];
       if (purchaseDetails.previousBalance > 0 && (purchaseDetails.amountPaid > purchaseDetails.total_amount)) {
           const allPurchasesForSupplierQuery = query(
               collection(db, 'purchases'),
@@ -851,7 +851,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
               where('supplier_id', '==', purchaseDetails.supplier_id)
           );
           const snapshot = await getDocs(allPurchasesForSupplierQuery);
-          allPurchasesForSupplierDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
+          allPendingPurchasesForSupplierDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
       }
 
       // --- ALL WRITES HAPPEN AFTER READS ---
@@ -875,8 +875,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         });
       }
       
-      if (allPurchasesForSupplierDocs.length > 0) {
-        allPurchasesForSupplierDocs.forEach(purchaseDoc => {
+      if (allPendingPurchasesForSupplierDocs.length > 0) {
+        allPendingPurchasesForSupplierDocs.forEach(purchaseDoc => {
             transaction.update(purchaseDoc.ref, { paymentStatus: 'paid' });
         });
       }

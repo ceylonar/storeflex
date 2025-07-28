@@ -106,7 +106,8 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   
   const previousBalance = selectedSupplier?.credit_balance || 0;
   const totalPayable = previousBalance + totalCost;
-
+  const newBalanceDue = Math.max(0, totalPayable - amountPaid);
+  
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
       setAmountPaid(totalPayable);
@@ -129,7 +130,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
 
     setIsSubmitting(true);
     try {
-        const finalCreditAmount = totalPayable - amountPaid;
+        const creditAmount = totalPayable - amountPaid;
         const purchaseData = {
             items: cart,
             supplier_id: selectedSupplier.id,
@@ -143,7 +144,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             paymentMethod,
             amountPaid,
             checkNumber,
-            creditAmount: finalCreditAmount,
+            creditAmount: creditAmount,
             previousBalance
         };
       const completedPurchase = await createPurchase(purchaseData);
@@ -185,8 +186,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
         </div>
     );
   }
-
-  const newBalanceDue = Math.max(0, totalPayable - amountPaid);
 
   return (
     <>
