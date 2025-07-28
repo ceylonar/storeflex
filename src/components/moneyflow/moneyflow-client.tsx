@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -99,14 +100,22 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
         toast({ title: 'Success', description: 'Payment has been settled.' });
         // Optimistically update UI
         setData(prevData => {
-            const newTransactions = prevData.transactions.filter(t => t.id !== transaction.id);
+            const updatedTransactions = prevData.transactions.map(t => {
+                if (t.id === transaction.id) {
+                    const newAmount = t.amount - finalAmount;
+                    return newAmount > 0 ? { ...t, amount: newAmount } : null;
+                }
+                return t;
+            }).filter(Boolean) as MoneyflowTransaction[];
+
+
             const newPendingChecksTotal = transaction.paymentMethod === 'check' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
             const newReceivables = transaction.type === 'receivable' ? prevData.receivablesTotal - finalAmount : prevData.receivablesTotal;
             const newPayables = transaction.type === 'payable' ? prevData.payablesTotal - finalAmount : prevData.payablesTotal;
 
             return {
                 ...prevData,
-                transactions: newTransactions,
+                transactions: updatedTransactions,
                 pendingChecksTotal: newPendingChecksTotal,
                 receivablesTotal: newReceivables,
                 payablesTotal: newPayables,

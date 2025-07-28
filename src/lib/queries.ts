@@ -1083,7 +1083,7 @@ export async function fetchDashboardData() {
         // Recent Activities
         const activityQuery = query(activityCollection, where('userId', '==', userId));
         const activitySnapshot = await getDocs(activityQuery);
-        let recentActivities = activitySnapshot.docs.map(doc => {
+        let allActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -1092,9 +1092,10 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
 
-        // Sort in memory and take the last 5
-        recentActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        recentActivities = recentActivities.slice(0, 5);
+        // Sort in code to avoid composite index
+        const recentActivities = allActivities
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+            .slice(0, 5);
 
         return {
             inventoryValue,
@@ -1458,6 +1459,10 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
     if (settlementAmount <= 0) {
         return { success: false, message: 'Settlement amount must be positive.' };
     }
+    
+    if (settlementAmount > transaction.amount) {
+        return { success: false, message: 'Settlement amount cannot exceed outstanding balance.' };
+    }
 
     try {
         await runTransaction(db, async (t) => {
@@ -1467,21 +1472,23 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             if (transaction.type === 'receivable') {
                 const saleRef = doc(db, 'sales', transaction.id);
                 const customerRef = doc(db, 'customers', transaction.partyId);
-                const saleDoc = await t.get(saleRef);
-                const saleData = saleDoc.data() as Sale;
-
+                
                 let activityType: RecentActivity['type'] = 'credit_settled';
                 let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'credit') {
-                    const newCreditAmount = saleData.creditAmount - settlementAmount;
-                    if (newCreditAmount > 0) {
-                        t.update(saleRef, { creditAmount: newCreditAmount, amountPaid: increment(settlementAmount) });
-                    } else {
-                        t.update(saleRef, { creditAmount: 0, paymentStatus: 'paid', amountPaid: increment(settlementAmount) });
+                    const newCreditAmount = transaction.amount - settlementAmount;
+                    const updateData: any = { 
+                        creditAmount: increment(-settlementAmount), 
+                        amountPaid: increment(settlementAmount) 
+                    };
+
+                    if (newCreditAmount <= 0.001) { // Use a small epsilon for float comparison
+                        updateData.paymentStatus = 'paid';
                     }
+                    t.update(saleRef, updateData);
                 } else { // Check
-                    t.update(saleRef, { paymentStatus: status });
+                    t.update(saleRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
                     details = `Check from ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
@@ -1495,21 +1502,23 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             } else { // payable
                 const purchaseRef = doc(db, 'purchases', transaction.id);
                 const supplierRef = doc(db, 'suppliers', transaction.partyId);
-                const purchaseDoc = await t.get(purchaseRef);
-                const purchaseData = purchaseDoc.data() as Purchase;
 
                 let activityType: RecentActivity['type'] = 'credit_settled';
                 let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'credit') {
-                     const newCreditAmount = purchaseData.creditAmount - settlementAmount;
-                    if (newCreditAmount > 0) {
-                        t.update(purchaseRef, { creditAmount: newCreditAmount, amountPaid: increment(settlementAmount) });
-                    } else {
-                        t.update(purchaseRef, { creditAmount: 0, paymentStatus: 'paid', amountPaid: increment(settlementAmount) });
+                    const newCreditAmount = transaction.amount - settlementAmount;
+                    const updateData: any = { 
+                        creditAmount: increment(-settlementAmount),
+                        amountPaid: increment(settlementAmount) 
+                    };
+
+                    if (newCreditAmount <= 0.001) { // Use a small epsilon for float comparison
+                        updateData.paymentStatus = 'paid';
                     }
+                    t.update(purchaseRef, updateData);
                 } else { // Check
-                    t.update(purchaseRef, { paymentStatus: status });
+                    t.update(purchaseRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
                     details = `Check to ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
@@ -1552,7 +1561,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         );
         
         const activitySnapshot = await getDocs(q);
-        const activities = activitySnapshot.docs.map(doc => {
+        let activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -1561,6 +1570,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
             }
         }) as RecentActivity[];
 
+        // Sort in code to avoid composite index
         activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return activities;
