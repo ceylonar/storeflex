@@ -77,8 +77,8 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
         name: product.name,
         image: product.image,
         quantity: 1,
-        cost_price: product.selling_price * 0.75, // Default cost price, can be edited
-        total_cost: product.selling_price * 0.75,
+        cost_price: product.cost_price || 0,
+        total_cost: product.cost_price || 0,
       },
     ]);
   };
@@ -112,7 +112,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
       setAmountPaid(totalPayable);
     } else if (paymentMethod === 'credit') {
-        // When switching to credit, keep amount paid if user typed it, otherwise set to 0
         setAmountPaid(amount => amount > 0 ? amount : 0);
     }
   }, [totalPayable, paymentMethod]);

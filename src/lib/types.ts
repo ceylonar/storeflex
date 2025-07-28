@@ -38,6 +38,7 @@ export type ProductSelect = {
   id: string;
   name: string;
   selling_price: number;
+  cost_price: number;
   image?: string;
   stock: number;
   category: string;

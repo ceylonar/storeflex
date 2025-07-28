@@ -494,20 +494,22 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         let customerRef: any = null;
         let customerDoc: any = null;
         let allPendingSalesForCustomerDocs: any[] = [];
+        
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
             customerDoc = await transaction.get(customerRef);
             if (!customerDoc.exists()) {
                 throw new Error('Customer not found for balance update.');
             }
-             // If a previous balance is being paid off, get all previous unpaid sales for this customer
+             
             if (saleDetails.previousBalance > 0 && (saleDetails.amountPaid > saleDetails.total_amount)) {
                 const allSalesForCustomerQuery = query(
                     collection(db, 'sales'),
                     where('userId', '==', userId),
                     where('customer_id', '==', saleDetails.customer_id)
                 );
-                const snapshot = await getDocs(allSalesForCustomerQuery);
+                // We fetch outside the transaction then filter, to avoid complex query index requirement
+                const snapshot = await getDocs(allSalesForCustomerQuery); 
                 allPendingSalesForCustomerDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
             }
         }
@@ -538,7 +540,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         const { creditAmount } = saleDetails;
         let paymentStatus: Sale['paymentStatus'] = 'paid';
-        if (saleDetails.paymentMethod === 'credit' && creditAmount > 0) {
+        if (saleDetails.paymentMethod === 'credit' && creditAmount > 0.001) {
             paymentStatus = 'partial';
         } else if (saleDetails.paymentMethod === 'check') {
             paymentStatus = 'pending_check_clearance';
@@ -584,7 +586,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     const itemsToReturn = items.map(({stock, ...rest}) => rest);
     const { creditAmount } = validatedFields.data;
     let paymentStatus: Sale['paymentStatus'] = 'paid';
-    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
+    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0.001) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';
@@ -621,6 +623,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         id: doc.id,
         name: data.name as string,
         selling_price: data.selling_price as number,
+        cost_price: data.cost_price as number,
         stock: data.stock as number,
         image: data.image as string || '',
         category: data.category as string,
@@ -886,7 +889,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
 
       const { creditAmount } = purchaseDetails;
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
-      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) { 
+      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0.001) { 
           paymentStatus = 'partial';
       } else if (purchaseDetails.paymentMethod === 'check') {
           paymentStatus = 'pending_check_clearance';
@@ -930,7 +933,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
 
     const { creditAmount } = validatedFields.data;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
-    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
+    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0.001) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';
@@ -1427,7 +1430,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
         pendingSales.forEach(sale => {
             const creditAmount = sale.creditAmount ?? 0;
-            if (creditAmount > 0 || sale.paymentMethod === 'check') {
+            if (creditAmount > 0.001 || sale.paymentMethod === 'check') {
                 const transaction: MoneyflowTransaction = {
                     id: sale.id,
                     type: 'receivable',
@@ -1439,19 +1442,22 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     checkNumber: sale.checkNumber,
                 };
                 transactions.push(transaction);
-                receivablesTotal += creditAmount;
-                if (sale.paymentMethod === 'check') {
-                    pendingChecksTotal += sale.total_amount;
-                }
             }
         });
+
+        // Get total receivables from customer credit balances
+        const customerSnapshot = await getDocs(query(collection(db, 'customers'), where('userId', '==', userId)));
+        customerSnapshot.forEach(doc => {
+            receivablesTotal += doc.data().credit_balance || 0;
+        });
+
 
         const allPurchases = purchasesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase));
         const pendingPurchases = allPurchases.filter(purchase => purchase.paymentStatus !== 'paid');
 
         pendingPurchases.forEach(purchase => {
             const creditAmount = purchase.creditAmount ?? 0;
-            if (creditAmount > 0 || purchase.paymentMethod === 'check') {
+            if (creditAmount > 0.001 || purchase.paymentMethod === 'check') {
                 const transaction: MoneyflowTransaction = {
                     id: purchase.id,
                     type: 'payable',
@@ -1463,12 +1469,18 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     checkNumber: purchase.checkNumber,
                 };
                 transactions.push(transaction);
-                payablesTotal += creditAmount;
-                if (purchase.paymentMethod === 'check') {
-                    pendingChecksTotal += purchase.total_amount;
-                }
+            }
+            if (purchase.paymentMethod === 'check') {
+                pendingChecksTotal += purchase.total_amount;
             }
         });
+
+         // Get total payables from supplier credit balances
+        const supplierSnapshot = await getDocs(query(collection(db, 'suppliers'), where('userId', '==', userId)));
+        supplierSnapshot.forEach(doc => {
+            payablesTotal += doc.data().credit_balance || 0;
+        });
+
         
         transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -1508,10 +1520,18 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'credit') {
-                    const newCreditAmount = transaction.amount - settlementAmount;
+                    const saleDoc = await t.get(saleRef);
+                    if (!saleDoc.exists()) throw new Error("Sale not found.");
+                    
+                    const currentCreditAmount = saleDoc.data().creditAmount || 0;
+                    const currentAmountPaid = saleDoc.data().amountPaid || 0;
+
+                    const newCreditAmount = currentCreditAmount - settlementAmount;
+                    const newAmountPaid = currentAmountPaid + settlementAmount;
+
                     const updateData: any = { 
                         creditAmount: newCreditAmount, 
-                        amountPaid: increment(settlementAmount) 
+                        amountPaid: newAmountPaid
                     };
 
                     if (newCreditAmount < 0.01) { // Use a small epsilon for float comparison
@@ -1538,10 +1558,18 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'credit') {
-                    const newCreditAmount = transaction.amount - settlementAmount;
+                    const purchaseDoc = await t.get(purchaseRef);
+                    if (!purchaseDoc.exists()) throw new Error("Purchase not found.");
+
+                    const currentCreditAmount = purchaseDoc.data().creditAmount || 0;
+                    const currentAmountPaid = purchaseDoc.data().amountPaid || 0;
+                    
+                    const newCreditAmount = currentCreditAmount - settlementAmount;
+                    const newAmountPaid = currentAmountPaid + settlementAmount;
+
                     const updateData: any = { 
                         creditAmount: newCreditAmount,
-                        amountPaid: increment(settlementAmount) 
+                        amountPaid: newAmountPaid
                     };
 
                     if (newCreditAmount < 0.01) { // Use a small epsilon for float comparison
@@ -1570,7 +1598,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
         return { success: true, message: 'Payment settled successfully.' };
     } catch (error) {
         console.error('Settle Payment Error:', error);
-        return { success: false, message: 'Failed to settle payment.' };
+        return { success: false, message: (error as Error).message || 'Failed to settle payment.' };
     }
 }
 
