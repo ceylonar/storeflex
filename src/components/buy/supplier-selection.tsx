@@ -21,13 +21,18 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { createSupplier } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Supplier } from '@/lib/types';
-import { UserPlus, Users, X } from 'lucide-react';
+import { UserPlus, ChevronsUpDown } from 'lucide-react';
 
 interface SupplierSelectionProps {
   suppliers: Supplier[];
@@ -69,44 +74,30 @@ export function SupplierSelection({
   return (
     <div className="space-y-2">
       <Label>Supplier</Label>
-      <div className="flex items-center gap-2 rounded-md border border-input p-2">
-        <div className="flex-1">
-          <p className="text-sm font-medium">
-            {selectedSupplier ? selectedSupplier.name : 'No supplier selected'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {selectedSupplier ? selectedSupplier.phone : 'Please select or create a supplier'}
-          </p>
-        </div>
-        {selectedSupplier && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => onSelectSupplier(null)}
-          >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Clear supplier</span>
-          </Button>
-        )}
-      </div>
-      <div className="flex gap-2">
-        <Dialog open={isSelectOpen} onOpenChange={setIsSelectOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="w-full">
-              <Users className="mr-2 h-4 w-4" /> Select Supplier
+        <div className="flex gap-2">
+        <Popover open={isSelectOpen} onOpenChange={setIsSelectOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={isSelectOpen}
+              className="w-full justify-between"
+            >
+              <span className="truncate">
+                {selectedSupplier
+                  ? selectedSupplier.name
+                  : 'Select a supplier...'}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Select an Existing Supplier</DialogTitle>
-            </DialogHeader>
-            <Command>
+          </PopoverTrigger>
+          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+             <Command>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList>
                 <ScrollArea className="h-[300px]">
-                  <CommandEmpty>No supplier found.</CommandEmpty>
-                  <CommandGroup>
+                   <CommandEmpty>No supplier found.</CommandEmpty>
+                   <CommandGroup>
                     {suppliers.map((supplier) => (
                       <CommandItem
                         key={supplier.id}
@@ -126,13 +117,14 @@ export function SupplierSelection({
                 </ScrollArea>
               </CommandList>
             </Command>
-          </DialogContent>
-        </Dialog>
+          </PopoverContent>
+        </Popover>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full">
-              <UserPlus className="mr-2 h-4 w-4" /> Add New
+            <Button variant="outline" size="icon">
+              <UserPlus className="h-4 w-4" />
+              <span className="sr-only">Add New Supplier</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">

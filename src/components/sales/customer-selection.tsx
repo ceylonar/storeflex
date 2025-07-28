@@ -32,8 +32,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { createCustomer } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Customer } from '@/lib/types';
-import { UserPlus, Users, X, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { UserPlus, ChevronsUpDown } from 'lucide-react';
 
 interface CustomerSelectionProps {
   customers: Customer[];
@@ -132,8 +131,9 @@ export function CustomerSelection({
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" /> Add New
+            <Button variant="outline" size="icon">
+              <UserPlus className="h-4 w-4" />
+              <span className="sr-only">Add New Customer</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
