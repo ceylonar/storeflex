@@ -33,6 +33,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { PurchaseReceipt } from './purchase-receipt';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Separator } from '../ui/separator';
+import { cn } from '@/lib/utils';
 
 export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
@@ -103,11 +104,14 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const taxAmount = subtotal * (taxPercentage / 100);
   const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
   
+  const previousBalance = selectedSupplier?.credit_balance || 0;
+  const totalPayable = previousBalance + totalCost;
+
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
-      setAmountPaid(totalCost);
+      setAmountPaid(totalPayable);
     }
-  }, [totalCost, paymentMethod]);
+  }, [totalPayable, paymentMethod]);
 
 
   const handleCheckout = async () => {
@@ -122,6 +126,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
 
     setIsSubmitting(true);
     try {
+        const finalCreditAmount = totalPayable - amountPaid;
         const purchaseData = {
             items: cart,
             supplier_id: selectedSupplier.id,
@@ -134,7 +139,9 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             total_amount: totalCost,
             paymentMethod,
             amountPaid,
-            checkNumber
+            checkNumber,
+            creditAmount: finalCreditAmount,
+            previousBalance
         };
       const completedPurchase = await createPurchase(purchaseData);
 
@@ -312,24 +319,36 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                       <div className="flex justify-between"><span className="text-muted-foreground">Calculated Tax</span><span>LKR {taxAmount.toFixed(2)}</span></div>
                        <div className="flex items-center justify-between gap-2"><Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
                       <Separator />
-                      <div className="flex justify-between font-bold text-base"><span className="text-primary">Total</span><span className="text-primary">LKR {totalCost.toFixed(2)}</span></div>
+                      <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Purchase Total</span><span>LKR {totalCost.toFixed(2)}</span></div>
+                      {previousBalance > 0 && (
+                        <div className="flex justify-between font-semibold">
+                            <span className="text-muted-foreground">Previous Balance</span>
+                            <span className="text-green-600 dark:text-green-500">LKR {previousBalance.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-bold text-base"><span className="text-primary">Total Payable</span><span className="text-primary">LKR {totalPayable.toFixed(2)}</span></div>
                       <Separator />
                       
                       <div className="space-y-4 pt-2">
                         <Label>Payment Method</Label>
                         <RadioGroup value={paymentMethod} onValueChange={(value: 'cash' | 'credit' | 'check') => setPaymentMethod(value)} className="flex gap-4">
                             <div className="flex items-center space-x-2"><RadioGroupItem value="cash" id="pur-cash" /><Label htmlFor="pur-cash">Cash</Label></div>
-                            <div className="flex items-center space-x-2"><RadioGroupItem value="credit" id="pur-credit" /><Label htmlFor="pur-credit">Credit</Label></div>
+                            <div className="flex items-center space-x-2"><RadioGroupItem value="credit" id="pur-credit" disabled={!selectedSupplier} /><Label htmlFor="pur-credit" className={!selectedSupplier ? 'text-muted-foreground cursor-not-allowed' : ''}>Credit</Label></div>
                             <div className="flex items-center space-x-2"><RadioGroupItem value="check" id="pur-check" /><Label htmlFor="pur-check">Check</Label></div>
                         </RadioGroup>
 
-                        {paymentMethod === 'credit' && (
+                        {paymentMethod === 'credit' ? (
                             <div className="grid grid-cols-2 gap-4">
                                 <div><Label htmlFor="pur-amountPaid">Amount Paid</Label><Input id="pur-amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
-                                <div><Label htmlFor="pur-creditAmount">Credit Amount</Label><Input id="pur-creditAmount" type="number" readOnly value={(totalCost - amountPaid).toFixed(2)} /></div>
+                                <div><Label htmlFor="pur-creditAmount">New Credit Amount</Label><Input id="pur-creditAmount" type="number" readOnly value={Math.max(0, totalPayable - amountPaid).toFixed(2)} className={cn((totalPayable - amountPaid) > 0 && "text-green-600 font-bold")} /></div>
                             </div>
-                        )}
-                        {paymentMethod === 'check' && (
+                        ) : paymentMethod === 'cash' ? (
+                           <div className="grid grid-cols-2 gap-4">
+                                <div><Label htmlFor="pur-amountPaid">Amount Paid</Label><Input id="pur-amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
+                                <div><Label htmlFor="pur-change">Change</Label><Input id="pur-change" type="number" readOnly value={Math.max(0, amountPaid - totalPayable).toFixed(2)} /></div>
+                            </div>
+                        ) : (
                             <div><Label htmlFor="pur-checkNumber">Check Number</Label><Input id="pur-checkNumber" type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} /></div>
                         )}
                       </div>

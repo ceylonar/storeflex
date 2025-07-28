@@ -91,6 +91,8 @@ const POSSaleSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
+  creditAmount: z.number(), // The final, calculated credit amount
+  previousBalance: z.number().nonnegative(),
 });
 
 const PurchaseItemSchema = z.object({
@@ -115,6 +117,8 @@ const POSPurchaseSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
+  creditAmount: z.number(), // The final, calculated credit amount
+  previousBalance: z.number().nonnegative(),
 });
 
 const ProfileSchema = z.object({
@@ -507,7 +511,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(prod.ref, { stock: prod.newStock });
         }
       
-      const creditAmount = saleDetails.total_amount - saleDetails.amountPaid;
+      const { creditAmount } = saleDetails;
       let paymentStatus: Sale['paymentStatus'] = 'paid';
       if (saleDetails.paymentMethod === 'credit' && creditAmount > 0) {
           paymentStatus = 'partial';
@@ -515,9 +519,10 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
           paymentStatus = 'pending_check_clearance';
       }
 
-      if (saleDetails.paymentMethod === 'credit' && saleDetails.customer_id && creditAmount > 0) {
+      if (saleDetails.customer_id) {
           const customerRef = doc(db, 'customers', saleDetails.customer_id);
-          transaction.update(customerRef, { credit_balance: increment(creditAmount) });
+          // Set the new balance directly instead of incrementing
+          transaction.update(customerRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
       }
 
       const newSaleRef = doc(db, 'sales', formattedId);
@@ -528,8 +533,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         item_ids: itemIds,
         ...saleDetails,
         sale_date: serverTimestamp(),
-        creditAmount: creditAmount,
-        paymentStatus: paymentStatus,
       });
 
       transaction.set(counterRef, { lastId: nextId }, { merge: true });
@@ -555,7 +558,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/moneyflow');
 
     const itemsToReturn = items.map(({stock, ...rest}) => rest);
-    const creditAmount = validatedFields.data.total_amount - validatedFields.data.amountPaid;
+    const { creditAmount } = validatedFields.data;
     let paymentStatus: Sale['paymentStatus'] = 'paid';
       if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
           paymentStatus = 'partial';
@@ -569,7 +572,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         items: itemsToReturn,
         item_ids: items.map(i => i.id),
         ...validatedFields.data,
-        creditAmount: creditAmount,
         paymentStatus: paymentStatus,
         sale_date: new Date().toISOString(),
     };
@@ -849,7 +851,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         transaction.update(productRefs[item.id], productUpdateData[item.id]);
       }
       
-      const creditAmount = purchaseDetails.total_amount - purchaseDetails.amountPaid;
+      const { creditAmount } = purchaseDetails;
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
       if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) {
           paymentStatus = 'partial';
@@ -857,9 +859,10 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           paymentStatus = 'pending_check_clearance';
       }
 
-      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) {
+      if (purchaseDetails.supplier_id) {
           const supplierRef = doc(db, 'suppliers', purchaseDetails.supplier_id);
-          transaction.update(supplierRef, { credit_balance: increment(creditAmount) });
+          // Set new balance directly
+          transaction.update(supplierRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
       }
 
       const newPurchaseRef = doc(db, 'purchases', formattedId);
@@ -869,8 +872,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         item_ids: itemIds,
         ...purchaseDetails,
         purchase_date: serverTimestamp(),
-        creditAmount,
-        paymentStatus,
       });
 
       transaction.set(counterRef, { lastId: nextId }, { merge: true });
@@ -896,7 +897,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 
-    const creditAmount = validatedFields.data.total_amount - validatedFields.data.amountPaid;
+    const { creditAmount } = validatedFields.data;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
         paymentStatus = 'partial';
@@ -911,7 +912,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         item_ids: items.map(i => i.id),
         ...purchaseDetails,
         purchase_date: new Date().toISOString(),
-        creditAmount,
         paymentStatus,
     };
   } catch (error) {

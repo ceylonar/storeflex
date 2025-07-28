@@ -40,6 +40,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { cn } from '@/lib/utils';
 
 type GroupedProducts = {
   [category: string]: {
@@ -196,12 +197,15 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   const tax = subtotal * (taxPercentage / 100);
   const total = Math.max(0, subtotal + tax + serviceCharge - discountAmount);
   
+  const previousBalance = selectedCustomer?.credit_balance || 0;
+  const totalDue = previousBalance + total;
+
   // Update amountPaid when total changes
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
-      setAmountPaid(total);
+      setAmountPaid(totalDue);
     }
-  }, [total, paymentMethod]);
+  }, [totalDue, paymentMethod]);
 
 
   const handleCheckout = async () => {
@@ -216,6 +220,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
 
     setIsSubmitting(true);
     try {
+        const finalCreditAmount = totalDue - amountPaid;
         const saleData = {
             items: cart,
             customer_name: selectedCustomer?.name || 'Walk-in Customer',
@@ -228,7 +233,9 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             total_amount: total,
             paymentMethod,
             amountPaid,
+            creditAmount: finalCreditAmount, // Pass the final calculated credit amount
             checkNumber,
+            previousBalance,
         };
       const completedSale = await createSale(saleData);
 
@@ -433,7 +440,15 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                       <div className="flex justify-between"><span className="text-muted-foreground">Calculated Tax</span><span>LKR {tax.toFixed(2)}</span></div>
                       <div className="flex items-center justify-between gap-2"><Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
                       <Separator />
-                      <div className="flex justify-between font-bold text-base"><span className="text-primary">Total</span><span className="text-primary">LKR {total.toFixed(2)}</span></div>
+                      <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Bill Total</span><span>LKR {total.toFixed(2)}</span></div>
+                      {previousBalance > 0 && (
+                        <div className="flex justify-between font-semibold">
+                            <span className="text-muted-foreground">Previous Balance</span>
+                            <span className="text-destructive">LKR {previousBalance.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between font-bold text-base"><span className="text-primary">Total Due</span><span className="text-primary">LKR {totalDue.toFixed(2)}</span></div>
                       <Separator />
                       
                       {/* Payment Method Section */}
@@ -445,14 +460,18 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                             <div className="flex items-center space-x-2"><RadioGroupItem value="check" id="check" /><Label htmlFor="check">Check</Label></div>
                         </RadioGroup>
 
-                        {paymentMethod === 'credit' && (
+                        {paymentMethod === 'credit' ? (
                             <div className="grid grid-cols-2 gap-4">
                                 <div><Label htmlFor="amountPaid">Amount Paid</Label><Input id="amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
-                                <div><Label htmlFor="creditAmount">Credit Amount</Label><Input id="creditAmount" type="number" readOnly value={(total - amountPaid).toFixed(2)} /></div>
+                                <div><Label htmlFor="creditAmount">New Credit Amount</Label><Input id="creditAmount" type="number" readOnly value={Math.max(0, totalDue - amountPaid).toFixed(2)} className={cn((totalDue - amountPaid) > 0 && "text-destructive font-bold")} /></div>
                             </div>
-                        )}
-                        {paymentMethod === 'check' && (
-                            <div><Label htmlFor="checkNumber">Check Number</Label><Input id="checkNumber" type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} /></div>
+                        ) : paymentMethod === 'cash' ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><Label htmlFor="amountPaid">Amount Paid</Label><Input id="amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
+                                <div><Label htmlFor="change">Change</Label><Input id="change" type="number" readOnly value={Math.max(0, amountPaid - totalDue).toFixed(2)} /></div>
+                            </div>
+                        ) : (
+                             <div><Label htmlFor="checkNumber">Check Number</Label><Input id="checkNumber" type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} /></div>
                         )}
                       </div>
                   </div>

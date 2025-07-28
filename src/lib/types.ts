@@ -103,6 +103,7 @@ export type Sale = {
   creditAmount: number;
   checkNumber?: string;
   paymentStatus: 'paid' | 'partial' | 'pending_check_clearance' | 'rejected';
+  previousBalance?: number;
 };
 
 export type Customer = {
@@ -152,6 +153,7 @@ export type Purchase = {
   creditAmount: number;
   checkNumber?: string;
   paymentStatus: 'paid' | 'partial' | 'pending_check_clearance' | 'rejected';
+  previousBalance?: number;
 }
 
 export type ProductTransaction = {
