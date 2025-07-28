@@ -1,3 +1,4 @@
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1411,8 +1412,8 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
     const { db } = getFirebaseServices();
     try {
-        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
-        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '!=', 'paid'));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
+        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
 
         const [salesSnapshot, purchasesSnapshot] = await Promise.all([
             getDocs(salesQuery),
@@ -1423,13 +1424,15 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let receivablesTotal = 0;
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
+        
+        const allSales = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
+        const pendingSales = allSales.filter(sale => sale.paymentStatus !== 'paid');
 
-        salesSnapshot.forEach(doc => {
-            const sale = doc.data() as Sale;
+        pendingSales.forEach(sale => {
             const creditAmount = sale.creditAmount ?? 0;
             if (creditAmount > 0 || sale.paymentMethod === 'check') {
                 const transaction: MoneyflowTransaction = {
-                    id: doc.id,
+                    id: sale.id,
                     type: 'receivable',
                     partyName: sale.customer_name,
                     partyId: sale.customer_id!,
@@ -1446,12 +1449,14 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
 
-        purchasesSnapshot.forEach(doc => {
-            const purchase = doc.data() as Purchase;
+        const allPurchases = purchasesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase));
+        const pendingPurchases = allPurchases.filter(purchase => purchase.paymentStatus !== 'paid');
+
+        pendingPurchases.forEach(purchase => {
             const creditAmount = purchase.creditAmount ?? 0;
             if (creditAmount > 0 || purchase.paymentMethod === 'check') {
                 const transaction: MoneyflowTransaction = {
-                    id: doc.id,
+                    id: purchase.id,
                     type: 'payable',
                     partyName: purchase.supplier_name,
                     partyId: purchase.supplier_id,
