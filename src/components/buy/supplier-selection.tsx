@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/popover"
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { createSupplier } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Supplier } from '@/lib/types';
@@ -95,7 +94,6 @@ export function SupplierSelection({
              <Command>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList>
-                <ScrollArea className="h-[300px]">
                    <CommandEmpty>No supplier found.</CommandEmpty>
                    <CommandGroup>
                     {suppliers.map((supplier) => (
@@ -114,7 +112,6 @@ export function SupplierSelection({
                       </CommandItem>
                     ))}
                   </CommandGroup>
-                </ScrollArea>
               </CommandList>
             </Command>
           </PopoverContent>

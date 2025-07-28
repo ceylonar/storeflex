@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/popover"
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { createCustomer } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Customer } from '@/lib/types';
@@ -95,7 +94,6 @@ export function CustomerSelection({
              <Command>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList>
-                <ScrollArea className="h-[300px]">
                    <CommandEmpty>No customer found.</CommandEmpty>
                    <CommandGroup>
                     <CommandItem
@@ -123,7 +121,6 @@ export function CustomerSelection({
                       </CommandItem>
                     ))}
                   </CommandGroup>
-                </ScrollArea>
               </CommandList>
             </Command>
           </PopoverContent>
