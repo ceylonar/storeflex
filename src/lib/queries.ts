@@ -493,20 +493,22 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         let customerRef: any = null;
         let customerDoc: any = null;
-        let allSalesForCustomerSnapshot;
+        let allSalesForCustomerDocs: any[] = [];
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
             customerDoc = await transaction.get(customerRef);
             if (!customerDoc.exists()) {
                 throw new Error('Customer not found for balance update.');
             }
+             // If a previous balance is being paid off, get all previous unpaid sales for this customer
             if (saleDetails.previousBalance > 0 && (saleDetails.amountPaid > saleDetails.total_amount)) {
                 const allSalesForCustomerQuery = query(
                     collection(db, 'sales'),
                     where('userId', '==', userId),
-                    where('customer_id', '==', saleDetails.customer_id),
+                    where('customer_id', '==', saleDetails.customer_id)
                 );
-                allSalesForCustomerSnapshot = await getDocs(allSalesForCustomerQuery);
+                const snapshot = await getDocs(allSalesForCustomerQuery);
+                allSalesForCustomerDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
             }
         }
         
@@ -523,9 +525,8 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
         
-        if (allSalesForCustomerSnapshot) {
-            const unpaidSales = allSalesForCustomerSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
-            unpaidSales.forEach(saleDoc => {
+        if (allSalesForCustomerDocs.length > 0) {
+            allSalesForCustomerDocs.forEach(saleDoc => {
                 transaction.update(saleDoc.ref, { paymentStatus: 'paid' });
             });
         }
@@ -842,14 +843,15 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           throw new Error('Supplier not found for balance update.');
       }
       
-      let allPurchasesForSupplierSnapshot;
+      let allPurchasesForSupplierDocs: any[] = [];
       if (purchaseDetails.previousBalance > 0 && (purchaseDetails.amountPaid > purchaseDetails.total_amount)) {
           const allPurchasesForSupplierQuery = query(
               collection(db, 'purchases'),
               where('userId', '==', userId),
-              where('supplier_id', '==', purchaseDetails.supplier_id),
+              where('supplier_id', '==', purchaseDetails.supplier_id)
           );
-          allPurchasesForSupplierSnapshot = await getDocs(allPurchasesForSupplierQuery);
+          const snapshot = await getDocs(allPurchasesForSupplierQuery);
+          allPurchasesForSupplierDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
       }
 
       // --- ALL WRITES HAPPEN AFTER READS ---
@@ -873,9 +875,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         });
       }
       
-      if (allPurchasesForSupplierSnapshot) {
-        const unpaidPurchases = allPurchasesForSupplierSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
-        unpaidPurchases.forEach(purchaseDoc => {
+      if (allPurchasesForSupplierDocs.length > 0) {
+        allPurchasesForSupplierDocs.forEach(purchaseDoc => {
             transaction.update(purchaseDoc.ref, { paymentStatus: 'paid' });
         });
       }
@@ -1116,7 +1117,7 @@ export async function fetchDashboardData() {
         let allActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
-            id: doc.id,
+            id: data.id || doc.id,
             ...data,
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
@@ -1609,4 +1610,5 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
 
