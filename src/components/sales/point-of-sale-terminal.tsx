@@ -58,6 +58,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [serviceCharge, setServiceCharge] = React.useState(0);
   const [lastCompletedSale, setLastCompletedSale] = React.useState<Sale | null>(null);
+  const [lastAddedItemId, setLastAddedItemId] = React.useState<string | null>(null);
 
   // Payment State
   const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'credit' | 'check'>('cash');
@@ -69,6 +70,18 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    if (lastAddedItemId) {
+      const input = document.getElementById(`quantity-${lastAddedItemId}`);
+      if (input) {
+        (input as HTMLInputElement).focus();
+        (input as HTMLInputElement).select();
+      }
+      setLastAddedItemId(null); // Reset after focusing
+    }
+  }, [lastAddedItemId, cart]);
+
 
   const handleCustomerCreated = (newCustomer: Customer) => {
     setCustomers(prev => [newCustomer, ...prev]);
@@ -128,6 +141,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
         stock: product.stock,
       },
     ]);
+    setLastAddedItemId(product.id);
   };
 
   const updateQuantity = (productId: string, newQuantity: number) => {
@@ -383,9 +397,11 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
                             <MinusCircle className="h-4 w-4" />
                           </Button>
                           <Input
+                              id={`quantity-${item.id}`}
                               type="number"
                               value={item.quantity}
                               onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
+                              onFocus={(e) => e.target.select()}
                               className="h-8 w-14 text-center"
                               min="0"
                           />
