@@ -117,7 +117,7 @@ const POSPurchaseSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
-  creditAmount: z.number(), // Can be negative if overpaid
+  creditAmount: z.number(),
   previousBalance: z.number().nonnegative(),
 });
 
@@ -508,7 +508,11 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
                     where('userId', '==', userId),
                     where('customer_id', '==', saleDetails.customer_id),
                 );
-                const allSalesSnapshot = await getDocs(allSalesForCustomerQuery);
+                // Can't do a getDocs in a transaction, so we're simplifying the query
+                // and will filter in memory. This might miss some edge cases if there are many unpaid sales.
+                // A better approach would be to handle settlements in a separate flow.
+                // For now, let's read all sales for this customer.
+                const allSalesSnapshot = await getDocs(allSalesForCustomerQuery); // This is outside transaction
                 const unpaidSales = allSalesSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
                 oldSalesToUpdateRefs = unpaidSales.map(doc => doc.ref);
             }
@@ -849,7 +853,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           const allPurchasesForSupplierQuery = query(
               collection(db, 'purchases'),
               where('userId', '==', userId),
-              where('supplier_id', '==', purchaseDetails.supplier_id)
+              where('supplier_id', '==', purchaseDetails.supplier_id),
           );
           const allPurchasesSnapshot = await getDocs(allPurchasesForSupplierQuery);
           const unpaidPurchases = allPurchasesSnapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
@@ -879,7 +883,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       
       const { creditAmount } = purchaseDetails;
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
-      if (purchaseDetails.paymentMethod === 'credit' && creditAmount < 0) { // Credit to supplier is negative creditAmount
+      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0) { 
           paymentStatus = 'partial';
       } else if (purchaseDetails.paymentMethod === 'check') {
           paymentStatus = 'pending_check_clearance';
@@ -889,8 +893,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           transaction.update(purchaseRef, { paymentStatus: 'paid' });
       });
 
-      const newBalance = purchaseDetails.previousBalance - purchaseDetails.total_amount + purchaseDetails.amountPaid;
-      transaction.update(supplierRef, { credit_balance: -newBalance }); // We store our debt as negative
+      const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
+      transaction.update(supplierRef, { credit_balance: newBalance });
       
       const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
       const formattedId = `pur${String(nextId).padStart(6, '0')}`;
@@ -930,7 +934,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
 
     const { creditAmount } = validatedFields.data;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
-    if (validatedFields.data.paymentMethod === 'credit' && creditAmount < 0) {
+    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';
@@ -1610,3 +1614,4 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+

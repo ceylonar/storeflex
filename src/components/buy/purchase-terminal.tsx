@@ -105,13 +105,14 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
   
   const previousBalance = selectedSupplier?.credit_balance || 0;
-  const totalPayable = Math.max(0, totalCost - previousBalance);
+  const totalPayable = previousBalance + totalCost;
 
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
       setAmountPaid(totalPayable);
     } else if (paymentMethod === 'credit') {
-      setAmountPaid(0);
+        // When switching to credit, keep amount paid if user typed it, otherwise set to 0
+        setAmountPaid(amount => amount > 0 ? amount : 0);
     }
   }, [totalPayable, paymentMethod]);
 
@@ -128,7 +129,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
 
     setIsSubmitting(true);
     try {
-        const finalCreditAmount = (previousBalance - totalCost) + amountPaid;
+        const finalCreditAmount = totalPayable - amountPaid;
         const purchaseData = {
             items: cart,
             supplier_id: selectedSupplier.id,
@@ -185,7 +186,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     );
   }
 
-  const finalCreditAmount = (previousBalance - totalCost) + amountPaid;
+  const newCreditFromSupplier = Math.max(0, totalPayable - amountPaid);
 
   return (
     <>
@@ -326,8 +327,8 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                       <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Purchase Total</span><span>LKR {totalCost.toFixed(2)}</span></div>
                       {previousBalance > 0 && (
                         <div className="flex justify-between font-semibold">
-                            <span className="text-muted-foreground">Supplier Credit</span>
-                            <span className="text-green-600 dark:text-green-500">- LKR {previousBalance.toFixed(2)}</span>
+                            <span className="text-muted-foreground">Previous Balance Due</span>
+                            <span className="text-destructive">LKR {previousBalance.toFixed(2)}</span>
                         </div>
                       )}
                       <Separator />
@@ -345,7 +346,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                         {paymentMethod === 'credit' ? (
                             <div className="grid grid-cols-2 gap-4">
                                 <div><Label htmlFor="pur-amountPaid">Amount Paid</Label><Input id="pur-amountPaid" type="number" value={amountPaid} onChange={(e) => setAmountPaid(Number(e.target.value))} /></div>
-                                <div><Label htmlFor="pur-creditAmount">New Credit from Supplier</Label><Input id="pur-creditAmount" type="number" readOnly value={Math.max(0, -finalCreditAmount).toFixed(2)} className={cn((-finalCreditAmount) > 0 && "text-green-600 font-bold")} /></div>
+                                <div><Label htmlFor="pur-creditAmount">New Credit from Supplier</Label><Input id="pur-creditAmount" type="number" readOnly value={newCreditFromSupplier.toFixed(2)} className={cn(newCreditFromSupplier > 0 && "text-green-600 font-bold")} /></div>
                             </div>
                         ) : paymentMethod === 'cash' ? (
                            <div className="grid grid-cols-2 gap-4">
