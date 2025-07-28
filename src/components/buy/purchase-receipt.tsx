@@ -107,24 +107,29 @@ export function PurchaseReceipt({ purchase, onNewPurchase }: PurchaseReceiptProp
           <div className="flex justify-between"><span>Discount</span> <span>- {purchase.discount_amount.toFixed(2)}</span></div>
         </div>
 
-         <Separator className="my-2 border-dashed" />
+        <Separator className="my-2 border-dashed" />
+        
+        {(purchase.previousBalance || 0) > 0 && (
+          <>
+            <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
+                <div className="flex justify-between"><span>Purchase Total</span> <span>{purchase.total_amount.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span>Prev. Balance</span> <span>{(purchase.previousBalance || 0).toFixed(2)}</span></div>
+            </div>
+            <Separator className="my-2 border-dashed" />
+          </>
+        )}
 
         <div className="flex justify-between font-bold text-base">
-          <span>TOTAL COST</span>
-          <span>LKR {purchase.total_amount.toFixed(2)}</span>
+          <span>TOTAL PAYABLE</span>
+          <span>LKR {((purchase.previousBalance || 0) + purchase.total_amount).toFixed(2)}</span>
         </div>
         
-        {(purchase.paymentMethod === 'credit' || purchase.paymentMethod === 'check') && (
-            <>
-                <Separator className="my-2 border-dashed" />
-                <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
-                    <div className="flex justify-between"><span>Paid</span> <span>{purchase.amountPaid.toFixed(2)}</span></div>
-                    {purchase.paymentMethod === 'credit' && (
-                        <div className="flex justify-between font-bold"><span>Credit</span> <span>{purchase.creditAmount.toFixed(2)}</span></div>
-                    )}
-                </div>
-            </>
-        )}
+        <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
+          <div className="flex justify-between"><span>Paid Amount</span> <span>{(purchase.amountPaid || 0).toFixed(2)}</span></div>
+            {(purchase.creditAmount || 0) > 0 && (
+              <div className="flex justify-between font-bold"><span>New Credit</span> <span>{(purchase.creditAmount || 0).toFixed(2)}</span></div>
+            )}
+        </div>
 
         <Separator className="my-2 border-dashed" />
 
