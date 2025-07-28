@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -538,7 +539,13 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         if (saleDetails.customer_id) {
             const customerRef = doc(db, 'customers', saleDetails.customer_id);
-            transaction.update(customerRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
+            const customerDoc = await transaction.get(customerRef);
+            if (!customerDoc.exists()) {
+                throw new Error('Customer not found for balance update.');
+            }
+            const currentBalance = customerDoc.data().credit_balance || 0;
+            const newBalance = (currentBalance + saleDetails.total_amount) - saleDetails.amountPaid;
+            transaction.update(customerRef, { credit_balance: newBalance > 0 ? newBalance : 0 });
         }
 
         const newSaleRef = doc(db, 'sales', formattedId);
@@ -894,8 +901,14 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       }
 
       if (purchaseDetails.supplier_id) {
-          const supplierRef = doc(db, 'suppliers', purchaseDetails.supplier_id);
-          transaction.update(supplierRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
+        const supplierRef = doc(db, 'suppliers', purchaseDetails.supplier_id);
+        const supplierDoc = await transaction.get(supplierRef);
+        if (!supplierDoc.exists()) {
+            throw new Error('Supplier not found for balance update.');
+        }
+        const currentBalance = supplierDoc.data().credit_balance || 0;
+        const newBalance = (currentBalance + purchaseDetails.total_amount) - purchaseDetails.amountPaid;
+        transaction.update(supplierRef, { credit_balance: newBalance > 0 ? newBalance : 0 });
       }
 
       const newPurchaseRef = doc(db, 'purchases', formattedId);
