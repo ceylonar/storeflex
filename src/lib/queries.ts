@@ -25,7 +25,7 @@ import {
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, MoneyflowTransaction } from './types';
 import { z } from 'zod';
-import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays } from 'date-fns';
+import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 
 
@@ -598,6 +598,8 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         stock: data.stock as number,
         image: data.image as string || '',
         category: data.category as string,
+        brand: data.brand as string | undefined,
+        sub_category: data.sub_category as string | undefined,
       }
     });
     return products.sort((a,b) => a.name.localeCompare(b.name));
@@ -1395,7 +1397,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
         salesDocs.forEach(doc => {
             const sale = doc.data() as Sale;
-            const creditAmount = sale.creditAmount || 0;
+            const creditAmount = sale.creditAmount ?? 0;
             if (creditAmount > 0 || sale.paymentMethod === 'check') {
                 const transaction: MoneyflowTransaction = {
                     id: doc.id,
@@ -1417,7 +1419,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
         purchasesDocs.forEach(doc => {
             const purchase = doc.data() as Purchase;
-            const creditAmount = purchase.creditAmount || 0;
+            const creditAmount = purchase.creditAmount ?? 0;
             if (creditAmount > 0 || purchase.paymentMethod === 'check') {
                 const transaction: MoneyflowTransaction = {
                     id: doc.id,

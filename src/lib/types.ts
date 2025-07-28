@@ -41,6 +41,8 @@ export type ProductSelect = {
   image?: string;
   stock: number;
   category: string;
+  brand?: string;
+  sub_category?: string;
 }
 
 export type RecentActivity = {

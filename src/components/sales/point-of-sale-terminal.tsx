@@ -74,11 +74,20 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   };
 
   const filteredAndGroupedProducts = React.useMemo(() => {
-    const filtered = products.filter(
-      (product) =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !cart.some((item) => item.id === product.id)
-    );
+    const lowercasedTerm = searchTerm.toLowerCase();
+    const filtered = products.filter((product) => {
+        const inCart = cart.some((item) => item.id === product.id);
+        if (inCart) return false;
+
+        if (searchTerm === '') return true;
+
+        return (
+            product.name.toLowerCase().includes(lowercasedTerm) ||
+            (product.brand && product.brand.toLowerCase().includes(lowercasedTerm)) ||
+            (product.category && product.category.toLowerCase().includes(lowercasedTerm)) ||
+            (product.sub_category && product.sub_category.toLowerCase().includes(lowercasedTerm))
+        );
+    });
 
     return filtered.reduce((acc, product) => {
       const category = product.category || 'Uncategorized';
@@ -261,7 +270,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search for products..."
+                placeholder="Search by name, brand, category..."
                 className="w-full pl-8 sm:w-80"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
