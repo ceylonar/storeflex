@@ -165,9 +165,9 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
                                     <div className="flex justify-between border-t pt-2 font-bold"><span >Total Cost</span><span>LKR {(purchase.total_amount || 0).toFixed(2)}</span></div>
                                     <Separator className="my-1" />
                                     <div className="flex justify-between"><span className="text-muted-foreground">Payment Method</span><span className="capitalize">{purchase.paymentMethod}</span></div>
-                                    <div className="flex justify-between"><span className="text-muted-foreground">Amount Paid</span><span>LKR {purchase.amountPaid.toFixed(2)}</span></div>
-                                    {purchase.creditAmount > 0 && (
-                                        <div className="flex justify-between font-semibold text-green-600"><span >Credit Received</span><span>LKR {purchase.creditAmount.toFixed(2)}</span></div>
+                                    <div className="flex justify-between"><span className="text-muted-foreground">Amount Paid</span><span>LKR {(purchase.amountPaid || 0).toFixed(2)}</span></div>
+                                    {(purchase.creditAmount || 0) > 0 && (
+                                        <div className="flex justify-between font-semibold text-green-600"><span >Credit Received</span><span>LKR {(purchase.creditAmount || 0).toFixed(2)}</span></div>
                                     )}
                                 </div>
                            </div>
