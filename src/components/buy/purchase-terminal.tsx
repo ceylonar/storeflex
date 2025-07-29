@@ -104,8 +104,8 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const taxAmount = subtotal * (taxPercentage / 100);
   const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
   
-  const previousBalance = Math.abs(selectedSupplier?.credit_balance || 0);
-  const totalPayable = previousBalance + totalCost;
+  const previousBalanceDue = Math.abs(selectedSupplier?.credit_balance || 0);
+  const totalPayable = previousBalanceDue + totalCost;
   const newBalanceDue = Math.max(0, totalPayable - amountPaid);
   
   React.useEffect(() => {
@@ -331,10 +331,10 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                        <div className="flex items-center justify-between gap-2"><Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
                       <Separator />
                       <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Purchase Total</span><span>LKR {totalCost.toFixed(2)}</span></div>
-                      {previousBalance > 0 && (
+                      {previousBalanceDue > 0 && (
                         <div className="flex justify-between font-semibold">
                             <span className="text-muted-foreground">Previous Balance Due</span>
-                            <span className="text-destructive">LKR {previousBalance.toFixed(2)}</span>
+                            <span className="text-destructive">LKR {previousBalanceDue.toFixed(2)}</span>
                         </div>
                       )}
                       <Separator />

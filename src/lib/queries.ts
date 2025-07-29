@@ -801,7 +801,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     throw new Error('Invalid purchase data.');
   }
   
-  const { items, previousBalance, total_amount, amountPaid, ...purchaseDetails } = validatedFields.data;
+  const { items, total_amount, amountPaid, ...purchaseDetails } = validatedFields.data;
   
   try {
     const purchaseId = await runTransaction(db, async (transaction) => {
@@ -820,6 +820,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const supplierDoc = await transaction.get(supplierRef);
       if (!supplierDoc.exists()) throw new Error('Supplier not found.');
       
+      const previousBalance = supplierDoc.data().credit_balance || 0;
+
       for (const { ref: productRef, doc: productDoc, item } of productRefsAndData) {
         if (!productDoc.exists()) throw new Error(`Product ${item.name} not found.`);
         
@@ -835,7 +837,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         transaction.update(productRef, { stock: increment(item.quantity), cost_price: newAverageCost });
       }
       
-      const newBalance = (previousBalance || 0) + total_amount - amountPaid;
+      const newBalance = previousBalance + total_amount - amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
       const settlementAmount = amountPaid - total_amount;
@@ -895,8 +897,10 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
-
-    const newBalance = (previousBalance || 0) + total_amount - amountPaid;
+    
+    const supplierDoc = await getDoc(doc(db, 'suppliers', purchaseDetails.supplier_id));
+    const previousBalance = supplierDoc.data()?.credit_balance || 0;
+    const newBalance = previousBalance + total_amount - amountPaid;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && newBalance > 0.001) {
         paymentStatus = 'partial';
