@@ -169,8 +169,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
     // Clear search and focus for next item
     setSearchTerm('');
-    searchInputRef.current?.focus();
-
+    
   }, [cart, toast, updateQuantity]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
@@ -341,7 +340,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
   const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
         e.preventDefault();
-        searchInputRef.current?.focus();
     }
   };
 
@@ -574,4 +572,5 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
 
     
+
 
