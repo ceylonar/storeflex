@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import {
@@ -29,6 +28,26 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { useEffect, useState, useTransition } from 'react';
 import { fetchSalesData } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
+
+function ActivityTime({ timestamp }: { timestamp: string }) {
+  const [timeAgo, setTimeAgo] = useState('');
+
+  useEffect(() => {
+    if (timestamp && !isNaN(new Date(timestamp).getTime())) {
+      try {
+        setTimeAgo(formatDistanceToNow(new Date(timestamp), { addSuffix: true }));
+      } catch (error) {
+        console.error("Error formatting date:", error);
+        setTimeAgo("Invalid date");
+      }
+    } else {
+        setTimeAgo("A while ago");
+    }
+  }, [timestamp]);
+
+  return <>{timeAgo || '...'}</>;
+}
+
 
 const icons = {
   DollarSign,
@@ -234,24 +253,6 @@ export function LowStockCard({ products }: { products: Product[] }) {
   );
 }
 
-function ActivityTime({ timestamp }: { timestamp: string }) {
-  const [timeAgo, setTimeAgo] = useState('');
-
-  useEffect(() => {
-    if (timestamp && !isNaN(new Date(timestamp).getTime())) {
-      try {
-        setTimeAgo(formatDistanceToNow(new Date(timestamp), { addSuffix: true }));
-      } catch (error) {
-        console.error("Error formatting date:", error);
-        setTimeAgo("Invalid date");
-      }
-    } else {
-        setTimeAgo("A while ago");
-    }
-  }, [timestamp]);
-
-  return <>{timeAgo || '...'}</>;
-}
 
 export function RecentActivityCard({ activities }: { activities: RecentActivity[] }) {
   return (

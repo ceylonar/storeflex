@@ -493,24 +493,12 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         let customerRef: any = null;
         let customerDoc: any = null;
-        let allPendingSalesForCustomerDocs: any[] = [];
         
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
             customerDoc = await transaction.get(customerRef);
             if (!customerDoc.exists()) {
                 throw new Error('Customer not found for balance update.');
-            }
-             
-            if (saleDetails.previousBalance > 0 && (saleDetails.amountPaid > saleDetails.total_amount)) {
-                const allSalesForCustomerQuery = query(
-                    collection(db, 'sales'),
-                    where('userId', '==', userId),
-                    where('customer_id', '==', saleDetails.customer_id)
-                );
-                // We fetch outside the transaction then filter, to avoid complex query index requirement
-                const snapshot = await getDocs(allSalesForCustomerQuery); 
-                allPendingSalesForCustomerDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
             }
         }
         
@@ -527,11 +515,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
         
-        if (allPendingSalesForCustomerDocs.length > 0) {
-            allPendingSalesForCustomerDocs.forEach(saleDoc => {
-                transaction.update(saleDoc.ref, { paymentStatus: 'paid' });
-            });
-        }
 
         if (customerDoc && customerRef) {
             const newBalance = saleDetails.previousBalance + saleDetails.total_amount - saleDetails.amountPaid;
@@ -846,17 +829,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           throw new Error('Supplier not found for balance update.');
       }
       
-      let allPendingPurchasesForSupplierDocs: any[] = [];
-      if (purchaseDetails.previousBalance > 0 && (purchaseDetails.amountPaid > purchaseDetails.total_amount)) {
-          const allPurchasesForSupplierQuery = query(
-              collection(db, 'purchases'),
-              where('userId', '==', userId),
-              where('supplier_id', '==', purchaseDetails.supplier_id)
-          );
-          const snapshot = await getDocs(allPurchasesForSupplierQuery);
-          allPendingPurchasesForSupplierDocs = snapshot.docs.filter(doc => doc.data().paymentStatus !== 'paid');
-      }
-
       // --- ALL WRITES HAPPEN AFTER READS ---
       for (const { ref: productRef, doc: productDoc, item } of productRefsAndData) {
         if (!productDoc.exists()) {
@@ -878,12 +850,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         });
       }
       
-      if (allPendingPurchasesForSupplierDocs.length > 0) {
-        allPendingPurchasesForSupplierDocs.forEach(purchaseDoc => {
-            transaction.update(purchaseDoc.ref, { paymentStatus: 'paid' });
-        });
-      }
-
       const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
 
@@ -1638,5 +1604,6 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
 
 
