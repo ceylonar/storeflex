@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -46,7 +45,7 @@ const ProductSchema = z.object({
   category: z.string().min(1, 'Category is required'),
   sub_category: z.string().optional(),
   brand: z.string().optional(),
-  stock: z.coerce.number().int().nonnegative('Stock must be a non-negative number'),
+  stock: z.coerce.number().int().nonnegative('Stock must be a non-negative number').optional().default(0),
   cost_price: z.coerce.number().positive('Cost price must be positive'),
   selling_price: z.coerce.number().positive('Selling price must be positive'),
   image: z.string().url('Must be a valid image URL').optional().or(z.literal('')),
@@ -1531,6 +1530,8 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
+    
 
     
 
