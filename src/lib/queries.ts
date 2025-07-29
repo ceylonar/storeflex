@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -116,7 +115,6 @@ const POSPurchaseSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional().default(''),
-  previousBalance: z.number(),
 });
 
 const ProfileSchema = z.object({
@@ -505,14 +503,15 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
         
-        const creditAmount = (previousBalance + total_amount) - amountPaid;
+        const newTotalDue = previousBalance + total_amount;
+        const newCreditBalance = newTotalDue - amountPaid;
 
         if (customerRef) {
-            transaction.update(customerRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
+            transaction.update(customerRef, { credit_balance: newCreditBalance > 0 ? newCreditBalance : 0 });
         }
 
         let paymentStatus: Sale['paymentStatus'] = 'paid';
-        if (saleDetails.paymentMethod === 'credit' && creditAmount > 0.001) {
+        if (saleDetails.paymentMethod === 'credit' && newCreditBalance > 0.001) {
             paymentStatus = 'partial';
         } else if (saleDetails.paymentMethod === 'check') {
             paymentStatus = 'pending_check_clearance';
@@ -531,7 +530,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             total_amount,
             amountPaid,
             previousBalance,
-            creditAmount,
+            creditAmount: newCreditBalance,
             paymentStatus,
             sale_date: serverTimestamp(),
         });
@@ -820,6 +819,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const supplierDoc = await transaction.get(supplierRef);
       if (!supplierDoc.exists()) throw new Error('Supplier not found.');
       
+      // This is the balance BEFORE this transaction
       const previousBalance = supplierDoc.data().credit_balance || 0;
 
       for (const { ref: productRef, doc: productDoc, item } of productRefsAndData) {
@@ -837,9 +837,11 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         transaction.update(productRef, { stock: increment(item.quantity), cost_price: newAverageCost });
       }
       
-      const newBalance = previousBalance + total_amount - amountPaid;
+      const newTotalDue = previousBalance + total_amount;
+      const newBalance = newTotalDue - amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
+      // Check if this payment settles a previous debt
       const settlementAmount = amountPaid - total_amount;
       if (settlementAmount > 0.001) {
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
@@ -898,9 +900,11 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
     
+    // For returning the object to the client
     const supplierDoc = await getDoc(doc(db, 'suppliers', purchaseDetails.supplier_id));
-    const previousBalance = supplierDoc.data()?.credit_balance || 0;
-    const newBalance = previousBalance + total_amount - amountPaid;
+    const previousBalance = supplierDoc.data()?.credit_balance || 0; // Re-fetch to be sure, though it's already updated.
+    const newBalance = (supplierDoc.data()?.credit_balance || 0);
+
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && newBalance > 0.001) {
         paymentStatus = 'partial';
@@ -916,8 +920,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         ...purchaseDetails,
         total_amount,
         amountPaid,
-        previousBalance,
-        creditAmount: newBalance,
+        previousBalance: previousBalance, // The balance before this transaction
+        creditAmount: newBalance, // The final balance after this transaction
         purchase_date: new Date().toISOString(),
         paymentStatus,
     };
@@ -1355,7 +1359,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let receivablesTotal = 0;
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
-
+        
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
@@ -1457,7 +1461,9 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                     details = `Check from ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
 
-                if (status === 'paid') t.update(partyRef, { credit_balance: increment(-settlementAmount) });
+                if (status === 'paid') {
+                   t.update(partyRef, { credit_balance: increment(-settlementAmount) });
+                }
                 
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
 
@@ -1472,7 +1478,9 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                     details = `Check to ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
 
-                if (status === 'paid') t.update(partyRef, { credit_balance: increment(-settlementAmount) });
+                if (status === 'paid') {
+                  t.update(partyRef, { credit_balance: increment(-settlementAmount) });
+                }
 
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
             }
