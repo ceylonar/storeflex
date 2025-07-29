@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -22,9 +21,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { createSale } from '@/lib/queries';
+import { createSale, fetchProducts } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductSelect, SaleItem, Customer, Sale } from '@/lib/types';
+import type { ProductSelect, SaleItem, Customer, Sale, Product } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, FileText, Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { CustomerSelection } from './customer-selection';
@@ -48,11 +47,12 @@ type GroupedProducts = {
   };
 };
 
-export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
+export function PointOfSaleTerminal({ products: initialProducts, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<SaleItem[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
+  const [products, setProducts] = React.useState<ProductSelect[]>(initialProducts);
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [taxPercentage, setTaxPercentage] = React.useState(0);
@@ -67,6 +67,10 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
   const [checkNumber, setCheckNumber] = React.useState('');
 
   const { toast } = useToast();
+  
+  // For hardware scanner input
+  const barcodeChars = React.useRef<string[]>([]);
+  const lastKeystrokeTime = React.useRef<number>(0);
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -88,6 +92,92 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     setCustomers(prev => [newCustomer, ...prev]);
     setSelectedCustomer(newCustomer);
   };
+  
+    const addToCart = React.useCallback((product: ProductSelect) => {
+    if (product.stock <= 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Out of Stock',
+        description: `${product.name} is currently out of stock.`,
+      });
+      return;
+    }
+    
+    // Check if item is already in cart
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+        updateQuantity(product.id, existingItem.quantity + 1);
+        return;
+    }
+
+    setCart((prevCart) => [
+      ...prevCart,
+      {
+        id: product.id,
+        name: product.name,
+        image: product.image,
+        quantity: 1,
+        price_per_unit: product.selling_price,
+        total_amount: product.selling_price,
+        stock: product.stock,
+      },
+    ]);
+    setLastAddedItemId(product.id);
+  }, [cart, toast]);
+
+    const handleBarcodeScan = React.useCallback((barcode: string) => {
+        const product = products.find(p => p.barcode === barcode);
+        if (product) {
+            addToCart(product);
+            toast({
+                title: 'Product Added',
+                description: `${product.name} has been added to the bill.`,
+            });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: 'Product Not Found',
+                description: `No product found with barcode: ${barcode}`,
+            });
+        }
+    }, [products, addToCart, toast]);
+
+
+  // Effect for hardware barcode scanner
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input field
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      const currentTime = new Date().getTime();
+      
+      // If there's a long pause, clear the buffer
+      if (currentTime - lastKeystrokeTime.current > 100) {
+        barcodeChars.current = [];
+      }
+      
+      if (e.key === 'Enter') {
+        if (barcodeChars.current.length > 5) { // Typical barcodes are longer
+          handleBarcodeScan(barcodeChars.current.join(''));
+        }
+        barcodeChars.current = []; // Clear buffer after Enter
+      } else {
+        if(e.key.length === 1) barcodeChars.current.push(e.key);
+      }
+      
+      lastKeystrokeTime.current = currentTime;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleBarcodeScan]);
+
 
   const filteredAndGroupedProducts = React.useMemo(() => {
     const lowercasedTerm = searchTerm.toLowerCase();
@@ -101,7 +191,8 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             product.name.toLowerCase().includes(lowercasedTerm) ||
             (product.brand && product.brand.toLowerCase().includes(lowercasedTerm)) ||
             (product.category && product.category.toLowerCase().includes(lowercasedTerm)) ||
-            (product.sub_category && product.sub_category.toLowerCase().includes(lowercasedTerm))
+            (product.sub_category && product.sub_category.toLowerCase().includes(lowercasedTerm)) ||
+            (product.barcode && product.barcode.includes(lowercasedTerm))
         );
     });
 
@@ -120,30 +211,6 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     }, {} as GroupedProducts);
 
   }, [products, searchTerm, cart]);
-
-  const addToCart = (product: ProductSelect) => {
-    if (product.stock <= 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Out of Stock',
-        description: `${product.name} is currently out of stock.`,
-      });
-      return;
-    }
-    setCart((prevCart) => [
-      ...prevCart,
-      {
-        id: product.id,
-        name: product.name,
-        image: product.image,
-        quantity: 1,
-        price_per_unit: product.selling_price,
-        total_amount: product.selling_price,
-        stock: product.stock,
-      },
-    ]);
-    setLastAddedItemId(product.id);
-  };
 
   const updateQuantity = (productId: string, newQuantity: number) => {
     const itemInCart = cart.find(item => item.id === productId);
@@ -258,7 +325,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     }
   };
 
-  const handleStartNewSale = () => {
+  const handleStartNewSale = React.useCallback(async () => {
     setLastCompletedSale(null);
     setCart([]);
     setSelectedCustomer(null);
@@ -268,7 +335,10 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     setPaymentMethod('cash');
     setAmountPaid(0);
     setCheckNumber('');
-  }
+    // Re-fetch products to get updated stock levels
+    const updatedProducts = await fetchProducts();
+    setProducts(updatedProducts);
+  }, []);
 
   if (!isMounted) {
     return (
@@ -298,7 +368,7 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name, brand, category..."
+                placeholder="Search or scan product barcode..."
                 className="w-full pl-8 sm:w-80"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -489,3 +559,5 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     </>
   );
 }
+
+      

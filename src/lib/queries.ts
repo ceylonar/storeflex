@@ -612,6 +612,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
         category: data.category as string,
         brand: data.brand as string | undefined,
         sub_category: data.sub_category as string | undefined,
+        barcode: data.barcode as string | undefined,
       }
     });
     return products.sort((a,b) => a.name.localeCompare(b.name));
@@ -1605,5 +1606,4 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
     }
 }
 
-
-
+      

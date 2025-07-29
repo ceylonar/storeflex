@@ -44,6 +44,7 @@ export type ProductSelect = {
   category: string;
   brand?: string;
   sub_category?: string;
+  barcode?: string;
 }
 
 export type RecentActivity = {
@@ -175,3 +176,5 @@ export type MoneyflowTransaction = {
     date: string; // ISO String
     checkNumber?: string;
 };
+
+      
