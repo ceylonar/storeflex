@@ -384,7 +384,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
         const customersCollection = collection(db, 'customers');
         const q = query(customersCollection, where('userId', '==', userId));
         const snapshot = await getDocs(q);
-        const customers = snapshot.docs.map(doc => {
+        let customers = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -712,7 +712,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
         const suppliersCollection = collection(db, 'suppliers');
         const q = query(suppliersCollection, where('userId', '==', userId));
         const snapshot = await getDocs(q);
-        const suppliers = snapshot.docs.map(doc => {
+        let suppliers = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,

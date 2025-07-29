@@ -146,7 +146,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             paymentMethod,
             amountPaid,
             checkNumber: paymentMethod === 'check' ? checkNumber : '',
-            previousBalance: selectedSupplier?.credit_balance || 0
+            previousBalance: selectedSupplier?.credit_balance || 0,
         };
       const completedPurchase = await createPurchase(purchaseData);
 
@@ -378,5 +378,3 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     </>
   );
 }
-
-
