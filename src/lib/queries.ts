@@ -1433,6 +1433,18 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     amount: balance,
                     date: (supplier.updated_at || supplier.created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
+            } else if (balance < 0) {
+                // If supplier has a negative balance, it means they owe us money (a receivable)
+                receivablesTotal += Math.abs(balance);
+                transactions.push({
+                    id: `supplier-${doc.id}`,
+                    type: 'receivable',
+                    partyName: supplier.name,
+                    partyId: doc.id,
+                    paymentMethod: 'credit',
+                    amount: Math.abs(balance),
+                    date: (supplier.updated_at || supplier.created_at)?.toDate().toISOString() || new Date().toISOString(),
+                });
             }
         });
         
