@@ -104,7 +104,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const taxAmount = subtotal * (taxPercentage / 100);
   const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
   
-  const previousBalance = selectedSupplier?.credit_balance || 0;
+  const previousBalance = Math.abs(selectedSupplier?.credit_balance || 0);
   const totalPayable = previousBalance + totalCost;
   const newBalanceDue = Math.max(0, totalPayable - amountPaid);
   
@@ -133,7 +133,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
 
     setIsSubmitting(true);
     try {
-        const creditAmount = totalPayable - amountPaid;
         const purchaseData = {
             items: cart,
             supplier_id: selectedSupplier.id,
@@ -147,8 +146,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             paymentMethod,
             amountPaid,
             checkNumber: paymentMethod === 'check' ? checkNumber : '',
-            creditAmount: creditAmount,
-            previousBalance
+            previousBalance: selectedSupplier?.credit_balance || 0
         };
       const completedPurchase = await createPurchase(purchaseData);
 
@@ -380,4 +378,5 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     </>
   );
 }
+
 

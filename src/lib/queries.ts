@@ -91,7 +91,6 @@ const POSSaleSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
-  creditAmount: z.number(), // The final, calculated credit amount
   previousBalance: z.number().nonnegative(),
 });
 
@@ -117,8 +116,7 @@ const POSPurchaseSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional().default(''),
-  creditAmount: z.number(),
-  previousBalance: z.number().nonnegative(),
+  previousBalance: z.number(),
 });
 
 const ProfileSchema = z.object({
@@ -385,8 +383,8 @@ export async function fetchCustomers(): Promise<Customer[]> {
     try {
         const customersCollection = collection(db, 'customers');
         const q = query(customersCollection, where('userId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        const customers = querySnapshot.docs.map(doc => {
+        const snapshot = await getDocs(q);
+        const customers = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -475,13 +473,12 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     throw new Error('Invalid sale data.');
   }
   
-  const { items, ...saleDetails } = validatedFields.data;
+  const { items, previousBalance, total_amount, amountPaid, ...saleDetails } = validatedFields.data;
   
   try {
     const saleId = await runTransaction(db, async (transaction) => {
         const itemIds = items.map(item => item.id);
 
-        // --- ALL READS MUST HAPPEN FIRST ---
         const productRefsAndData = await Promise.all(items.map(async (item) => {
             const productRef = doc(db, 'products', item.id);
             const productDoc = await transaction.get(productRef);
@@ -492,36 +489,28 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         const counterDoc = await transaction.get(counterRef);
 
         let customerRef: any = null;
-        let customerDoc: any = null;
-        
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
-            customerDoc = await transaction.get(customerRef);
-            if (!customerDoc.exists()) {
-                throw new Error('Customer not found for balance update.');
-            }
+            const customerDoc = await transaction.get(customerRef);
+            if (!customerDoc.exists()) throw new Error('Customer not found for balance update.');
         }
         
-        // --- ALL WRITES HAPPEN AFTER READS ---
         for (const { doc: productDoc, ref: productRef } of productRefsAndData) {
             const item = items.find(i => i.id === productDoc.id)!;
-            if (!productDoc.exists() || productDoc.data().userId !== userId) {
-                throw new Error(`Product "${item.name}" not found or access denied.`);
-            }
+            if (!productDoc.exists() || productDoc.data().userId !== userId) throw new Error(`Product "${item.name}" not found or access denied.`);
+            
             const currentStock = productDoc.data().stock || 0;
-            if (currentStock < item.quantity) {
-                throw new Error(`Not enough stock for ${item.name}. Only ${currentStock} available.`);
-            }
+            if (currentStock < item.quantity) throw new Error(`Not enough stock for ${item.name}. Only ${currentStock} available.`);
+            
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
         
+        const creditAmount = (previousBalance + total_amount) - amountPaid;
 
-        if (customerDoc && customerRef) {
-            const newBalance = saleDetails.previousBalance + saleDetails.total_amount - saleDetails.amountPaid;
-            transaction.update(customerRef, { credit_balance: newBalance });
+        if (customerRef) {
+            transaction.update(customerRef, { credit_balance: creditAmount > 0 ? creditAmount : 0 });
         }
 
-        const { creditAmount } = saleDetails;
         let paymentStatus: Sale['paymentStatus'] = 'paid';
         if (saleDetails.paymentMethod === 'credit' && creditAmount > 0.001) {
             paymentStatus = 'partial';
@@ -539,6 +528,10 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             items: itemsToSave,
             item_ids: itemIds,
             ...saleDetails,
+            total_amount,
+            amountPaid,
+            previousBalance,
+            creditAmount,
             paymentStatus,
             sale_date: serverTimestamp(),
         });
@@ -551,7 +544,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             product_id: 'multiple',
             product_name: `${items.length} item(s)`,
             product_image: items[0]?.image || '',
-            details: `Sale to ${saleDetails.customer_name} for LKR ${saleDetails.total_amount.toFixed(2)}`,
+            details: `Sale to ${saleDetails.customer_name} for LKR ${total_amount.toFixed(2)}`,
             timestamp: serverTimestamp(),
             userId,
             id: newSaleRef.id,
@@ -565,25 +558,29 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/customers');
     revalidatePath('/dashboard/moneyflow');
-
-    const itemsToReturn = items.map(({stock, ...rest}) => rest);
-    const { creditAmount } = validatedFields.data;
+    
+    const finalCreditAmount = (previousBalance + total_amount) - amountPaid;
     let paymentStatus: Sale['paymentStatus'] = 'paid';
-    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0.001) {
+    if (validatedFields.data.paymentMethod === 'credit' && finalCreditAmount > 0.001) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';
     }
-    
-    return {
+
+    const returnedSale: Sale = {
         id: saleId,
         userId,
-        items: itemsToReturn,
+        items: items.map(({stock, ...rest}) => rest),
         item_ids: items.map(i => i.id),
-        ...validatedFields.data,
-        paymentStatus: paymentStatus,
+        ...saleDetails,
+        total_amount,
+        amountPaid,
+        previousBalance,
+        creditAmount: finalCreditAmount,
+        paymentStatus,
         sale_date: new Date().toISOString(),
-    };
+    }
+    return returnedSale;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error((error as Error).message || 'Failed to record sale.');
@@ -630,11 +627,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
     const { db } = getFirebaseServices();
     try {
         const salesCollection = collection(db, 'sales');
-        const q = query(
-            salesCollection, 
-            where('userId', '==', userId), 
-            where('customer_id', '==', customerId)
-        );
+        const q = query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -718,8 +711,8 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     try {
         const suppliersCollection = collection(db, 'suppliers');
         const q = query(suppliersCollection, where('userId', '==', userId));
-        const querySnapshot = await getDocs(q);
-        const suppliers = querySnapshot.docs.map(doc => {
+        const snapshot = await getDocs(q);
+        const suppliers = snapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -808,7 +801,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     throw new Error('Invalid purchase data.');
   }
   
-  const { items, ...purchaseDetails } = validatedFields.data;
+  const { items, previousBalance, total_amount, amountPaid, ...purchaseDetails } = validatedFields.data;
   
   try {
     const purchaseId = await runTransaction(db, async (transaction) => {
@@ -825,14 +818,10 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       
       const supplierRef = doc(db, 'suppliers', purchaseDetails.supplier_id);
       const supplierDoc = await transaction.get(supplierRef);
-      if (!supplierDoc.exists()) {
-          throw new Error('Supplier not found for balance update.');
-      }
+      if (!supplierDoc.exists()) throw new Error('Supplier not found.');
       
       for (const { ref: productRef, doc: productDoc, item } of productRefsAndData) {
-        if (!productDoc.exists()) {
-          throw new Error(`Product ${item.name} not found.`);
-        }
+        if (!productDoc.exists()) throw new Error(`Product ${item.name} not found.`);
         
         const product = productDoc.data() as Product;
         const currentStock = product.stock || 0;
@@ -843,16 +832,13 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         const newTotalStock = currentStock + item.quantity;
         const newAverageCost = newTotalStock > 0 ? (currentTotalValue + purchaseTotalValue) / newTotalStock : item.cost_price;
 
-        transaction.update(productRef, {
-          stock: increment(item.quantity),
-          cost_price: newAverageCost,
-        });
+        transaction.update(productRef, { stock: increment(item.quantity), cost_price: newAverageCost });
       }
       
-      const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
+      const newBalance = (previousBalance || 0) + total_amount - amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
-      const settlementAmount = purchaseDetails.amountPaid - purchaseDetails.total_amount;
+      const settlementAmount = amountPaid - total_amount;
       if (settlementAmount > 0.001) {
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
           transaction.set(settlementActivityRef, {
@@ -879,6 +865,10 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         items,
         item_ids: itemIds,
         ...purchaseDetails,
+        total_amount,
+        amountPaid,
+        previousBalance,
+        creditAmount: newBalance,
         paymentStatus,
         purchase_date: serverTimestamp(),
       });
@@ -891,7 +881,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         product_id: 'multiple',
         product_name: `${items.length} item(s)`,
         product_image: items[0]?.image || '',
-        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${purchaseDetails.total_amount.toFixed(2)}`,
+        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${total_amount.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
         id: newPurchaseRef.id,
@@ -906,7 +896,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 
-    const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
+    const newBalance = (previousBalance || 0) + total_amount - amountPaid;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && newBalance > 0.001) {
         paymentStatus = 'partial';
@@ -920,6 +910,10 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         items,
         item_ids: items.map(i => i.id),
         ...purchaseDetails,
+        total_amount,
+        amountPaid,
+        previousBalance,
+        creditAmount: newBalance,
         purchase_date: new Date().toISOString(),
         paymentStatus,
     };
@@ -937,11 +931,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
     const { db } = getFirebaseServices();
     try {
         const purchasesCollection = collection(db, 'purchases');
-        const q = query(
-            purchasesCollection, 
-            where('userId', '==', userId), 
-            where('supplier_id', '==', supplierId)
-        );
+        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId));
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -1047,13 +1037,16 @@ export async function fetchDashboardData() {
 
     const { db } = getFirebaseServices();
     try {
-        const productsCollection = collection(db, 'products');
-        const salesCollection = collection(db, 'sales');
-        const activityCollection = collection(db, 'recent_activity');
+        const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
 
-        // Products
-        const productQuery = query(productsCollection, where('userId', '==', userId));
-        const productsSnapshot = await getDocs(productQuery);
+        const [productsSnapshot, salesSnapshot, activitySnapshot] = await Promise.all([
+            getDocs(productsQuery),
+            getDocs(salesQuery),
+            getDocs(activityQuery)
+        ]);
+        
         let inventoryValue = 0;
         const allProducts: Product[] = [];
 
@@ -1072,15 +1065,12 @@ export async function fetchDashboardData() {
             .sort((a, b) => a.stock - b.stock)
             .slice(0, 5);
 
-        // Sales
-        const allSalesQuery = query(salesCollection, where('userId', '==', userId));
-        const allSalesSnapshot = await getDocs(allSalesQuery);
         let totalSales = 0;
         let salesToday = 0;
         const todayStart = startOfDay(new Date());
         const todayEnd = endOfDay(new Date());
 
-        allSalesSnapshot.forEach(doc => {
+        salesSnapshot.forEach(doc => {
             const sale = doc.data();
             const saleDate = (sale.sale_date as Timestamp).toDate();
             totalSales += sale.total_amount || 0;
@@ -1089,9 +1079,6 @@ export async function fetchDashboardData() {
             }
         });
 
-        // Recent Activities
-        const activityQuery = query(activityCollection, where('userId', '==', userId));
-        const activitySnapshot = await getDocs(activityQuery);
         let allActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -1101,7 +1088,6 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
 
-        // Sort in code to avoid composite index
         const recentActivities = allActivities
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .slice(0, 5);
@@ -1127,20 +1113,16 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
 
     const { db } = getFirebaseServices();
     try {
-        const salesCollection = collection(db, 'sales');
-        const salesQuery = query(salesCollection, where('userId', '==', userId));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
         const salesSnapshot = await getDocs(salesQuery);
         const allSales = salesSnapshot.docs.map(doc => doc.data() as Sale);
 
         let aggregatedData: { [key: string]: number } = {};
-        let dateLabels: string[] = [];
-
         const now = new Date();
 
         if (filter === 'daily') {
             const last7Days = Array.from({ length: 7 }, (_, i) => subDays(now, i)).reverse();
-            dateLabels = last7Days.map(date => format(date, 'EEE'));
-            aggregatedData = Object.fromEntries(last7Days.map(date => [format(date, 'yyyy-MM-dd'), 0]));
+            last7Days.forEach(date => aggregatedData[format(date, 'yyyy-MM-dd')] = 0);
             
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
@@ -1157,8 +1139,7 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
 
         } else if (filter === 'weekly') {
             const last4Weeks = Array.from({ length: 4 }, (_, i) => startOfWeek(subDays(now, i * 7))).reverse();
-            dateLabels = last4Weeks.map(date => `W${format(date, 'w')}`);
-            aggregatedData = Object.fromEntries(last4Weeks.map(date => [format(date, 'yyyy-ww'), 0]));
+            last4Weeks.forEach(date => aggregatedData[format(date, 'yyyy-ww')] = 0);
             
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
@@ -1174,13 +1155,12 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
             }));
 
         } else if (filter === 'yearly') {
-            const currentYearStart = startOfYear(now);
-            dateLabels = Array.from({ length: 12 }, (_, i) => format(new Date(now.getFullYear(), i), 'MMM'));
-            aggregatedData = Object.fromEntries(dateLabels.map(label => [label, 0]));
+            const dateLabels = Array.from({ length: 12 }, (_, i) => format(new Date(now.getFullYear(), i), 'MMM'));
+            dateLabels.forEach(label => aggregatedData[label] = 0);
 
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-                if (isWithinInterval(saleDate, { start: currentYearStart, end: endOfYear(now) })) {
+                if (isWithinInterval(saleDate, { start: startOfYear(now), end: endOfYear(now) })) {
                     const monthKey = format(saleDate, 'MMM');
                     aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + sale.total_amount;
                 }
@@ -1188,8 +1168,7 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
              return dateLabels.map(label => ({ month: label, sales: aggregatedData[label] || 0 }));
         } else { // monthly (default)
             const last6Months = Array.from({ length: 6 }, (_, i) => subMonths(now, i)).reverse();
-            dateLabels = last6Months.map(date => format(date, 'MMM'));
-            aggregatedData = Object.fromEntries(last6Months.map(date => [format(date, 'yyyy-MM'), 0]));
+            last6Months.forEach(date => aggregatedData[format(date, 'yyyy-MM')] = 0);
             
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
@@ -1219,8 +1198,7 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
 
     const { db } = getFirebaseServices();
     try {
-        const salesCollection = collection(db, 'sales');
-        const salesQuery = query(salesCollection, where('userId', '==', userId));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
         const salesSnapshot = await getDocs(salesQuery);
 
         const productSales: Record<string, { name: string, totalQuantity: number }> = {};
@@ -1263,8 +1241,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
     const { db } = getFirebaseServices();
     try {
-        const activityCollection = collection(db, 'recent_activity');
-        const q = query(activityCollection, where('userId', '==', userId));
+        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
         const activitySnapshot = await getDocs(q);
         let activities = activitySnapshot.docs.map(doc => {
@@ -1276,13 +1253,10 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             }
         }) as RecentActivity[];
         
-        // In-memory filtering
         if (filters.date?.from) {
             const from = startOfDay(filters.date.from);
             const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-            activities = activities.filter(act => 
-                isWithinInterval(new Date(act.timestamp), { start: from, end: to })
-            );
+            activities = activities.filter(act => isWithinInterval(new Date(act.timestamp), { start: from, end: to }));
         }
 
         if (filters.type) {
@@ -1291,11 +1265,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
         if (filters.productId) {
             activities = activities.filter(act => {
-                if (act.product_id === 'multiple') {
-                    // This is a simplification. A real implementation would fetch the sale/purchase
-                    // and check if the productId is in its items list, which is slow.
-                    return true;
-                }
+                if (act.product_id === 'multiple') return true;
                 return act.product_id === filters.productId
             });
         }
@@ -1373,9 +1343,7 @@ export type MoneyflowData = {
 export async function fetchMoneyflowData(): Promise<MoneyflowData> {
     noStore();
     const userId = await getCurrentUserId();
-    if (!userId) {
-        return { receivablesTotal: 0, payablesTotal: 0, pendingChecksTotal: 0, transactions: [] };
-    }
+    if (!userId) return { receivablesTotal: 0, payablesTotal: 0, pendingChecksTotal: 0, transactions: [] };
 
     const { db } = getFirebaseServices();
     try {
@@ -1389,61 +1357,37 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
         const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
 
-
-        const [
-            customersSnapshot, 
-            suppliersSnapshot, 
-            salesSnapshot, 
-            purchasesSnapshot
-        ] = await Promise.all([
-            getDocs(customersQuery),
-            getDocs(suppliersQuery),
-            getDocs(salesQuery),
-            getDocs(purchasesQuery)
+        const [customersSnapshot, suppliersSnapshot, salesSnapshot, purchasesSnapshot] = await Promise.all([
+            getDocs(customersQuery), getDocs(suppliersQuery), getDocs(salesQuery), getDocs(purchasesQuery)
         ]);
 
         customersSnapshot.forEach(doc => {
-            const customer = doc.data();
-            const balance = customer.credit_balance || 0;
+            const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
                 receivablesTotal += balance;
                 transactions.push({
-                    id: `customer-${doc.id}`,
-                    type: 'receivable',
-                    partyName: customer.name,
-                    partyId: doc.id,
-                    paymentMethod: 'credit',
-                    amount: balance,
-                    date: (customer.updated_at || customer.created_at)?.toDate().toISOString() || new Date().toISOString(),
+                    id: `customer-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: balance,
+                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             }
         });
 
         suppliersSnapshot.forEach(doc => {
-            const supplier = doc.data();
-            const balance = supplier.credit_balance || 0;
+            const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
                 payablesTotal += balance;
                 transactions.push({
-                    id: `supplier-${doc.id}`,
-                    type: 'payable',
-                    partyName: supplier.name,
-                    partyId: doc.id,
-                    paymentMethod: 'credit',
-                    amount: balance,
-                    date: (supplier.updated_at || supplier.created_at)?.toDate().toISOString() || new Date().toISOString(),
+                    id: `supplier-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: balance,
+                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
-                // If supplier has a negative balance, it means they owe us money (a receivable)
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
-                    id: `supplier-${doc.id}`,
-                    type: 'receivable',
-                    partyName: supplier.name,
-                    partyId: doc.id,
-                    paymentMethod: 'credit',
-                    amount: Math.abs(balance),
-                    date: (supplier.updated_at || supplier.created_at)?.toDate().toISOString() || new Date().toISOString(),
+                    id: `supplier-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: Math.abs(balance),
+                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             }
         });
@@ -1453,13 +1397,8 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             if (sale.paymentStatus === 'pending_check_clearance') {
                 pendingChecksTotal += sale.total_amount;
                 transactions.push({
-                    id: doc.id,
-                    type: 'receivable',
-                    partyName: sale.customer_name,
-                    partyId: sale.customer_id!,
-                    paymentMethod: 'check',
-                    amount: sale.total_amount,
-                    date: (sale.sale_date as any).toDate().toISOString(),
+                    id: doc.id, type: 'receivable', partyName: sale.customer_name, partyId: sale.customer_id!,
+                    paymentMethod: 'check', amount: sale.total_amount, date: (sale.sale_date as any).toDate().toISOString(),
                     checkNumber: sale.checkNumber,
                 });
             }
@@ -1470,13 +1409,8 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             if (purchase.paymentStatus === 'pending_check_clearance') {
                 pendingChecksTotal += purchase.total_amount;
                  transactions.push({
-                    id: doc.id,
-                    type: 'payable',
-                    partyName: purchase.supplier_name,
-                    partyId: purchase.supplier_id,
-                    paymentMethod: 'check',
-                    amount: purchase.total_amount,
-                    date: (purchase.purchase_date as any).toDate().toISOString(),
+                    id: doc.id, type: 'payable', partyName: purchase.supplier_name, partyId: purchase.supplier_id,
+                    paymentMethod: 'check', amount: purchase.total_amount, date: (purchase.purchase_date as any).toDate().toISOString(),
                     checkNumber: purchase.checkNumber,
                 });
             }
@@ -1498,18 +1432,12 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
     const userId = await getCurrentUserId();
     const settlementAmount = amount ?? transaction.amount;
 
-    if (settlementAmount <= 0) {
-        return { success: false, message: 'Settlement amount must be positive.' };
-    }
-    
-    if (settlementAmount > transaction.amount + 0.001) {
-        return { success: false, message: 'Settlement amount cannot exceed outstanding balance.' };
-    }
+    if (settlementAmount <= 0) return { success: false, message: 'Settlement amount must be positive.' };
+    if (settlementAmount > transaction.amount + 0.001) return { success: false, message: 'Settlement amount cannot exceed outstanding balance.' };
 
     try {
         await runTransaction(db, async (t) => {
-            const activityCollection = collection(db, 'recent_activity');
-            const newActivityRef = doc(activityCollection);
+            const newActivityRef = doc(collection(db, 'recent_activity'));
             let partyRef;
             let activityType: RecentActivity['type'] = 'credit_settled';
             let details = '';
@@ -1525,9 +1453,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                     details = `Check from ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
 
-                if (status === 'paid') {
-                     t.update(partyRef, { credit_balance: increment(-settlementAmount) });
-                }
+                if (status === 'paid') t.update(partyRef, { credit_balance: increment(-settlementAmount) });
                 
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
 
@@ -1542,9 +1468,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                     details = `Check to ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
 
-                if (status === 'paid') {
-                    t.update(partyRef, { credit_balance: increment(-settlementAmount) });
-                }
+                if (status === 'paid') t.update(partyRef, { credit_balance: increment(-settlementAmount) });
 
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
             }
@@ -1570,13 +1494,9 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
 
     const { db } = getFirebaseServices();
     try {
-        const activityCollection = collection(db, 'recent_activity');
         const financialTypes: RecentActivity['type'][] = ['credit_settled', 'check_cleared', 'check_rejected'];
         
-        const q = query(
-            activityCollection, 
-            where('userId', '==', userId), 
-        );
+        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
         const activitySnapshot = await getDocs(q);
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1589,7 +1509,6 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         }) as RecentActivity[];
 
         const activities = allActivities.filter(act => financialTypes.includes(act.type));
-
         activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return activities;
