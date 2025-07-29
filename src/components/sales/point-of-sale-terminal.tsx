@@ -94,7 +94,51 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     setSelectedCustomer(newCustomer);
   };
   
-    const addToCart = React.useCallback((product: ProductSelect) => {
+    const updateQuantity = React.useCallback((productId: string, newQuantity: number) => {
+    const itemInCart = cart.find(item => item.id === productId);
+    if (!itemInCart) return;
+
+    if (newQuantity < 1) {
+        removeFromCart(productId);
+        return;
+    }
+
+    if (newQuantity > itemInCart.stock) {
+        toast({
+            variant: 'destructive',
+            title: 'Stock Limit Exceeded',
+            description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
+        });
+        // Revert to max stock available
+        setCart((prevCart) =>
+            prevCart.map((item) =>
+                item.id === productId
+                ? {
+                    ...item,
+                    quantity: item.stock,
+                    total_amount: item.stock * item.price_per_unit,
+                    }
+                : item
+            )
+        );
+        return;
+    }
+
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.id === productId
+          ? {
+              ...item,
+              quantity: newQuantity,
+              total_amount: newQuantity * item.price_per_unit,
+            }
+          : item
+      )
+    );
+  }, [cart, toast]);
+
+
+  const addToCart = React.useCallback((product: ProductSelect) => {
     if (product.stock <= 0) {
       toast({
         variant: 'destructive',
@@ -124,7 +168,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
       },
     ]);
     setLastAddedItemId(product.id);
-  }, [cart, toast]);
+  }, [cart, toast, updateQuantity]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
         const product = products.find(p => p.barcode === barcode);
@@ -213,48 +257,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
 
   }, [products, searchTerm, cart]);
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
-    const itemInCart = cart.find(item => item.id === productId);
-    if (!itemInCart) return;
-
-    if (newQuantity < 1) {
-        removeFromCart(productId);
-        return;
-    }
-
-    if (newQuantity > itemInCart.stock) {
-        toast({
-            variant: 'destructive',
-            title: 'Stock Limit Exceeded',
-            description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
-        });
-        // Revert to max stock available
-        setCart((prevCart) =>
-            prevCart.map((item) =>
-                item.id === productId
-                ? {
-                    ...item,
-                    quantity: item.stock,
-                    total_amount: item.stock * item.price_per_unit,
-                    }
-                : item
-            )
-        );
-        return;
-    }
-
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity: newQuantity,
-              total_amount: newQuantity * item.price_per_unit,
-            }
-          : item
-      )
-    );
-  };
   
   const removeFromCart = (productId: string) => {
     setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
@@ -569,3 +571,5 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     </>
   );
 }
+
+    
