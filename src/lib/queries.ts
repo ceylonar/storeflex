@@ -381,7 +381,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(customersCollection, where('userId', '==', userId));
         const snapshot = await getDocs(q);
         let customers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -391,6 +391,8 @@ export async function fetchCustomers(): Promise<Customer[]> {
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Customer
         });
+        
+        customers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return customers;
     } catch(error) {
@@ -625,7 +627,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
     const { db } = getFirebaseServices();
     try {
         const salesCollection = collection(db, 'sales');
-        const q = query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId), orderBy('sale_date', 'desc'));
+        const q = query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -635,6 +637,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
                 sale_date: (data.sale_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Sale
         });
+        sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
         
         return sales;
     } catch (error) {
@@ -707,7 +710,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(suppliersCollection, where('userId', '==', userId));
         const snapshot = await getDocs(q);
         let suppliers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -717,6 +720,8 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Supplier
         });
+        
+        suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return suppliers;
 
@@ -932,7 +937,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
     const { db } = getFirebaseServices();
     try {
         const purchasesCollection = collection(db, 'purchases');
-        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId), orderBy('purchase_date', 'desc'));
+        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId));
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -942,6 +947,8 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
                 purchase_date: (data.purchase_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Purchase
         });
+        
+        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
         
         return purchases;
     } catch (error) {
