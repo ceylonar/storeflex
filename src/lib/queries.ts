@@ -1388,76 +1388,81 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
     const { db } = getFirebaseServices();
     try {
-        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
-
-        const [salesSnapshot, purchasesSnapshot] = await Promise.all([
-            getDocs(salesQuery),
-            getDocs(purchasesQuery),
-        ]);
-
         const transactions: MoneyflowTransaction[] = [];
         let receivablesTotal = 0;
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
+
+        // 1. Get all customers with a credit balance > 0
+        const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId), where('credit_balance', '>', 0));
+        const customersSnapshot = await getDocs(customersQuery);
+        customersSnapshot.forEach(doc => {
+            const customer = doc.data() as Customer;
+            receivablesTotal += customer.credit_balance;
+            transactions.push({
+                id: `customer-${doc.id}`,
+                type: 'receivable',
+                partyName: customer.name,
+                partyId: doc.id,
+                paymentMethod: 'credit',
+                amount: customer.credit_balance,
+                date: (customer.updated_at || customer.created_at) as string, // Use last update time as a proxy
+            });
+        });
+
+        // 2. Get all suppliers with a credit balance > 0
+        const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId), where('credit_balance', '>', 0));
+        const suppliersSnapshot = await getDocs(suppliersQuery);
+        suppliersSnapshot.forEach(doc => {
+            const supplier = doc.data() as Supplier;
+            payablesTotal += supplier.credit_balance;
+            transactions.push({
+                id: `supplier-${doc.id}`,
+                type: 'payable',
+                partyName: supplier.name,
+                partyId: doc.id,
+                paymentMethod: 'credit',
+                amount: supplier.credit_balance,
+                date: (supplier.updated_at || supplier.created_at) as string,
+            });
+        });
         
-        const allSales = salesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale));
-        const pendingSales = allSales.filter(sale => sale.paymentStatus !== 'paid');
-
-        pendingSales.forEach(sale => {
-            const creditAmount = sale.creditAmount ?? 0;
-            if (creditAmount > 0.001 || sale.paymentMethod === 'check') {
-                const transaction: MoneyflowTransaction = {
-                    id: sale.id,
-                    type: 'receivable',
-                    partyName: sale.customer_name,
-                    partyId: sale.customer_id!,
-                    paymentMethod: sale.paymentMethod as 'credit' | 'check',
-                    amount: sale.paymentMethod === 'check' ? sale.total_amount : creditAmount,
-                    date: (sale.sale_date as any).toDate().toISOString(),
-                    checkNumber: sale.checkNumber,
-                };
-                transactions.push(transaction);
-            }
+        // 3. Get all pending checks from sales
+        const salesCheckQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
+        const salesCheckSnapshot = await getDocs(salesCheckQuery);
+        salesCheckSnapshot.forEach(doc => {
+            const sale = doc.data() as Sale;
+            pendingChecksTotal += sale.total_amount;
+            transactions.push({
+                id: doc.id,
+                type: 'receivable',
+                partyName: sale.customer_name,
+                partyId: sale.customer_id!,
+                paymentMethod: 'check',
+                amount: sale.total_amount,
+                date: (sale.sale_date as any).toDate().toISOString(),
+                checkNumber: sale.checkNumber,
+            });
         });
 
-        // Get total receivables from customer credit balances
-        const customerSnapshot = await getDocs(query(collection(db, 'customers'), where('userId', '==', userId)));
-        customerSnapshot.forEach(doc => {
-            receivablesTotal += doc.data().credit_balance || 0;
+        // 4. Get all pending checks from purchases
+        const purchasesCheckQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
+        const purchasesCheckSnapshot = await getDocs(purchasesCheckQuery);
+        purchasesCheckSnapshot.forEach(doc => {
+            const purchase = doc.data() as Purchase;
+            pendingChecksTotal += purchase.total_amount;
+             transactions.push({
+                id: doc.id,
+                type: 'payable',
+                partyName: purchase.supplier_name,
+                partyId: purchase.supplier_id,
+                paymentMethod: 'check',
+                amount: purchase.total_amount,
+                date: (purchase.purchase_date as any).toDate().toISOString(),
+                checkNumber: purchase.checkNumber,
+            });
         });
 
-
-        const allPurchases = purchasesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Purchase));
-        const pendingPurchases = allPurchases.filter(purchase => purchase.paymentStatus !== 'paid');
-
-        pendingPurchases.forEach(purchase => {
-            const creditAmount = purchase.creditAmount ?? 0;
-            if (creditAmount > 0.001 || purchase.paymentMethod === 'check') {
-                const transaction: MoneyflowTransaction = {
-                    id: purchase.id,
-                    type: 'payable',
-                    partyName: purchase.supplier_name,
-                    partyId: purchase.supplier_id,
-                    paymentMethod: purchase.paymentMethod as 'credit' | 'check',
-                    amount: purchase.paymentMethod === 'check' ? purchase.total_amount : creditAmount,
-                    date: (purchase.purchase_date as any).toDate().toISOString(),
-                    checkNumber: purchase.checkNumber,
-                };
-                transactions.push(transaction);
-            }
-            if (purchase.paymentMethod === 'check') {
-                pendingChecksTotal += purchase.total_amount;
-            }
-        });
-
-         // Get total payables from supplier credit balances
-        const supplierSnapshot = await getDocs(query(collection(db, 'suppliers'), where('userId', '==', userId)));
-        supplierSnapshot.forEach(doc => {
-            payablesTotal += doc.data().credit_balance || 0;
-        });
-
-        
         transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return { receivablesTotal, payablesTotal, pendingChecksTotal, transactions };
@@ -1489,32 +1494,12 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             const newActivityRef = doc(activityCollection);
 
             if (transaction.type === 'receivable') {
-                const saleRef = doc(db, 'sales', transaction.id);
                 const customerRef = doc(db, 'customers', transaction.partyId);
-                
                 let activityType: RecentActivity['type'] = 'credit_settled';
                 let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
 
-                if (transaction.paymentMethod === 'credit') {
-                    const saleDoc = await t.get(saleRef);
-                    if (!saleDoc.exists()) throw new Error("Sale not found.");
-                    
-                    const currentCreditAmount = saleDoc.data().creditAmount || 0;
-                    const currentAmountPaid = saleDoc.data().amountPaid || 0;
-
-                    const newCreditAmount = currentCreditAmount - settlementAmount;
-                    const newAmountPaid = currentAmountPaid + settlementAmount;
-
-                    const updateData: any = { 
-                        creditAmount: newCreditAmount, 
-                        amountPaid: newAmountPaid
-                    };
-
-                    if (newCreditAmount < 0.01) { // Use a small epsilon for float comparison
-                        updateData.paymentStatus = 'paid';
-                    }
-                    t.update(saleRef, updateData);
-                } else { // Check
+                if (transaction.paymentMethod === 'check') {
+                    const saleRef = doc(db, 'sales', transaction.id);
                     t.update(saleRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
                     details = `Check from ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
@@ -1527,34 +1512,14 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
 
             } else { // payable
-                const purchaseRef = doc(db, 'purchases', transaction.id);
                 const supplierRef = doc(db, 'suppliers', transaction.partyId);
-
                 let activityType: RecentActivity['type'] = 'credit_settled';
                 let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
 
-                if (transaction.paymentMethod === 'credit') {
-                    const purchaseDoc = await t.get(purchaseRef);
-                    if (!purchaseDoc.exists()) throw new Error("Purchase not found.");
-
-                    const currentCreditAmount = purchaseDoc.data().creditAmount || 0;
-                    const currentAmountPaid = purchaseDoc.data().amountPaid || 0;
-                    
-                    const newCreditAmount = currentCreditAmount - settlementAmount;
-                    const newAmountPaid = currentAmountPaid + settlementAmount;
-
-                    const updateData: any = { 
-                        creditAmount: newCreditAmount,
-                        amountPaid: newAmountPaid
-                    };
-
-                    if (newCreditAmount < 0.01) { // Use a small epsilon for float comparison
-                        updateData.paymentStatus = 'paid';
-                    }
-                    t.update(purchaseRef, updateData);
-                } else { // Check
+                if (transaction.paymentMethod === 'check') {
+                    const purchaseRef = doc(db, 'purchases', transaction.id);
                     t.update(purchaseRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
-                    activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
+                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
                     details = `Check to ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
                 }
 

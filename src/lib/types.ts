@@ -114,6 +114,7 @@ export type Customer = {
   name: string;
   phone: string;
   created_at: string;
+  updated_at?: string;
   credit_balance: number;
 };
 
@@ -123,6 +124,7 @@ export type Supplier = {
   name: string;
   phone: string;
   created_at: string;
+  updated_at?: string;
   credit_balance: number;
 };
 
@@ -167,7 +169,7 @@ export type ProductTransaction = {
 }
 
 export type MoneyflowTransaction = {
-    id: string; // Sale or Purchase ID
+    id: string; // Can be a sale, purchase, customer, or supplier ID
     type: 'receivable' | 'payable';
     partyName: string; // Customer or Supplier Name
     partyId: string;

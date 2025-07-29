@@ -28,7 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Check, CheckCircle, Landmark, Loader2, X, Receipt, CreditCard } from 'lucide-react';
-import { MoneyflowData, MoneyflowTransaction, settlePayment, RecentActivity } from '@/lib/queries';
+import { MoneyflowData, settlePayment, RecentActivity, fetchMoneyflowData, fetchFinancialActivities } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -87,6 +87,16 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
   const [settlementAmount, setSettlementAmount] = React.useState(0);
   const { toast } = useToast();
 
+  const refreshData = async () => {
+      const [newData, newHistory] = await Promise.all([
+          fetchMoneyflowData(),
+          fetchFinancialActivities()
+      ]);
+      setData(newData);
+      setHistory(newHistory);
+  };
+
+
   const handleSettlePayment = async (transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number) => {
     setIsSettling(transaction.id);
     try {
@@ -95,49 +105,7 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
       const result = await settlePayment(transaction, status, finalAmount);
       if (result.success) {
         toast({ title: 'Success', description: 'Payment has been settled.' });
-        
-        // Optimistically update UI
-        setData(prevData => {
-            const updatedTransactions = prevData.transactions.map(t => {
-                if (t.id === transaction.id) {
-                    const newAmount = t.amount - finalAmount;
-                    // Use a small epsilon for float comparison
-                    return newAmount > 0.001 ? { ...t, amount: newAmount } : null; 
-                }
-                return t;
-            }).filter(Boolean) as MoneyflowTransaction[];
-
-
-            const newPendingChecksTotal = transaction.paymentMethod === 'check' && status === 'paid' ? prevData.pendingChecksTotal - transaction.amount : prevData.pendingChecksTotal;
-            const newReceivables = transaction.type === 'receivable' ? prevData.receivablesTotal - finalAmount : prevData.receivablesTotal;
-            const newPayables = transaction.type === 'payable' ? prevData.payablesTotal - finalAmount : prevData.payablesTotal;
-
-            return {
-                ...prevData,
-                transactions: updatedTransactions,
-                pendingChecksTotal: newPendingChecksTotal,
-                receivablesTotal: newReceivables,
-                payablesTotal: newPayables,
-            };
-        });
-        
-        // Add to history
-        let activityType: RecentActivity['type'] = 'credit_settled';
-        let details = `Credit payment of LKR ${finalAmount.toFixed(2)} from ${transaction.partyName} settled.`;
-        if (transaction.paymentMethod === 'check') {
-            activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
-            details = `Check from ${transaction.partyName} for LKR ${transaction.amount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
-        }
-
-        const newHistoryItem: RecentActivity = {
-            id: `local-${Date.now()}`,
-            type: activityType,
-            details: details,
-            timestamp: new Date().toISOString(),
-            userId: 'user-123-abc' // Mock user ID
-        };
-        setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
-
+        await refreshData();
       } else {
         toast({ variant: 'destructive', title: 'Error', description: result.message });
       }
