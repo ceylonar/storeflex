@@ -852,19 +852,20 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
-      const amountSettled = purchaseDetails.amountPaid - purchaseDetails.total_amount;
-      if (amountSettled > 0.001) {
+      // Check if the payment covers more than the current bill, indicating a settlement
+      const settlementAmount = purchaseDetails.amountPaid - purchaseDetails.total_amount;
+      if (settlementAmount > 0.001) { // Use epsilon for float comparison
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
           transaction.set(settlementActivityRef, {
               type: 'credit_settled',
-              details: `Settled LKR ${amountSettled.toFixed(2)} with ${purchaseDetails.supplier_name}`,
+              details: `Settled LKR ${settlementAmount.toFixed(2)} with ${purchaseDetails.supplier_name}`,
               timestamp: serverTimestamp(),
               userId,
           });
       }
 
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
-      if (purchaseDetails.paymentMethod === 'credit' && newBalance > purchaseDetails.previousBalance) { 
+      if (purchaseDetails.paymentMethod === 'credit' && newBalance > 0.001) { 
           paymentStatus = 'partial';
       } else if (purchaseDetails.paymentMethod === 'check') {
           paymentStatus = 'pending_check_clearance';
@@ -908,7 +909,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
 
     const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
-    if (validatedFields.data.paymentMethod === 'credit' && newBalance > purchaseDetails.previousBalance) {
+    if (validatedFields.data.paymentMethod === 'credit' && newBalance > 0.001) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';
