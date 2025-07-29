@@ -93,6 +93,10 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
   const { toast } = useToast();
   const formRef = React.useRef<HTMLFormElement>(null);
   
+  // For hardware scanner input
+  const barcodeChars = React.useRef<string[]>([]);
+  const lastKeystrokeTime = React.useRef<number>(0);
+
   const handleOpenDialog = (state: FormState, product?: Product) => {
     setFormState(state);
     setSelectedProduct(product || initialProductState);
@@ -116,13 +120,13 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     }
   }
 
-  const handleScanSuccess = async (decodedText: string) => {
+  const handleScanSuccess = React.useCallback(async (decodedText: string) => {
     setIsScannerOpen(false);
     setIsDialogOpen(true);
+    setFormState('add'); // Always treat a scan as adding a new product
     setIsFetchingBarcode(true);
     
-    // Update the form immediately with the barcode
-    setSelectedProduct(prev => ({ ...initialProductState, barcode: decodedText }));
+    setSelectedProduct({ ...initialProductState, barcode: decodedText });
 
     toast({
         title: 'Scan Successful',
@@ -134,7 +138,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
         setSelectedProduct(prev => ({
             ...prev,
             name: result.data!.name,
-            brand: result.data!.brand,
+            brand: result.data!.brand || '',
             category: result.data!.category,
         }));
         toast({ title: 'Success', description: 'Product details populated by AI.' });
@@ -142,7 +146,42 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
         toast({ variant: 'destructive', title: 'AI Lookup Failed', description: result.message });
     }
     setIsFetchingBarcode(false);
-  }
+  }, [toast]);
+
+  // Effect for hardware barcode scanner
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore keypresses if a dialog or input is focused
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || isDialogOpen)) {
+        return;
+      }
+
+      const currentTime = new Date().getTime();
+      
+      // Reset if the time between keystrokes is too long (e.g., >100ms)
+      if (currentTime - lastKeystrokeTime.current > 100) {
+        barcodeChars.current = [];
+      }
+      
+      if (e.key === 'Enter') {
+        if (barcodeChars.current.length > 5) { // Minimum length for a barcode
+          handleScanSuccess(barcodeChars.current.join(''));
+        }
+        barcodeChars.current = [];
+      } else {
+        // Add character to the buffer
+        if(e.key.length === 1) barcodeChars.current.push(e.key);
+      }
+      
+      lastKeystrokeTime.current = currentTime;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleScanSuccess, isDialogOpen]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
