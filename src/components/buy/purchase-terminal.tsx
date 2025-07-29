@@ -112,7 +112,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
       setAmountPaid(totalPayable);
     } else if (paymentMethod === 'credit') {
-        setAmountPaid(amount => amount > 0 ? amount : 0);
+        setAmountPaid(amount => amount > totalPayable ? totalPayable : amount);
     }
   }, [totalPayable, paymentMethod]);
 
@@ -126,10 +126,14 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
       toast({ variant: 'destructive', title: 'No Supplier', description: 'Please select a supplier.' });
       return;
     }
+     if (paymentMethod === 'credit' && amountPaid > totalPayable) {
+        toast({ variant: 'destructive', title: 'Invalid Amount', description: 'Paid amount cannot exceed total payable for credit purchases.' });
+        return;
+    }
 
     setIsSubmitting(true);
     try {
-        const creditAmount = totalPayable - amountPaid;
+        const creditAmount = paymentMethod === 'credit' ? totalPayable - amountPaid : 0;
         const purchaseData = {
             items: cart,
             supplier_id: selectedSupplier.id,
@@ -142,7 +146,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             total_amount: totalCost,
             paymentMethod,
             amountPaid,
-            checkNumber,
+            checkNumber: paymentMethod === 'check' ? checkNumber : '',
             creditAmount: creditAmount,
             previousBalance
         };
