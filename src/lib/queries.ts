@@ -116,7 +116,7 @@ const POSPurchaseSchema = z.object({
   total_amount: z.number().nonnegative(),
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
-  checkNumber: z.string().optional(),
+  checkNumber: z.string().optional().default(''),
   creditAmount: z.number(),
   previousBalance: z.number().nonnegative(),
 });
@@ -841,7 +841,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         const currentTotalValue = currentStock * currentCost;
         const purchaseTotalValue = item.quantity * item.cost_price;
         const newTotalStock = currentStock + item.quantity;
-        const newAverageCost = newTotalStock > 0 ? (currentTotalValue + purchaseTotalValue) / newTotalStock : 0;
+        const newAverageCost = newTotalStock > 0 ? (currentTotalValue + purchaseTotalValue) / newTotalStock : item.cost_price;
 
         transaction.update(productRef, {
           stock: increment(item.quantity),
@@ -863,10 +863,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           });
       }
 
-
-      const { creditAmount } = purchaseDetails;
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
-      if (purchaseDetails.paymentMethod === 'credit' && creditAmount > 0.001) { 
+      if (purchaseDetails.paymentMethod === 'credit' && newBalance > purchaseDetails.previousBalance) { 
           paymentStatus = 'partial';
       } else if (purchaseDetails.paymentMethod === 'check') {
           paymentStatus = 'pending_check_clearance';
@@ -908,9 +906,9 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 
-    const { creditAmount } = validatedFields.data;
+    const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
     let paymentStatus: Purchase['paymentStatus'] = 'paid';
-    if (validatedFields.data.paymentMethod === 'credit' && creditAmount > 0.001) {
+    if (validatedFields.data.paymentMethod === 'credit' && newBalance > purchaseDetails.previousBalance) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';

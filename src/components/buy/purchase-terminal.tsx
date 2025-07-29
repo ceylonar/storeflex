@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { createPurchase } from '@/lib/queries';
+import { createPurchase, fetchSuppliers } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductSelect, PurchaseItem, Supplier, Purchase } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, Truck, Loader2 } from 'lucide-react';
@@ -159,14 +159,11 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             description: 'The transaction has been recorded and stock updated.',
           });
           // Refresh suppliers list to get updated credit balance
-          const res = await fetch('/api/suppliers'); // Assuming an API route to fetch suppliers
-          if (res.ok) {
-              const updatedSuppliers = await res.json();
-              setSuppliers(updatedSuppliers);
-              const updatedSelected = updatedSuppliers.find((s: Supplier) => s.id === selectedSupplier.id);
-              if (updatedSelected) {
-                  setSelectedSupplier(updatedSelected);
-              }
+          const updatedSuppliers = await fetchSuppliers();
+          setSuppliers(updatedSuppliers);
+          const updatedSelected = updatedSuppliers.find((s: Supplier) => s.id === selectedSupplier.id);
+          if (updatedSelected) {
+              setSelectedSupplier(updatedSelected);
           }
       }
     } catch (error) {
