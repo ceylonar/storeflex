@@ -1393,38 +1393,47 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
 
-        // 1. Get all customers with a credit balance > 0
-        const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId), where('credit_balance', '>', 0));
-        const customersSnapshot = await getDocs(customersQuery);
+        // Fetch all customers and suppliers for the user once
+        const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
+        const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+
+        const [customersSnapshot, suppliersSnapshot] = await Promise.all([
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
+        ]);
+
+        // 1. Process customers for receivables
         customersSnapshot.forEach(doc => {
             const customer = doc.data() as Customer;
-            receivablesTotal += customer.credit_balance;
-            transactions.push({
-                id: `customer-${doc.id}`,
-                type: 'receivable',
-                partyName: customer.name,
-                partyId: doc.id,
-                paymentMethod: 'credit',
-                amount: customer.credit_balance,
-                date: (customer.updated_at || customer.created_at) as string, // Use last update time as a proxy
-            });
+            if (customer.credit_balance > 0) {
+                receivablesTotal += customer.credit_balance;
+                transactions.push({
+                    id: `customer-${doc.id}`,
+                    type: 'receivable',
+                    partyName: customer.name,
+                    partyId: doc.id,
+                    paymentMethod: 'credit',
+                    amount: customer.credit_balance,
+                    date: (customer.updated_at || customer.created_at) as string,
+                });
+            }
         });
 
-        // 2. Get all suppliers with a credit balance > 0
-        const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId), where('credit_balance', '>', 0));
-        const suppliersSnapshot = await getDocs(suppliersQuery);
+        // 2. Process suppliers for payables
         suppliersSnapshot.forEach(doc => {
             const supplier = doc.data() as Supplier;
-            payablesTotal += supplier.credit_balance;
-            transactions.push({
-                id: `supplier-${doc.id}`,
-                type: 'payable',
-                partyName: supplier.name,
-                partyId: doc.id,
-                paymentMethod: 'credit',
-                amount: supplier.credit_balance,
-                date: (supplier.updated_at || supplier.created_at) as string,
-            });
+            if (supplier.credit_balance > 0) {
+                payablesTotal += supplier.credit_balance;
+                transactions.push({
+                    id: `supplier-${doc.id}`,
+                    type: 'payable',
+                    partyName: supplier.name,
+                    partyId: doc.id,
+                    paymentMethod: 'credit',
+                    amount: supplier.credit_balance,
+                    date: (supplier.updated_at || supplier.created_at) as string,
+                });
+            }
         });
         
         // 3. Get all pending checks from sales
