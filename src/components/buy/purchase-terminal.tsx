@@ -133,7 +133,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
 
     setIsSubmitting(true);
     try {
-        const creditAmount = paymentMethod === 'credit' ? totalPayable - amountPaid : 0;
+        const creditAmount = totalPayable - amountPaid;
         const purchaseData = {
             items: cart,
             supplier_id: selectedSupplier.id,

@@ -852,7 +852,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
-      const amountSettled = Math.min(purchaseDetails.amountPaid, purchaseDetails.previousBalance);
+      const amountSettled = purchaseDetails.amountPaid - purchaseDetails.total_amount;
       if (amountSettled > 0.001) {
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
           transaction.set(settlementActivityRef, {
