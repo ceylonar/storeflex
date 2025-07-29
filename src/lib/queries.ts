@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -380,7 +381,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId));
+        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
         const snapshot = await getDocs(q);
         let customers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -391,8 +392,6 @@ export async function fetchCustomers(): Promise<Customer[]> {
             } as Customer
         });
         
-        customers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
         return customers;
     } catch(error) {
         console.error('Database Error:', error);
@@ -626,7 +625,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
     const { db } = getFirebaseServices();
     try {
         const salesCollection = collection(db, 'sales');
-        const q = query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
+        const q = query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId), orderBy('sale_date', 'desc'));
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -637,7 +636,6 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
             } as Sale
         });
         
-        sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
         return sales;
     } catch (error) {
         console.error('Database Error:', error);
@@ -709,7 +707,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId));
+        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
         const snapshot = await getDocs(q);
         let suppliers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -719,8 +717,6 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Supplier
         });
-        
-        suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return suppliers;
 
@@ -800,7 +796,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     throw new Error('Invalid purchase data.');
   }
   
-  const { items, total_amount, amountPaid, ...purchaseDetails } = validatedFields.data;
+  const { items, total_amount: currentBillTotal, amountPaid, ...purchaseDetails } = validatedFields.data;
   
   try {
     const purchaseId = await runTransaction(db, async (transaction) => {
@@ -819,7 +815,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const supplierDoc = await transaction.get(supplierRef);
       if (!supplierDoc.exists()) throw new Error('Supplier not found.');
       
-      // This is the balance BEFORE this transaction
       const previousBalance = supplierDoc.data().credit_balance || 0;
 
       for (const { ref: productRef, doc: productDoc, item } of productRefsAndData) {
@@ -837,12 +832,10 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         transaction.update(productRef, { stock: increment(item.quantity), cost_price: newAverageCost });
       }
       
-      const newTotalDue = previousBalance + total_amount;
-      const newBalance = newTotalDue - amountPaid;
+      const newBalance = (previousBalance + currentBillTotal) - amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
-      // Check if this payment settles a previous debt
-      const settlementAmount = amountPaid - total_amount;
+      const settlementAmount = amountPaid - currentBillTotal;
       if (settlementAmount > 0.001) {
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
           transaction.set(settlementActivityRef, {
@@ -869,9 +862,9 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         items,
         item_ids: itemIds,
         ...purchaseDetails,
-        total_amount,
+        total_amount: currentBillTotal,
         amountPaid,
-        previousBalance,
+        previousBalance: previousBalance,
         creditAmount: newBalance,
         paymentStatus,
         purchase_date: serverTimestamp(),
@@ -885,7 +878,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         product_id: 'multiple',
         product_name: `${items.length} item(s)`,
         product_image: items[0]?.image || '',
-        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${total_amount.toFixed(2)}`,
+        details: `Purchase from ${purchaseDetails.supplier_name} for LKR ${currentBillTotal.toFixed(2)}`,
         timestamp: serverTimestamp(),
         userId,
         id: newPurchaseRef.id,
@@ -918,7 +911,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         items,
         item_ids: items.map(i => i.id),
         ...purchaseDetails,
-        total_amount,
+        total_amount: currentBillTotal,
         amountPaid,
         previousBalance: previousBalance, // The balance before this transaction
         creditAmount: newBalance, // The final balance after this transaction
@@ -939,7 +932,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
     const { db } = getFirebaseServices();
     try {
         const purchasesCollection = collection(db, 'purchases');
-        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId));
+        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId), orderBy('purchase_date', 'desc'));
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -950,9 +943,6 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
             } as Purchase
         });
         
-        // Sort in memory to avoid composite index requirement
-        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
-
         return purchases;
     } catch (error) {
         console.error('Database Error:', error);
@@ -1077,17 +1067,18 @@ export async function fetchDashboardData() {
         let salesToday = 0;
         const todayStart = startOfDay(new Date());
         const todayEnd = endOfDay(new Date());
+        
+        const allSales = salesSnapshot.docs.map(doc => doc.data() as Sale);
 
-        salesSnapshot.forEach(doc => {
-            const sale = doc.data();
-            const saleDate = (sale.sale_date as Timestamp).toDate();
+        allSales.forEach(sale => {
+            const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
             totalSales += sale.total_amount || 0;
             if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
                 salesToday += sale.total_amount || 0;
             }
         });
 
-        let allActivities = activitySnapshot.docs.map(doc => {
+        let recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: data.id || doc.id,
@@ -1096,16 +1087,14 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
 
-        const recentActivities = allActivities
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, 5);
+        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return {
             inventoryValue,
             productCount,
             salesToday,
             totalSales,
-            recentActivities,
+            recentActivities: recentActivities.slice(0, 5),
             lowStockProducts,
         };
     } catch (error) {
@@ -1277,7 +1266,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                 return act.product_id === filters.productId
             });
         }
-
+        
         activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return activities;
@@ -1393,7 +1382,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             } else if (balance < 0) {
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
-                    id: `supplier-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    id: `supplier-receivable-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: Math.abs(balance),
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
@@ -1451,7 +1440,14 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             let details = '';
 
             if (transaction.type === 'receivable') {
-                partyRef = doc(db, 'customers', transaction.partyId);
+                 if (transaction.id.startsWith('customer-')) {
+                    partyRef = doc(db, 'customers', transaction.partyId);
+                } else if (transaction.id.startsWith('supplier-receivable-')) {
+                    partyRef = doc(db, 'suppliers', transaction.partyId);
+                } else { // It's a check from a sale
+                    partyRef = doc(db, 'customers', transaction.partyId);
+                }
+
                 details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'check') {
@@ -1508,7 +1504,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
     try {
         const financialTypes: RecentActivity['type'][] = ['credit_settled', 'check_cleared', 'check_rejected'];
         
-        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
         
         const activitySnapshot = await getDocs(q);
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1520,14 +1516,15 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
             }
         }) as RecentActivity[];
 
-        const activities = allActivities.filter(act => financialTypes.includes(act.type));
-        activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-        return activities;
+        return allActivities;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
+    
 
     
