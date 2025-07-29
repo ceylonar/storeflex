@@ -1386,19 +1386,20 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
-        const salesCheckQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
-        const purchasesCheckQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
+        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
+        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
+
 
         const [
             customersSnapshot, 
             suppliersSnapshot, 
-            salesCheckSnapshot, 
-            purchasesCheckSnapshot
+            salesSnapshot, 
+            purchasesSnapshot
         ] = await Promise.all([
             getDocs(customersQuery),
             getDocs(suppliersQuery),
-            getDocs(salesCheckQuery),
-            getDocs(purchasesCheckQuery)
+            getDocs(salesQuery),
+            getDocs(purchasesQuery)
         ]);
 
         customersSnapshot.forEach(doc => {
@@ -1435,34 +1436,38 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
         
-        salesCheckSnapshot.forEach(doc => {
+        salesSnapshot.forEach(doc => {
             const sale = doc.data() as Sale;
-            pendingChecksTotal += sale.total_amount;
-            transactions.push({
-                id: doc.id,
-                type: 'receivable',
-                partyName: sale.customer_name,
-                partyId: sale.customer_id!,
-                paymentMethod: 'check',
-                amount: sale.total_amount,
-                date: (sale.sale_date as any).toDate().toISOString(),
-                checkNumber: sale.checkNumber,
-            });
+            if (sale.paymentStatus === 'pending_check_clearance') {
+                pendingChecksTotal += sale.total_amount;
+                transactions.push({
+                    id: doc.id,
+                    type: 'receivable',
+                    partyName: sale.customer_name,
+                    partyId: sale.customer_id!,
+                    paymentMethod: 'check',
+                    amount: sale.total_amount,
+                    date: (sale.sale_date as any).toDate().toISOString(),
+                    checkNumber: sale.checkNumber,
+                });
+            }
         });
 
-        purchasesCheckSnapshot.forEach(doc => {
+        purchasesSnapshot.forEach(doc => {
             const purchase = doc.data() as Purchase;
-            pendingChecksTotal += purchase.total_amount;
-             transactions.push({
-                id: doc.id,
-                type: 'payable',
-                partyName: purchase.supplier_name,
-                partyId: purchase.supplier_id,
-                paymentMethod: 'check',
-                amount: purchase.total_amount,
-                date: (purchase.purchase_date as any).toDate().toISOString(),
-                checkNumber: purchase.checkNumber,
-            });
+            if (purchase.paymentStatus === 'pending_check_clearance') {
+                pendingChecksTotal += purchase.total_amount;
+                 transactions.push({
+                    id: doc.id,
+                    type: 'payable',
+                    partyName: purchase.supplier_name,
+                    partyId: purchase.supplier_id,
+                    paymentMethod: 'check',
+                    amount: purchase.total_amount,
+                    date: (purchase.purchase_date as any).toDate().toISOString(),
+                    checkNumber: purchase.checkNumber,
+                });
+            }
         });
 
         transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1559,11 +1564,10 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         const q = query(
             activityCollection, 
             where('userId', '==', userId), 
-            where('type', 'in', financialTypes)
         );
         
         const activitySnapshot = await getDocs(q);
-        let activities = activitySnapshot.docs.map(doc => {
+        let allActivities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -1571,6 +1575,8 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
+
+        const activities = allActivities.filter(act => financialTypes.includes(act.type));
 
         activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -1580,3 +1586,5 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
+    
