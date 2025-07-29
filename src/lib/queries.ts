@@ -852,9 +852,8 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
-      // Check if the payment covers more than the current bill, indicating a settlement
       const settlementAmount = purchaseDetails.amountPaid - purchaseDetails.total_amount;
-      if (settlementAmount > 0.001) { // Use epsilon for float comparison
+      if (settlementAmount > 0.001) {
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
           transaction.set(settlementActivityRef, {
               type: 'credit_settled',
@@ -1228,10 +1227,8 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
 
         salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Sale;
-            // Add a guard clause to ensure sale.items exists and is an array
             if (sale.items && Array.isArray(sale.items)) {
                 sale.items.forEach(item => {
-                    // Ensure quantity is a valid number
                     const quantity = typeof item.quantity === 'number' ? item.quantity : 0;
                     if (productSales[item.id]) {
                         productSales[item.id].totalQuantity += quantity;
@@ -1293,20 +1290,16 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         }
 
         if (filters.productId) {
-            // For sales/purchases, the product_id is 'multiple'. We need to fetch the transaction and check items.
-            // This is complex for a simple filter, so for now we'll only filter direct product activities.
             activities = activities.filter(act => {
                 if (act.product_id === 'multiple') {
                     // This is a simplification. A real implementation would fetch the sale/purchase
                     // and check if the productId is in its items list, which is slow.
-                    // For now, we return true to include all multi-item transactions.
                     return true;
                 }
                 return act.product_id === filters.productId
             });
         }
 
-        // Sort in-memory to avoid composite index requirement
         activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return activities;
@@ -1324,7 +1317,6 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const salesCollection = collection(db, 'sales');
     const purchasesCollection = collection(db, 'purchases');
 
-    // Queries to find transactions containing the product
     const salesQuery = query(salesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
     const purchasesQuery = query(purchasesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
     
@@ -1363,7 +1355,6 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
         }
     });
 
-    // Sort all transactions by date
     transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return transactions;
@@ -1393,52 +1384,57 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
 
-        // Fetch all customers and suppliers for the user once
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+        const salesCheckQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
+        const purchasesCheckQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
 
-        const [customersSnapshot, suppliersSnapshot] = await Promise.all([
+        const [
+            customersSnapshot, 
+            suppliersSnapshot, 
+            salesCheckSnapshot, 
+            purchasesCheckSnapshot
+        ] = await Promise.all([
             getDocs(customersQuery),
             getDocs(suppliersQuery),
+            getDocs(salesCheckQuery),
+            getDocs(purchasesCheckQuery)
         ]);
 
-        // 1. Process customers for receivables
         customersSnapshot.forEach(doc => {
-            const customer = doc.data() as Customer;
-            if (customer.credit_balance > 0) {
-                receivablesTotal += customer.credit_balance;
+            const customer = doc.data();
+            const balance = customer.credit_balance || 0;
+            if (balance > 0) {
+                receivablesTotal += balance;
                 transactions.push({
                     id: `customer-${doc.id}`,
                     type: 'receivable',
                     partyName: customer.name,
                     partyId: doc.id,
                     paymentMethod: 'credit',
-                    amount: customer.credit_balance,
-                    date: (customer.updated_at || customer.created_at) as string,
+                    amount: balance,
+                    date: (customer.updated_at || customer.created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             }
         });
 
-        // 2. Process suppliers for payables
         suppliersSnapshot.forEach(doc => {
-            const supplier = doc.data() as Supplier;
-            if (supplier.credit_balance > 0) {
-                payablesTotal += supplier.credit_balance;
+            const supplier = doc.data();
+            const balance = supplier.credit_balance || 0;
+            if (balance > 0) {
+                payablesTotal += balance;
                 transactions.push({
                     id: `supplier-${doc.id}`,
                     type: 'payable',
                     partyName: supplier.name,
                     partyId: doc.id,
                     paymentMethod: 'credit',
-                    amount: supplier.credit_balance,
-                    date: (supplier.updated_at || supplier.created_at) as string,
+                    amount: balance,
+                    date: (supplier.updated_at || supplier.created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             }
         });
         
-        // 3. Get all pending checks from sales
-        const salesCheckQuery = query(collection(db, 'sales'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
-        const salesCheckSnapshot = await getDocs(salesCheckQuery);
         salesCheckSnapshot.forEach(doc => {
             const sale = doc.data() as Sale;
             pendingChecksTotal += sale.total_amount;
@@ -1454,9 +1450,6 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             });
         });
 
-        // 4. Get all pending checks from purchases
-        const purchasesCheckQuery = query(collection(db, 'purchases'), where('userId', '==', userId), where('paymentStatus', '==', 'pending_check_clearance'));
-        const purchasesCheckSnapshot = await getDocs(purchasesCheckQuery);
         purchasesCheckSnapshot.forEach(doc => {
             const purchase = doc.data() as Purchase;
             pendingChecksTotal += purchase.total_amount;
@@ -1492,7 +1485,6 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
         return { success: false, message: 'Settlement amount must be positive.' };
     }
     
-    // Use a small epsilon for float comparison to avoid floating point issues
     if (settlementAmount > transaction.amount + 0.001) {
         return { success: false, message: 'Settlement amount cannot exceed outstanding balance.' };
     }
@@ -1501,11 +1493,13 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
         await runTransaction(db, async (t) => {
             const activityCollection = collection(db, 'recent_activity');
             const newActivityRef = doc(activityCollection);
+            let partyRef;
+            let activityType: RecentActivity['type'] = 'credit_settled';
+            let details = '';
 
             if (transaction.type === 'receivable') {
-                const customerRef = doc(db, 'customers', transaction.partyId);
-                let activityType: RecentActivity['type'] = 'credit_settled';
-                let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
+                partyRef = doc(db, 'customers', transaction.partyId);
+                details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'check') {
                     const saleRef = doc(db, 'sales', transaction.id);
@@ -1515,15 +1509,14 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 }
 
                 if (status === 'paid') {
-                    t.update(customerRef, { credit_balance: increment(-settlementAmount) });
+                     t.update(partyRef, { credit_balance: increment(-settlementAmount) });
                 }
                 
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
 
             } else { // payable
-                const supplierRef = doc(db, 'suppliers', transaction.partyId);
-                let activityType: RecentActivity['type'] = 'credit_settled';
-                let details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
+                partyRef = doc(db, 'suppliers', transaction.partyId);
+                details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
 
                 if (transaction.paymentMethod === 'check') {
                     const purchaseRef = doc(db, 'purchases', transaction.id);
@@ -1533,7 +1526,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
                 }
 
                 if (status === 'paid') {
-                    t.update(supplierRef, { credit_balance: increment(-settlementAmount) });
+                    t.update(partyRef, { credit_balance: increment(-settlementAmount) });
                 }
 
                 t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
@@ -1579,7 +1572,6 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
             }
         }) as RecentActivity[];
 
-        // Sort in code to avoid composite index
         activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return activities;
@@ -1588,5 +1580,3 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
-
-      

@@ -158,7 +158,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             title: 'Purchase Complete!',
             description: 'The transaction has been recorded and stock updated.',
           });
-          // Refresh suppliers list to get updated credit balance
           const updatedSuppliers = await fetchSuppliers();
           setSuppliers(updatedSuppliers);
           const updatedSelected = updatedSuppliers.find((s: Supplier) => s.id === selectedSupplier.id);
@@ -381,3 +380,4 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     </>
   );
 }
+
