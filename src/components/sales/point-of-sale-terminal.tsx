@@ -67,6 +67,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
   const [checkNumber, setCheckNumber] = React.useState('');
 
   const { toast } = useToast();
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   
   // For hardware scanner input
   const barcodeChars = React.useRef<string[]>([]);
@@ -340,6 +341,13 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     setProducts(updatedProducts);
   }, []);
 
+  const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+    }
+  };
+
   if (!isMounted) {
     return (
         <div className="flex items-center justify-center p-12">
@@ -368,6 +376,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={searchInputRef}
                 placeholder="Search or scan product barcode..."
                 className="w-full pl-8 sm:w-80"
                 value={searchTerm}
@@ -479,6 +488,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
                               value={item.quantity}
                               onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
                               onFocus={(e) => e.target.select()}
+                              onKeyDown={handleQuantityKeyDown}
                               className="h-8 w-14 text-center"
                               min="0"
                           />
@@ -559,5 +569,3 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     </>
   );
 }
-
-      
