@@ -192,9 +192,8 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
 
 
   // Effect for hardware barcode scanner
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in an input field
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // Ignore if typing in an input field to prevent interference
       const activeElement = document.activeElement;
       if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
         return;
@@ -218,13 +217,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
       
       lastKeystrokeTime.current = currentTime;
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleBarcodeScan]);
 
 
   const filteredAndGroupedProducts = React.useMemo(() => {
@@ -455,7 +447,11 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
         </Card>
 
         {/* Right Column: Bill */}
-        <div className="lg:col-span-2">
+        <div 
+          className="lg:col-span-2"
+          onKeyDown={handleKeyDown}
+          tabIndex={0}
+        >
           <Card className="sticky top-24">
             <CardHeader>
               <CardTitle>Current Bill</CardTitle>
@@ -578,3 +574,4 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
 
     
+
