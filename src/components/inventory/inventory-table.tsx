@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -40,7 +41,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, ScanLine, Loader2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, ScanLine, Loader2, Wand2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -52,6 +53,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
 import dynamic from 'next/dynamic';
 import { Skeleton } from '../ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 const BarcodeScanner = dynamic(() => import('./barcode-scanner'), { 
     ssr: false,
@@ -90,6 +92,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
   const [isFetchingBarcode, setIsFetchingBarcode] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedProduct, setSelectedProduct] = React.useState<Partial<Product>>(initialProductState);
+  const [aiSuggestions, setAiSuggestions] = React.useState<{name: string, brand?: string, category: string} | null>(null);
   const { toast } = useToast();
   const formRef = React.useRef<HTMLFormElement>(null);
   
@@ -100,6 +103,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
   const handleOpenDialog = (state: FormState, product?: Product) => {
     setFormState(state);
     setSelectedProduct(product || initialProductState);
+    setAiSuggestions(null); // Clear previous suggestions
     setIsDialogOpen(true);
   };
 
@@ -123,8 +127,9 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
   const handleScanSuccess = React.useCallback(async (decodedText: string) => {
     setIsScannerOpen(false);
     setIsDialogOpen(true);
-    setFormState('add'); // Always treat a scan as adding a new product
+    setFormState('add');
     setIsFetchingBarcode(true);
+    setAiSuggestions(null);
     
     setSelectedProduct({ ...initialProductState, barcode: decodedText });
 
@@ -135,12 +140,13 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
 
     const result = await getProductDetailsFromBarcode(decodedText);
     if (result.success && result.data) {
-        setSelectedProduct(prev => ({
-            ...prev,
-            name: result.data!.name,
-            brand: result.data!.brand || '',
-            category: result.data!.category,
-        }));
+        const suggestions = {
+            name: result.data.name,
+            brand: result.data.brand || '',
+            category: result.data.category
+        };
+        setSelectedProduct(prev => ({ ...prev, ...suggestions }));
+        setAiSuggestions(suggestions);
         toast({ title: 'Success', description: 'Product details populated by AI.' });
     } else {
         toast({ variant: 'destructive', title: 'AI Lookup Failed', description: result.message });
@@ -151,25 +157,22 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
   // Effect for hardware barcode scanner
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore keypresses if a dialog or input is focused
       if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || isDialogOpen)) {
         return;
       }
 
       const currentTime = new Date().getTime();
       
-      // Reset if the time between keystrokes is too long (e.g., >100ms)
       if (currentTime - lastKeystrokeTime.current > 100) {
         barcodeChars.current = [];
       }
       
       if (e.key === 'Enter') {
-        if (barcodeChars.current.length > 5) { // Minimum length for a barcode
+        if (barcodeChars.current.length > 5) {
           handleScanSuccess(barcodeChars.current.join(''));
         }
         barcodeChars.current = [];
       } else {
-        // Add character to the buffer
         if(e.key.length === 1) barcodeChars.current.push(e.key);
       }
       
@@ -317,11 +320,25 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
             </DialogHeader>
             <ScrollArea className="max-h-[70vh] -mx-6 px-6">
                  {isFetchingBarcode ? (
-                    <div className="flex items-center justify-center h-48">
+                    <div className="flex flex-col items-center justify-center h-48 gap-4">
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Looking up barcode...</p>
                     </div>
                   ) : (
-                    <form key={JSON.stringify(selectedProduct)} ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
+                    <form key={selectedProduct.id || 'new'} ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
+                        {aiSuggestions && (
+                            <Alert>
+                                <Wand2 className="h-4 w-4" />
+                                <AlertTitle>AI Suggestions</AlertTitle>
+                                <AlertDescription>
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
+                                        <span className="font-semibold">Name:</span><span>{aiSuggestions.name}</span>
+                                        <span className="font-semibold">Brand:</span><span>{aiSuggestions.brand}</span>
+                                        <span className="font-semibold">Category:</span><span>{aiSuggestions.category}</span>
+                                    </div>
+                                </AlertDescription>
+                            </Alert>
+                        )}
                         <div className="space-y-2">
                             <Label htmlFor="name">Name</Label>
                             <Input id="name" name="name" defaultValue={selectedProduct.name} />
@@ -333,9 +350,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="barcode">Barcode</Label>
-                                <div className="flex items-center gap-2">
-                                    <Input id="barcode" name="barcode" defaultValue={selectedProduct.barcode} />
-                                </div>
+                                <Input id="barcode" name="barcode" defaultValue={selectedProduct.barcode} />
                             </div>
                         </div>
                          <div className="space-y-2">
@@ -397,3 +412,4 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     </Card>
   );
 }
+
