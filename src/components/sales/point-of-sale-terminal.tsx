@@ -148,26 +148,29 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
       return;
     }
     
-    // Check if item is already in cart
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
         updateQuantity(product.id, existingItem.quantity + 1);
-        return;
+    } else {
+        setCart((prevCart) => [
+          ...prevCart,
+          {
+            id: product.id,
+            name: product.name,
+            image: product.image,
+            quantity: 1,
+            price_per_unit: product.selling_price,
+            total_amount: product.selling_price,
+            stock: product.stock,
+          },
+        ]);
+        setLastAddedItemId(product.id);
     }
+    
+    // Clear search and focus for next item
+    setSearchTerm('');
+    searchInputRef.current?.focus();
 
-    setCart((prevCart) => [
-      ...prevCart,
-      {
-        id: product.id,
-        name: product.name,
-        image: product.image,
-        quantity: 1,
-        price_per_unit: product.selling_price,
-        total_amount: product.selling_price,
-        stock: product.stock,
-      },
-    ]);
-    setLastAddedItemId(product.id);
   }, [cart, toast, updateQuantity]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
