@@ -40,7 +40,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, History } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, ScanLine } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -49,6 +49,14 @@ import { useToast } from '@/hooks/use-toast';
 import { createProduct, updateProduct, deleteProduct } from '@/lib/queries';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
+import dynamic from 'next/dynamic';
+import { Skeleton } from '../ui/skeleton';
+
+const BarcodeScanner = dynamic(() => import('./barcode-scanner'), { 
+    ssr: false,
+    loading: () => <Skeleton className="h-48 w-full" /> 
+});
+
 
 type FormState = 'add' | 'edit';
 
@@ -77,10 +85,12 @@ interface InventoryTableProps {
 
 export function InventoryTable({ products, onProductCreated, onProductUpdated, onProductDeleted, onViewHistory }: InventoryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+  const [isScannerOpen, setIsScannerOpen] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedProduct, setSelectedProduct] = React.useState<Partial<Product>>(initialProductState);
   const { toast } = useToast();
   const formRef = React.useRef<HTMLFormElement>(null);
+  const barcodeInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleOpenDialog = (state: FormState, product?: Product) => {
     setFormState(state);
@@ -105,9 +115,26 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     }
   }
 
+  const handleScanSuccess = (decodedText: string) => {
+    if (barcodeInputRef.current) {
+        barcodeInputRef.current.value = decodedText;
+        // Manually trigger change event for react-hook-form if needed
+    }
+    setSelectedProduct(prev => ({ ...prev, barcode: decodedText }));
+    setIsScannerOpen(false);
+    toast({
+        title: 'Scan Successful',
+        description: `Barcode: ${decodedText}`
+    })
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+     if (barcodeInputRef.current?.value) {
+      formData.set('barcode', barcodeInputRef.current.value);
+    }
+
     try {
       if (formState === 'add') {
         const newProduct = await createProduct(formData);
@@ -222,7 +249,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
           </TableBody>
         </Table>
       </CardContent>
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{formState === 'add' ? 'Add New Product' : 'Edit Product'}</DialogTitle>
@@ -238,12 +265,18 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                        <Label htmlFor="sku">SKU</Label>
-                        <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
+                            <Label htmlFor="sku">SKU</Label>
+                            <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
                         </div>
                         <div className="space-y-2">
-                        <Label htmlFor="barcode">Barcode</Label>
-                        <Input id="barcode" name="barcode" defaultValue={selectedProduct.barcode} />
+                            <Label htmlFor="barcode">Barcode</Label>
+                            <div className="flex items-center gap-2">
+                                <Input id="barcode" name="barcode" ref={barcodeInputRef} defaultValue={selectedProduct.barcode} />
+                                <Button type="button" variant="outline" size="icon" onClick={() => setIsScannerOpen(true)}>
+                                    <ScanLine className="h-4 w-4" />
+                                    <span className="sr-only">Scan Barcode</span>
+                                </Button>
+                            </div>
                         </div>
                     </div>
                      <div className="space-y-2">
@@ -294,6 +327,13 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
             </DialogFooter>
           </DialogContent>
       </Dialog>
+      {isScannerOpen && (
+          <BarcodeScanner 
+            open={isScannerOpen} 
+            onClose={() => setIsScannerOpen(false)}
+            onScanSuccess={handleScanSuccess}
+          />
+      )}
     </Card>
   );
 }
