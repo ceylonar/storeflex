@@ -2,6 +2,7 @@
 'use server';
 
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
+import { getProductInfoFromBarcode, type ProductInfoOutput } from '@/ai/flows/getProductInfoFromBarcode';
 import { collection, getDocs, query, where, Timestamp, getDoc, doc } from 'firebase/firestore';
 import { getFirebaseServices } from './firebase';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -54,6 +55,20 @@ export async function getPriceSuggestion(input: SuggestOptimalPriceInput): Promi
     };
   }
 }
+
+export async function getProductDetailsFromBarcode(barcode: string): Promise<{ success: boolean; data: ProductInfoOutput | null; message: string; }> {
+    if (!barcode) {
+        return { success: false, data: null, message: "Barcode is required." };
+    }
+    try {
+        const result = await getProductInfoFromBarcode(barcode);
+        return { success: true, data: result, message: "Successfully fetched product info." };
+    } catch (error) {
+        console.error("AI Barcode Lookup Error:", error);
+        return { success: false, data: null, message: "Failed to get product info from barcode." };
+    }
+}
+
 
 type ReportData = {
     sales: Sale[];

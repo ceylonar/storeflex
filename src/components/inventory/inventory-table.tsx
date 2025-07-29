@@ -40,13 +40,14 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, ScanLine } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, ScanLine, Loader2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { createProduct, updateProduct, deleteProduct } from '@/lib/queries';
+import { getProductDetailsFromBarcode } from '@/lib/actions';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
 import dynamic from 'next/dynamic';
@@ -86,12 +87,12 @@ interface InventoryTableProps {
 export function InventoryTable({ products, onProductCreated, onProductUpdated, onProductDeleted, onViewHistory }: InventoryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isScannerOpen, setIsScannerOpen] = React.useState(false);
+  const [isFetchingBarcode, setIsFetchingBarcode] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedProduct, setSelectedProduct] = React.useState<Partial<Product>>(initialProductState);
   const { toast } = useToast();
   const formRef = React.useRef<HTMLFormElement>(null);
-  const barcodeInputRef = React.useRef<HTMLInputElement>(null);
-
+  
   const handleOpenDialog = (state: FormState, product?: Product) => {
     setFormState(state);
     setSelectedProduct(product || initialProductState);
@@ -115,25 +116,37 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     }
   }
 
-  const handleScanSuccess = (decodedText: string) => {
-    if (barcodeInputRef.current) {
-        barcodeInputRef.current.value = decodedText;
-        // Manually trigger change event for react-hook-form if needed
-    }
-    setSelectedProduct(prev => ({ ...prev, barcode: decodedText }));
+  const handleScanSuccess = async (decodedText: string) => {
     setIsScannerOpen(false);
+    setIsDialogOpen(true);
+    setIsFetchingBarcode(true);
+    
+    // Update the form immediately with the barcode
+    setSelectedProduct(prev => ({ ...initialProductState, barcode: decodedText }));
+
     toast({
         title: 'Scan Successful',
-        description: `Barcode: ${decodedText}`
-    })
+        description: `Barcode: ${decodedText}. Fetching product details...`
+    });
+
+    const result = await getProductDetailsFromBarcode(decodedText);
+    if (result.success && result.data) {
+        setSelectedProduct(prev => ({
+            ...prev,
+            name: result.data!.name,
+            brand: result.data!.brand,
+            category: result.data!.category,
+        }));
+        toast({ title: 'Success', description: 'Product details populated by AI.' });
+    } else {
+        toast({ variant: 'destructive', title: 'AI Lookup Failed', description: result.message });
+    }
+    setIsFetchingBarcode(false);
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-     if (barcodeInputRef.current?.value) {
-      formData.set('barcode', barcodeInputRef.current.value);
-    }
 
     try {
       if (formState === 'add') {
@@ -163,10 +176,16 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 <CardTitle>Products</CardTitle>
                 <CardDescription>A list of all products in your inventory.</CardDescription>
             </div>
-            <Button size="sm" className="gap-1 w-full sm:w-auto" onClick={() => handleOpenDialog('add')}>
-              <PlusCircle className="h-4 w-4" />
-              Add Product
-            </Button>
+            <div className="flex gap-2 w-full sm:w-auto">
+                <Button size="sm" className="gap-1 w-full" onClick={() => handleOpenDialog('add')}>
+                  <PlusCircle className="h-4 w-4" />
+                  Add Product
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1 w-full" onClick={() => setIsScannerOpen(true)}>
+                    <ScanLine className="h-4 w-4" />
+                    Scan to Add
+                </Button>
+            </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -258,72 +277,74 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
               </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[70vh] -mx-6 px-6">
-                <form ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="name">Name</Label>
-                        <Input id="name" name="name" defaultValue={selectedProduct.name} />
+                 {isFetchingBarcode ? (
+                    <div className="flex items-center justify-center h-48">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
+                  ) : (
+                    <form key={JSON.stringify(selectedProduct)} ref={formRef} onSubmit={handleSubmit} className="py-4 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="sku">SKU</Label>
-                            <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
+                            <Label htmlFor="name">Name</Label>
+                            <Input id="name" name="name" defaultValue={selectedProduct.name} />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="barcode">Barcode</Label>
-                            <div className="flex items-center gap-2">
-                                <Input id="barcode" name="barcode" ref={barcodeInputRef} defaultValue={selectedProduct.barcode} />
-                                <Button type="button" variant="outline" size="icon" onClick={() => setIsScannerOpen(true)}>
-                                    <ScanLine className="h-4 w-4" />
-                                    <span className="sr-only">Scan Barcode</span>
-                                </Button>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="sku">SKU</Label>
+                                <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="barcode">Barcode</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input id="barcode" name="barcode" defaultValue={selectedProduct.barcode} />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="brand">Brand</Label>
-                        <Input id="brand" name="brand" defaultValue={selectedProduct.brand} />
-                    </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="category">Category</Label>
-                            <Input id="category" name="category" defaultValue={selectedProduct.category} />
+                         <div className="space-y-2">
+                            <Label htmlFor="brand">Brand</Label>
+                            <Input id="brand" name="brand" defaultValue={selectedProduct.brand} />
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="category">Category</Label>
+                                <Input id="category" name="category" defaultValue={selectedProduct.category} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="sub_category">Sub Category</Label>
+                                <Input id="sub_category" name="sub_category" defaultValue={selectedProduct.sub_category} />
+                            </div>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                            <Label htmlFor="stock">Stock</Label>
+                            <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} />
+                            </div>
+                            <div className="space-y-2">
+                            <Label htmlFor="low_stock_threshold">Low Stock Level</Label>
+                            <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} />
+                            </div>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                            <Label htmlFor="cost_price">Cost Price (LKR)</Label>
+                            <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} />
+                            </div>
+                            <div className="space-y-2">
+                            <Label htmlFor="selling_price">Selling Price (LKR)</Label>
+                            <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} />
+                            </div>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="sub_category">Sub Category</Label>
-                            <Input id="sub_category" name="sub_category" defaultValue={selectedProduct.sub_category} />
+                            <Label htmlFor="image">Image URL</Label>
+                            <Input id="image" name="image" defaultValue={selectedProduct.image} />
                         </div>
-                    </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                        <Label htmlFor="stock">Stock</Label>
-                        <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} />
-                        </div>
-                        <div className="space-y-2">
-                        <Label htmlFor="low_stock_threshold">Low Stock Level</Label>
-                        <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} />
-                        </div>
-                    </div>
-                    <div className="grid sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                        <Label htmlFor="cost_price">Cost Price (LKR)</Label>
-                        <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} />
-                        </div>
-                        <div className="space-y-2">
-                        <Label htmlFor="selling_price">Selling Price (LKR)</Label>
-                        <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="image">Image URL</Label>
-                        <Input id="image" name="image" defaultValue={selectedProduct.image} />
-                    </div>
-                </form>
+                    </form>
+                )}
             </ScrollArea>
             <DialogFooter className="pt-4">
                 <DialogClose asChild>
                     <Button type="button" variant="secondary">Cancel</Button>
                 </DialogClose>
-                <Button type="submit" onClick={() => formRef.current?.requestSubmit()}>Save Product</Button>
+                <Button type="submit" onClick={() => formRef.current?.requestSubmit()} disabled={isFetchingBarcode}>Save Product</Button>
             </DialogFooter>
           </DialogContent>
       </Dialog>
