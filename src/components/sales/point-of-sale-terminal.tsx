@@ -573,3 +573,5 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
 }
 
     
+
+    
