@@ -158,6 +158,16 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             title: 'Purchase Complete!',
             description: 'The transaction has been recorded and stock updated.',
           });
+          // Refresh suppliers list to get updated credit balance
+          const res = await fetch('/api/suppliers'); // Assuming an API route to fetch suppliers
+          if (res.ok) {
+              const updatedSuppliers = await res.json();
+              setSuppliers(updatedSuppliers);
+              const updatedSelected = updatedSuppliers.find((s: Supplier) => s.id === selectedSupplier.id);
+              if (updatedSelected) {
+                  setSelectedSupplier(updatedSelected);
+              }
+          }
       }
     } catch (error) {
       toast({
@@ -363,7 +373,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
               )}
             </CardContent>
             <CardFooter>
-              <Button className="w-full" onClick={handleCheckout} disabled={isSubmitting || cart.length === 0}>
+              <Button className="w-full" onClick={handleCheckout} disabled={isSubmitting || cart.length === 0 || !selectedSupplier}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Complete Purchase
               </Button>

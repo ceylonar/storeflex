@@ -814,7 +814,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
     const purchaseId = await runTransaction(db, async (transaction) => {
       const itemIds = items.map(item => item.id);
       
-      // --- ALL READS MUST HAPPEN FIRST ---
       const productRefsAndData = await Promise.all(items.map(async (item) => {
           const productRef = doc(db, 'products', item.id);
           const productDoc = await transaction.get(productRef);
@@ -830,7 +829,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
           throw new Error('Supplier not found for balance update.');
       }
       
-      // --- ALL WRITES HAPPEN AFTER READS ---
       for (const { ref: productRef, doc: productDoc, item } of productRefsAndData) {
         if (!productDoc.exists()) {
           throw new Error(`Product ${item.name} not found.`);
@@ -853,6 +851,18 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       
       const newBalance = purchaseDetails.previousBalance + purchaseDetails.total_amount - purchaseDetails.amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
+      
+      const amountSettled = Math.min(purchaseDetails.amountPaid, purchaseDetails.previousBalance);
+      if (amountSettled > 0.001) {
+          const settlementActivityRef = doc(collection(db, 'recent_activity'));
+          transaction.set(settlementActivityRef, {
+              type: 'credit_settled',
+              details: `Settled LKR ${amountSettled.toFixed(2)} with ${purchaseDetails.supplier_name}`,
+              timestamp: serverTimestamp(),
+              userId,
+          });
+      }
+
 
       const { creditAmount } = purchaseDetails;
       let paymentStatus: Purchase['paymentStatus'] = 'paid';
