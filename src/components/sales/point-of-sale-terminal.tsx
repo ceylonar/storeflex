@@ -94,48 +94,33 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     setSelectedCustomer(newCustomer);
   };
   
-    const updateQuantity = React.useCallback((productId: string, newQuantity: number) => {
-    const itemInCart = cart.find(item => item.id === productId);
-    if (!itemInCart) return;
-
-    if (newQuantity < 1) {
-        removeFromCart(productId);
-        return;
-    }
-
-    if (newQuantity > itemInCart.stock) {
-        toast({
-            variant: 'destructive',
-            title: 'Stock Limit Exceeded',
-            description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
-        });
-        // Revert to max stock available
-        setCart((prevCart) =>
-            prevCart.map((item) =>
-                item.id === productId
-                ? {
-                    ...item,
-                    quantity: item.stock,
-                    total_amount: item.stock * item.price_per_unit,
+  const updateCartItem = (productId: string, field: 'quantity' | 'price_per_unit', value: number) => {
+      setCart((prevCart) =>
+        prevCart.map((item) => {
+            if (item.id === productId) {
+                const updatedItem = { ...item, [field]: value };
+                
+                if (field === 'quantity') {
+                    if (value < 1) {
+                        // This will be filtered out later, but for now, just set it to 0
+                        updatedItem.quantity = 0;
+                    } else if (value > item.stock) {
+                        toast({
+                            variant: 'destructive',
+                            title: 'Stock Limit Exceeded',
+                            description: `Only ${item.stock} units of ${item.name} available.`,
+                        });
+                        updatedItem.quantity = item.stock;
                     }
-                : item
-            )
-        );
-        return;
-    }
-
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity: newQuantity,
-              total_amount: newQuantity * item.price_per_unit,
+                }
+                
+                updatedItem.total_amount = updatedItem.quantity * updatedItem.price_per_unit;
+                return updatedItem;
             }
-          : item
-      )
-    );
-  }, [cart, toast]);
+            return item;
+        }).filter(item => item.quantity > 0) // Remove items with quantity 0
+      );
+  };
 
 
   const addToCart = React.useCallback((product: ProductSelect) => {
@@ -150,7 +135,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
-        updateQuantity(product.id, existingItem.quantity + 1);
+        updateCartItem(product.id, 'quantity', existingItem.quantity + 1);
     } else {
         setCart((prevCart) => [
           ...prevCart,
@@ -171,7 +156,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     // Clear search and focus for next item
     setSearchTerm('');
     
-  }, [cart, toast, updateQuantity]);
+  }, [cart, toast, updateCartItem]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
         const product = products.find(p => p.barcode === barcode);
@@ -338,12 +323,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     setProducts(updatedProducts);
   }, []);
 
-  const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-    }
-  };
-
   if (!isMounted) {
     return (
         <div className="flex items-center justify-center p-12">
@@ -459,7 +438,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
             <CardContent className="space-y-4">
               <CustomerSelection 
                   customers={customers}
-                  selectedCustomer={selectedCustomer}
+                  selectedCustomer={setSelectedCustomer}
                   onSelectCustomer={setSelectedCustomer}
                   onCustomerCreated={handleCustomerCreated}
               />
@@ -467,45 +446,59 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
               <ScrollArea className="h-[25vh] border-t border-b py-2">
                   {cart.length > 0 ? (
                       cart.map((item) => (
-                      <div key={item.id} className="flex items-center gap-4 py-2">
-                        <Avatar className="h-10 w-10 rounded-md">
-                          <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
-                          <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <p className="font-medium truncate text-sm">{item.name}</p>
-                           {item.sub_category && (
-                              <p className="text-xs text-muted-foreground">{item.sub_category}</p>
-                            )}
-                          <p className="text-xs text-muted-foreground">
-                            LKR {item.price_per_unit.toFixed(2)}
-                          </p>
+                        <div key={item.id} className="flex flex-col gap-2 py-2 border-b last:border-b-0">
+                            <div className="flex items-center gap-4">
+                                <Avatar className="h-10 w-10 rounded-md">
+                                <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
+                                <AvatarFallback>{item.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                <p className="font-medium truncate text-sm">{item.name}</p>
+                                {item.sub_category && (
+                                    <p className="text-xs text-muted-foreground">{item.sub_category}</p>
+                                )}
+                                </div>
+                                 <p className="w-20 text-right font-medium text-sm">
+                                    LKR {item.total_amount.toFixed(2)}
+                                </p>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(item.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pl-14">
+                                <div className="space-y-1">
+                                    <Label htmlFor={`quantity-${item.id}`} className="text-xs">Quantity</Label>
+                                    <div className="flex items-center gap-1">
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateCartItem(item.id, 'quantity', item.quantity - 1)}>
+                                            <MinusCircle className="h-4 w-4" />
+                                        </Button>
+                                        <Input
+                                            id={`quantity-${item.id}`}
+                                            type="number"
+                                            value={item.quantity}
+                                            onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
+                                            onFocus={(e) => e.target.select()}
+                                            className="h-8 w-14 text-center"
+                                            min="0"
+                                        />
+                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateCartItem(item.id, 'quantity', item.quantity + 1)}>
+                                            <PlusCircle className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor={`price-${item.id}`} className="text-xs">Unit Price (LKR)</Label>
+                                    <Input
+                                        id={`price-${item.id}`}
+                                        type="number"
+                                        step="0.01"
+                                        value={item.price_per_unit}
+                                        onChange={(e) => updateCartItem(item.id, 'price_per_unit', parseFloat(e.target.value) || 0)}
+                                        className="h-8"
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                            <MinusCircle className="h-4 w-4" />
-                          </Button>
-                          <Input
-                              id={`quantity-${item.id}`}
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
-                              onFocus={(e) => e.target.select()}
-                              onKeyDown={handleQuantityKeyDown}
-                              className="h-8 w-14 text-center"
-                              min="0"
-                          />
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                            <PlusCircle className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <p className="w-20 text-right font-medium text-sm">
-                          LKR {item.total_amount.toFixed(2)}
-                        </p>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeFromCart(item.id)}>
-                              <Trash2 className="h-4 w-4" />
-                          </Button>
-                      </div>
                     ))
                   ) : (
                       <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
@@ -572,10 +565,3 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     </>
   );
 }
-
-    
-
-    
-
-
-
