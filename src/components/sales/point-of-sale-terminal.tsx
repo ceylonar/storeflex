@@ -158,6 +158,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
             id: product.id,
             name: product.name,
             image: product.image,
+            sub_category: product.sub_category,
             quantity: 1,
             price_per_unit: product.selling_price,
             total_amount: product.selling_price,
@@ -473,6 +474,9 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
                         </Avatar>
                         <div className="flex-1">
                           <p className="font-medium truncate text-sm">{item.name}</p>
+                           {item.sub_category && (
+                              <p className="text-xs text-muted-foreground">{item.sub_category}</p>
+                            )}
                           <p className="text-xs text-muted-foreground">
                             LKR {item.price_per_unit.toFixed(2)}
                           </p>
@@ -572,5 +576,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
 
     
+
 
 

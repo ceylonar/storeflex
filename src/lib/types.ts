@@ -83,6 +83,7 @@ export type SaleItem = {
     total_amount: number;
     stock: number;
     sku?: string;
+    sub_category?: string;
 };
 
 export type Sale = {
