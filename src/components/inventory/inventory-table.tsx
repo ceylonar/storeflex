@@ -369,7 +369,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                         </div>
                         <div className="grid sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                            <Label htmlFor="stock">Stock</Label>
+                            <Label htmlFor="stock">Stock (optional)</Label>
                             <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} />
                             </div>
                             <div className="space-y-2">

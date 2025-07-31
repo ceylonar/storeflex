@@ -75,6 +75,7 @@ const SaleItemSchema = z.object({
     price_per_unit: z.number().positive(),
     total_amount: z.number().positive(),
     stock: z.number().int().nonnegative(),
+    sub_category: z.string().optional(),
 });
 
 const POSSaleSchema = z.object({
@@ -134,7 +135,13 @@ export async function createProduct(formData: FormData): Promise<Product | null>
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
 
-  const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
+  const parsedData = Object.fromEntries(formData.entries());
+  // Ensure stock is optional and defaults to 0 if not provided
+  if (!parsedData.stock) {
+    parsedData.stock = '0';
+  }
+
+  const validatedFields = ProductSchema.omit({id: true}).safeParse(parsedData);
 
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -169,6 +176,7 @@ export async function createProduct(formData: FormData): Promise<Product | null>
       details: 'New product added to inventory',
       userId,
       timestamp: serverTimestamp(),
+      id: newProductRef.id,
     });
 
     await batch.commit();
@@ -220,8 +228,13 @@ export async function fetchProducts(): Promise<Product[]> {
 export async function updateProduct(id: string, formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  
+  const parsedData = Object.fromEntries(formData.entries());
+  if (!parsedData.stock) {
+    parsedData.stock = '0';
+  }
 
-  const validatedFields = ProductSchema.omit({id: true}).safeParse(Object.fromEntries(formData.entries()));
+  const validatedFields = ProductSchema.omit({id: true}).safeParse(parsedData);
 
   if (!validatedFields.success) {
     console.error('Validation Error:', validatedFields.error.flatten().fieldErrors);
@@ -257,7 +270,8 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
         product_image: image || '',
         details: 'Product details updated',
         userId,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        id,
     });
 
     await batch.commit();
@@ -304,7 +318,8 @@ export async function deleteProduct(id: string) {
         product_image: image || '',
         details: 'Product removed from inventory',
         userId,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        id,
     });
 
     await batch.commit();
@@ -530,7 +545,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             total_amount,
             amountPaid,
             previousBalance,
-            creditAmount: newCreditBalance,
+            creditAmount: newCreditBalance > 0 ? newCreditBalance : 0,
             paymentStatus,
             sale_date: serverTimestamp(),
         });
@@ -575,7 +590,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         total_amount,
         amountPaid,
         previousBalance,
-        creditAmount: finalCreditAmount,
+        creditAmount: finalCreditAmount > 0 ? finalCreditAmount : 0,
         paymentStatus,
         sale_date: new Date().toISOString(),
     }
@@ -720,6 +735,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
             } as Supplier
         });
         
+        // Sort in code to avoid complex index
         suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return suppliers;
@@ -828,25 +844,31 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         const currentStock = product.stock || 0;
         const currentCost = product.cost_price || 0;
         
+        // Correct weighted-average cost calculation
         const currentTotalValue = currentStock * currentCost;
         const purchaseTotalValue = item.quantity * item.cost_price;
         const newTotalStock = currentStock + item.quantity;
         const newAverageCost = newTotalStock > 0 ? (currentTotalValue + purchaseTotalValue) / newTotalStock : item.cost_price;
 
-        transaction.update(productRef, { stock: increment(item.quantity), cost_price: newAverageCost });
+        transaction.update(productRef, { 
+          stock: increment(item.quantity), 
+          cost_price: newAverageCost 
+        });
       }
       
       const newBalance = (previousBalance + currentBillTotal) - amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
       const settlementAmount = amountPaid - currentBillTotal;
-      if (settlementAmount > 0.001) {
+      if (settlementAmount > 0.001 && previousBalance > 0) {
+          const settled = Math.min(settlementAmount, previousBalance);
           const settlementActivityRef = doc(collection(db, 'recent_activity'));
           transaction.set(settlementActivityRef, {
               type: 'credit_settled',
-              details: `Settled LKR ${settlementAmount.toFixed(2)} with ${purchaseDetails.supplier_name}`,
+              details: `Settled LKR ${settled.toFixed(2)} with ${purchaseDetails.supplier_name}`,
               timestamp: serverTimestamp(),
               userId,
+              id: `settle-${supplierRef.id}-${Date.now()}`
           });
       }
 
@@ -869,7 +891,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         total_amount: currentBillTotal,
         amountPaid,
         previousBalance: previousBalance,
-        creditAmount: newBalance,
+        creditAmount: newBalance > 0 ? newBalance : 0,
         paymentStatus,
         purchase_date: serverTimestamp(),
       });
@@ -918,7 +940,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         total_amount: currentBillTotal,
         amountPaid,
         previousBalance: previousBalance, // The balance before this transaction
-        creditAmount: newBalance, // The final balance after this transaction
+        creditAmount: newBalance > 0 ? newBalance : 0,
         purchase_date: new Date().toISOString(),
         paymentStatus,
     };
@@ -1077,10 +1099,12 @@ export async function fetchDashboardData() {
         const allSales = salesSnapshot.docs.map(doc => doc.data() as Sale);
 
         allSales.forEach(sale => {
-            const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-            totalSales += sale.total_amount || 0;
-            if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
-                salesToday += sale.total_amount || 0;
+            const saleDate = (sale.sale_date as unknown as Timestamp)?.toDate();
+            if (saleDate) {
+              totalSales += sale.total_amount || 0;
+              if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
+                  salesToday += sale.total_amount || 0;
+              }
             }
         });
 
@@ -1129,7 +1153,7 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
             
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-                if (isWithinInterval(saleDate, { start: last7Days[0], end: now })) {
+                if (saleDate && isWithinInterval(saleDate, { start: last7Days[0], end: now })) {
                     const dayKey = format(saleDate, 'yyyy-MM-dd');
                     aggregatedData[dayKey] = (aggregatedData[dayKey] || 0) + sale.total_amount;
                 }
@@ -1146,7 +1170,7 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
             
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-                if (isWithinInterval(saleDate, { start: last4Weeks[0], end: now })) {
+                if (saleDate && isWithinInterval(saleDate, { start: last4Weeks[0], end: now })) {
                     const weekKey = format(startOfWeek(saleDate), 'yyyy-ww');
                     aggregatedData[weekKey] = (aggregatedData[weekKey] || 0) + sale.total_amount;
                 }
@@ -1163,7 +1187,7 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
 
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-                if (isWithinInterval(saleDate, { start: startOfYear(now), end: endOfYear(now) })) {
+                if (saleDate && isWithinInterval(saleDate, { start: startOfYear(now), end: endOfYear(now) })) {
                     const monthKey = format(saleDate, 'MMM');
                     aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + sale.total_amount;
                 }
@@ -1175,7 +1199,7 @@ export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'y
             
             allSales.forEach(sale => {
                 const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
-                if (isWithinInterval(saleDate, { start: last6Months[0], end: now })) {
+                if (saleDate && isWithinInterval(saleDate, { start: last6Months[0], end: now })) {
                     const monthKey = format(saleDate, 'yyyy-MM');
                     aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + sale.total_amount;
                 }
@@ -1268,7 +1292,13 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
         if (filters.productId) {
             activities = activities.filter(act => {
-                if (act.product_id === 'multiple') return true;
+                if (act.product_id === 'multiple') {
+                  const saleOrPurchaseId = act.id;
+                  // This is a slow operation, ideally denormalize product_ids into activity
+                  // but for now, we can check if a sale/purchase contains the product
+                  // This part is complex and might be omitted for performance if not strictly needed
+                  return true;
+                }
                 return act.product_id === filters.productId
             });
         }
@@ -1445,47 +1475,37 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             let activityType: RecentActivity['type'] = 'credit_settled';
             let details = '';
 
-            if (transaction.type === 'receivable') {
-                 if (transaction.id.startsWith('customer-')) {
-                    partyRef = doc(db, 'customers', transaction.partyId);
-                } else if (transaction.id.startsWith('supplier-receivable-')) {
-                    partyRef = doc(db, 'suppliers', transaction.partyId);
-                } else { // It's a check from a sale
-                    partyRef = doc(db, 'customers', transaction.partyId);
-                }
+            if (transaction.paymentMethod === 'credit') {
+              if(transaction.id.startsWith('customer-')) {
+                  partyRef = doc(db, 'customers', transaction.partyId);
+              } else {
+                  partyRef = doc(db, 'suppliers', transaction.partyId);
+              }
 
-                details = `Credit payment of LKR ${settlementAmount.toFixed(2)} from ${transaction.partyName} settled.`;
-
-                if (transaction.paymentMethod === 'check') {
-                    const saleRef = doc(db, 'sales', transaction.id);
-                    t.update(saleRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
-                    activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
-                    details = `Check from ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
-                }
-
-                if (status === 'paid') {
-                   t.update(partyRef, { credit_balance: increment(-settlementAmount) });
-                }
-                
-                t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
-
-            } else { // payable
-                partyRef = doc(db, 'suppliers', transaction.partyId);
-                details = `Credit payment of LKR ${settlementAmount.toFixed(2)} to ${transaction.partyName} settled.`;
-
-                if (transaction.paymentMethod === 'check') {
-                    const purchaseRef = doc(db, 'purchases', transaction.id);
-                    t.update(purchaseRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
-                     activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
-                    details = `Check to ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
-                }
-
-                if (status === 'paid') {
+              if (status === 'paid') {
                   t.update(partyRef, { credit_balance: increment(-settlementAmount) });
-                }
+              }
 
-                t.set(newActivityRef, { type: activityType, details, timestamp: serverTimestamp(), userId });
+              details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
+            } else { // Check
+              if(transaction.type === 'receivable') {
+                  const saleRef = doc(db, 'sales', transaction.id);
+                  t.update(saleRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
+              } else {
+                  const purchaseRef = doc(db, 'purchases', transaction.id);
+                   t.update(purchaseRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
+              }
+              activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
+              details = `Check ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} for LKR ${settlementAmount.toFixed(2)} was ${status === 'paid' ? 'cleared' : 'rejected'}.`;
             }
+            
+            t.set(newActivityRef, { 
+              type: activityType, 
+              details, 
+              timestamp: serverTimestamp(), 
+              userId,
+              id: newActivityRef.id
+            });
         });
 
         revalidatePath('/dashboard/moneyflow');
@@ -1530,9 +1550,3 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
-
-    
-
-    
-
-    

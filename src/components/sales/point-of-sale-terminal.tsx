@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { createSale, fetchProducts } from '@/lib/queries';
+import { createSale, fetchCustomers, fetchProducts, fetchProductsForSelect } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductSelect, SaleItem, Customer, Sale, Product } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, FileText, Loader2 } from 'lucide-react';
@@ -95,22 +95,22 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
   };
   
   const updateCartItem = (productId: string, field: 'quantity' | 'price_per_unit', value: number) => {
-    const itemInCart = cart.find(item => item.id === productId);
-    if (!itemInCart) return;
-
-    if (field === 'quantity' && value > itemInCart.stock) {
-      toast({
-        variant: 'destructive',
-        title: 'Stock Limit Exceeded',
-        description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
-      });
-      // Do not update the state, leave the quantity as is.
-      return; 
-    }
-
     setCart(prevCart =>
       prevCart.map(item => {
         if (item.id === productId) {
+           const itemInCart = cart.find(item => item.id === productId);
+           if (!itemInCart) return item;
+
+           if (field === 'quantity' && value > itemInCart.stock) {
+             // Defer toast to avoid calling in render
+             setTimeout(() => toast({
+               variant: 'destructive',
+               title: 'Stock Limit Exceeded',
+               description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
+             }), 0);
+             return item; 
+           }
+
           const updatedItem = { ...item, [field]: value };
           
           if (field === 'quantity') {
@@ -140,7 +140,16 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
-        updateCartItem(product.id, 'quantity', existingItem.quantity + 1);
+        const newQuantity = existingItem.quantity + 1;
+        if(newQuantity > existingItem.stock) {
+            toast({
+                variant: 'destructive',
+                title: 'Stock Limit Exceeded',
+                description: `Only ${existingItem.stock} units of ${existingItem.name} available.`,
+            });
+            return;
+        }
+        updateCartItem(product.id, 'quantity', newQuantity);
     } else {
         setCart((prevCart) => [
           ...prevCart,
@@ -161,7 +170,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     // Clear search and focus for next item
     setSearchTerm('');
     
-  }, [cart, toast, updateCartItem]);
+  }, [cart, toast]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
         const product = products.find(p => p.barcode === barcode);
@@ -323,9 +332,14 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     setPaymentMethod('cash');
     setAmountPaid(0);
     setCheckNumber('');
-    // Re-fetch products to get updated stock levels
-    const updatedProducts = await fetchProducts();
+    
+    // Re-fetch all necessary data
+    const [updatedProducts, updatedCustomers] = await Promise.all([
+      fetchProductsForSelect(),
+      fetchCustomers()
+    ]);
     setProducts(updatedProducts);
+    setCustomers(updatedCustomers);
   }, []);
 
   if (!isMounted) {
@@ -443,7 +457,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
             <CardContent className="space-y-4">
               <CustomerSelection 
                   customers={customers}
-                  selectedCustomer={setSelectedCustomer}
+                  selectedCustomer={selectedCustomer}
                   onSelectCustomer={setSelectedCustomer}
                   onCustomerCreated={handleCustomerCreated}
               />
