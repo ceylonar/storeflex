@@ -95,31 +95,36 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
   };
   
   const updateCartItem = (productId: string, field: 'quantity' | 'price_per_unit', value: number) => {
-      setCart((prevCart) =>
-        prevCart.map((item) => {
-            if (item.id === productId) {
-                const updatedItem = { ...item, [field]: value };
-                
-                if (field === 'quantity') {
-                    if (value < 1) {
-                        // This will be filtered out later, but for now, just set it to 0
-                        updatedItem.quantity = 0;
-                    } else if (value > item.stock) {
-                        toast({
-                            variant: 'destructive',
-                            title: 'Stock Limit Exceeded',
-                            description: `Only ${item.stock} units of ${item.name} available.`,
-                        });
-                        updatedItem.quantity = item.stock;
-                    }
-                }
-                
-                updatedItem.total_amount = updatedItem.quantity * updatedItem.price_per_unit;
-                return updatedItem;
+    const itemInCart = cart.find(item => item.id === productId);
+    if (!itemInCart) return;
+
+    if (field === 'quantity' && value > itemInCart.stock) {
+      toast({
+        variant: 'destructive',
+        title: 'Stock Limit Exceeded',
+        description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
+      });
+      // Do not update the state, leave the quantity as is.
+      return; 
+    }
+
+    setCart(prevCart =>
+      prevCart.map(item => {
+        if (item.id === productId) {
+          const updatedItem = { ...item, [field]: value };
+          
+          if (field === 'quantity') {
+            if (value < 1) {
+              updatedItem.quantity = 0;
             }
-            return item;
-        }).filter(item => item.quantity > 0) // Remove items with quantity 0
-      );
+          }
+          
+          updatedItem.total_amount = updatedItem.quantity * updatedItem.price_per_unit;
+          return updatedItem;
+        }
+        return item;
+      }).filter(item => item.quantity > 0)
+    );
   };
 
 
