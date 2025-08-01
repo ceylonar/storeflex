@@ -1,7 +1,4 @@
 
-
-
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1009,37 +1006,6 @@ export async function fetchStores() {
     return [defaultStore];
 }
 
-async function initializeDefaultUsers() {
-    const { db } = getFirebaseServices();
-    if (!db) return; // Exit if Firebase is not initialized
-
-    const usersCollection = collection(db, 'users');
-    const defaultUsers = [
-        { id: 'user-admin-01', email: 'admin@storeflex.com', name: 'Admin User', role: 'admin', password: 'adminpassword' },
-        { id: 'user-manager-01', email: 'manager@storeflex.com', name: 'Manager User', role: 'manager', password: 'managerpassword' },
-        { id: 'user-sales-01', email: 'sales@storeflex.com', name: 'Sales User', role: 'sales', password: 'salespassword' },
-    ];
-
-    try {
-        for (const user of defaultUsers) {
-            const userRef = doc(db, 'users', user.id);
-            const userDoc = await getDoc(userRef);
-            if (!userDoc.exists()) {
-                await setDoc(userRef, {
-                    ...user,
-                    businessName: "StoreFlex Lite",
-                    address: "123 Demo Street, Colombo",
-                    contactNumber: "011-123-4567",
-                    logoUrl: '',
-                });
-            }
-        }
-    } catch (error) {
-        console.error("Error initializing default users:", error);
-    }
-}
-
-
 export async function fetchUserProfile(userId?: string): Promise<UserProfile | null> {
     noStore();
     const currentUserId = userId || await getCurrentUserId();
@@ -1064,7 +1030,6 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
     noStore();
     const { db } = getFirebaseServices();
     try {
-        await initializeDefaultUsers(); // Ensure users exist before fetching
         const usersCollection = collection(db, 'users');
         const querySnapshot = await getDocs(usersCollection);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
@@ -1078,7 +1043,6 @@ export async function fetchUserByEmail(email: string): Promise<UserProfile | nul
     noStore();
     const { db } = getFirebaseServices();
     try {
-        await initializeDefaultUsers(); // Ensure users exist before fetching
         const usersCollection = collection(db, 'users');
         const q = query(usersCollection, where('email', '==', email), limit(1));
         const querySnapshot = await getDocs(q);
@@ -1335,7 +1299,7 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     const { db } = getFirebaseServices();
     try {
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const salesSnapshot = await getDocs(q);
+        const salesSnapshot = await getDocs(salesQuery);
 
         const productSales: Record<string, { name: string, totalQuantity: number }> = {};
 
