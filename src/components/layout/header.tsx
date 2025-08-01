@@ -51,6 +51,7 @@ export function Header() {
   const pathname = usePathname();
   const [stores, setStores] = useState<StoreType[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [greeting, setGreeting] = useState('');
 
   useEffect(() => {
     async function getData() {
@@ -66,6 +67,7 @@ export function Header() {
         }
     }
     getData();
+    setGreeting("Let's Grow");
   }, []);
 
   const renderLogo = () => {
@@ -114,7 +116,7 @@ export function Header() {
         </SheetContent>
       </Sheet>
        <div className="flex-1">
-        <div className="animate-fade-in-up font-semibold text-muted-foreground">Let's Grow</div>
+        {greeting && <div className="animate-fade-in-up font-semibold text-muted-foreground">{greeting}</div>}
       </div>
       <div className="flex justify-end items-center gap-4">
         <ModeToggle />
