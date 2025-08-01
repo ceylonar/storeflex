@@ -91,7 +91,10 @@ export function Header() {
               className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary"
             >
               {renderLogo()}
-              <span className="text-foreground">StoreFlex Lite</span>
+              <div>
+                <span className="text-foreground">StoreFlex Lite</span>
+                <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>
+              </div>
             </Link>
             {navigation.map((item) => (
               <Link
