@@ -3,7 +3,8 @@
 'use client';
 
 import Link from "next/link";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,7 +31,7 @@ function LoginButton() {
 }
 
 export default function LoginPage() {
-  const [state, formAction] = useFormState(loginUser, undefined);
+  const [state, formAction] = useActionState(loginUser, undefined);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-secondary/50">
@@ -82,3 +83,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
