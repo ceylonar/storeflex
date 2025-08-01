@@ -70,13 +70,14 @@ export default function AboutPage() {
               </AccordionTrigger>
               <AccordionContent className="pl-8 text-muted-foreground space-y-2">
                 <p>This is where you make sales to customers. You can search for products, add them to the bill, and adjust quantities and even unit prices on the fly for negotiation. You can select an existing customer or create a new one directly from this screen.</p>
-                <p>The system supports multiple payment methods:
+                <div>
+                  <p>The system supports multiple payment methods:</p>
                   <ul className="list-disc pl-6 mt-2">
                     <li><b>Cash:</b> Calculates change to be returned.</li>
                     <li><b>Credit:</b> If a customer has an outstanding balance, it's added to the total due. If they don't pay the full amount, the remainder is added to their credit balance. This option is only available for registered customers.</li>
                     <li><b>Check:</b> Records a check number for the transaction.</li>
                   </ul>
-                </p>
+                </div>
               </AccordionContent>
             </AccordionItem>
             
