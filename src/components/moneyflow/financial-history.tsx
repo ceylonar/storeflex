@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import type { RecentActivity } from '@/lib/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { CheckCircle, HandCoins, Scroll, XCircle } from 'lucide-react';
+import { CheckCircle, HandCoins, Scroll, ShoppingCart, Truck, XCircle } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 
 function FormattedDate({ timestamp }: { timestamp: string }) {
@@ -45,8 +45,8 @@ function FormattedDate({ timestamp }: { timestamp: string }) {
 }
 
 const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
-    sale: Scroll,
-    purchase: Scroll,
+    sale: ShoppingCart,
+    purchase: Truck,
     update: Scroll,
     new: Scroll,
     delete: Scroll,
@@ -66,7 +66,7 @@ export function FinancialHistory({ history }: FinancialHistoryProps) {
               <CardHeader>
                   <CardTitle>Transaction History</CardTitle>
                   <CardDescription>
-                      A log of your settled credit payments and check clearances will appear here.
+                      A log of your sales, purchases, and other financial transactions will appear here.
                   </CardDescription>
               </CardHeader>
               <CardContent>
@@ -81,7 +81,7 @@ export function FinancialHistory({ history }: FinancialHistoryProps) {
       <CardHeader>
         <CardTitle>Transaction History</CardTitle>
         <CardDescription>
-          A log of recently settled credit payments and checks.
+          A log of sales, purchases, and other financial transactions.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -89,7 +89,7 @@ export function FinancialHistory({ history }: FinancialHistoryProps) {
             <Table>
             <TableHeader>
                 <TableRow>
-                <TableHead className="w-[100px]">Type</TableHead>
+                <TableHead className="w-[120px]">Type</TableHead>
                 <TableHead>Details</TableHead>
                 <TableHead className="text-right">Date</TableHead>
                 </TableRow>
@@ -107,6 +107,8 @@ export function FinancialHistory({ history }: FinancialHistoryProps) {
                                 activity.type === 'credit_settled' && 'border-green-500 text-green-600',
                                 activity.type === 'check_cleared' && 'border-green-500 text-green-600',
                                 activity.type === 'check_rejected' && 'border-destructive text-destructive',
+                                activity.type === 'sale' && 'border-accent text-accent-foreground',
+                                activity.type === 'purchase' && 'border-blue-500 text-blue-500',
                                 )}
                             >
                                 <div className="flex items-center gap-2">

@@ -844,7 +844,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         const currentStock = product.stock || 0;
         const currentCost = product.cost_price || 0;
         
-        // Correct weighted-average cost calculation
         const currentTotalValue = currentStock * currentCost;
         const purchaseTotalValue = item.quantity * item.cost_price;
         const newTotalStock = currentStock + item.quantity;
@@ -1528,7 +1527,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
 
     const { db } = getFirebaseServices();
     try {
-        const financialTypes: RecentActivity['type'][] = ['credit_settled', 'check_cleared', 'check_rejected'];
+        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected'];
         
         const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
         
