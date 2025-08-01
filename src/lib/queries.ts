@@ -1,5 +1,6 @@
 
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -27,13 +28,14 @@ import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, Us
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import { DateRange } from 'react-day-picker';
+import { getCurrentUser } from './auth';
 
 
 // Helper to get a mock user ID
 // In a real app with authentication, this would come from the user's session
-const MOCK_USER_ID = 'user-123-abc';
 async function getCurrentUserId() {
-    return MOCK_USER_ID;
+    const user = await getCurrentUser();
+    return user?.id || null;
 }
 
 
@@ -128,6 +130,14 @@ const ProfileSchema = z.object({
   logoUrl: z.string().url().optional().or(z.literal('')),
 });
 
+const UserManagementSchema = z.object({
+    id: z.string().optional(),
+    name: z.string().min(1, 'Name is required'),
+    email: z.string().email('Invalid email address'),
+    role: z.enum(['admin', 'manager', 'sales']),
+    password: z.string().optional(),
+});
+
 
 // --- PRODUCT QUERIES ---
 
@@ -135,6 +145,7 @@ const ProfileSchema = z.object({
 export async function createProduct(formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error("Authentication required.");
 
   const parsedData = Object.fromEntries(formData.entries());
   if (!parsedData.stock) {
@@ -228,6 +239,7 @@ export async function fetchProducts(): Promise<Product[]> {
 export async function updateProduct(id: string, formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error("Authentication required.");
   
   const parsedData = Object.fromEntries(formData.entries());
   if (!parsedData.stock) {
@@ -296,6 +308,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
 export async function deleteProduct(id: string) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error("Authentication required.");
 
   try {
     const batch = writeBatch(db);
@@ -338,6 +351,7 @@ export async function deleteProduct(id: string) {
 export async function createCustomer(formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Authentication required.");
 
     const validatedFields = CustomerSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
 
@@ -418,6 +432,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 export async function updateCustomer(id: string, formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Authentication required.");
 
     const validatedFields = CustomerSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
     if (!validatedFields.success) {
@@ -457,6 +472,7 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cu
 export async function deleteCustomer(id: string) {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Authentication required.");
 
     try {
         const customerRef = doc(db, 'customers', id);
@@ -478,6 +494,7 @@ export async function deleteCustomer(id: string) {
 export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promise<Sale | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error("Authentication required.");
 
   const validatedFields = POSSaleSchema.safeParse(saleData);
 
@@ -666,6 +683,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
 export async function createSupplier(formData: FormData): Promise<Supplier | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Authentication required.");
 
     const validatedFields = SupplierSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
 
@@ -749,6 +767,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
 export async function updateSupplier(id: string, formData: FormData): Promise<Supplier | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Authentication required.");
 
     const validatedFields = SupplierSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
     if (!validatedFields.success) {
@@ -790,6 +809,7 @@ export async function updateSupplier(id: string, formData: FormData): Promise<Su
 export async function deleteSupplier(id: string) {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) throw new Error("Authentication required.");
 
     try {
         const supplierRef = doc(db, 'suppliers', id);
@@ -808,6 +828,7 @@ export async function deleteSupplier(id: string) {
 export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSchema>): Promise<Purchase | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
+  if (!userId) throw new Error("Authentication required.");
 
   const validatedFields = POSPurchaseSchema.safeParse(purchaseData);
 
@@ -987,42 +1008,88 @@ export async function fetchStores() {
     return [defaultStore];
 }
 
-export async function fetchUserProfile(): Promise<UserProfile | null> {
+async function initializeDefaultUsers() {
+    const { db } = getFirebaseServices();
+    const usersCollection = collection(db, 'users');
+    const defaultUsers = [
+        { id: 'user-admin-01', email: 'admin@storeflex.com', name: 'Admin User', role: 'admin', password: 'adminpassword' },
+        { id: 'user-manager-01', email: 'manager@storeflex.com', name: 'Manager User', role: 'manager', password: 'managerpassword' },
+        { id: 'user-sales-01', email: 'sales@storeflex.com', name: 'Sales User', role: 'sales', password: 'salespassword' },
+    ];
+
+    for (const user of defaultUsers) {
+        const userRef = doc(db, 'users', user.id);
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) {
+            await setDoc(userRef, {
+                ...user,
+                businessName: "StoreFlex Lite",
+                address: "123 Demo Street, Colombo",
+                contactNumber: "011-123-4567",
+                logoUrl: '',
+            });
+        }
+    }
+}
+
+initializeDefaultUsers();
+
+export async function fetchUserProfile(userId?: string): Promise<UserProfile | null> {
     noStore();
-    const userId = await getCurrentUserId();
-    if (!userId) return null;
+    const currentUserId = userId || await getCurrentUserId();
+    if (!currentUserId) return null;
 
     const { db } = getFirebaseServices();
-    const profileRef = doc(db, 'users', userId);
+    const profileRef = doc(db, 'users', currentUserId);
     
     try {
         const profileDoc = await getDoc(profileRef);
         if (profileDoc.exists()) {
             return { id: profileDoc.id, ...profileDoc.data() } as UserProfile;
-        } else {
-            // If no profile exists, create a default one
-            const defaultProfile: UserProfile = {
-                id: userId,
-                email: 'user@example.com',
-                name: 'Demo User',
-                businessName: "Demo Store",
-                address: "123 Demo Street, Colombo",
-                contactNumber: "011-123-4567",
-                logoUrl: '',
-                role: 'admin',
-            };
-            await setDoc(profileRef, defaultProfile);
-            return defaultProfile;
         }
+        return null;
     } catch (error) {
         console.error("Failed to fetch user profile:", error);
         return null;
     }
 }
 
+export async function fetchAllUsers(): Promise<UserProfile[]> {
+    noStore();
+    const { db } = getFirebaseServices();
+    try {
+        const usersCollection = collection(db, 'users');
+        const querySnapshot = await getDocs(usersCollection);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+    } catch (error) {
+        console.error("Failed to fetch all users:", error);
+        return [];
+    }
+}
+
+export async function fetchUserByEmail(email: string): Promise<UserProfile | null> {
+    noStore();
+    const { db } = getFirebaseServices();
+    try {
+        const usersCollection = collection(db, 'users');
+        const q = query(usersCollection, where('email', '==', email), limit(1));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) {
+            return null;
+        }
+        const userDoc = querySnapshot.docs[0];
+        return { id: userDoc.id, ...userDoc.data() } as UserProfile;
+    } catch (error) {
+        console.error("Failed to fetch user by email:", error);
+        return null;
+    }
+}
+
+
 export async function updateUserProfile(formData: FormData): Promise<{ success: boolean; message: string }> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return { success: false, message: 'Authentication required.' };
 
     const validatedFields = ProfileSchema.safeParse(Object.fromEntries(formData.entries()));
 
@@ -1047,6 +1114,40 @@ export async function updateUserProfile(formData: FormData): Promise<{ success: 
         return { success: false, message: 'Failed to update profile.' };
     }
 }
+
+export async function manageUser(formData: FormData): Promise<{ success: boolean, message: string }> {
+    const { db } = getFirebaseServices();
+    const adminUser = await getCurrentUser();
+    if (adminUser?.role !== 'admin') {
+        return { success: false, message: "Permission denied." };
+    }
+
+    const rawData = Object.fromEntries(formData.entries());
+    const validatedFields = UserManagementSchema.safeParse(rawData);
+
+    if (!validatedFields.success) {
+        return { success: false, message: "Invalid user data." };
+    }
+    
+    const { id, password, ...userData } = validatedFields.data;
+    
+    try {
+        const userRef = id ? doc(db, 'users', id) : doc(collection(db, 'users'));
+        const updateData: any = { ...userData };
+        if (password) {
+            updateData.password = password; // In a real app, hash this
+        }
+        
+        await setDoc(userRef, updateData, { merge: true });
+        
+        revalidatePath('/dashboard/account');
+        return { success: true, message: `User ${id ? 'updated' : 'created'} successfully.` };
+
+    } catch (error) {
+        return { success: false, message: "Failed to save user data." };
+    }
+}
+
 
 export async function fetchDashboardData() {
     noStore();
@@ -1337,6 +1438,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 export async function fetchProductHistory(productId: string): Promise<ProductTransaction[]> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const salesCollection = collection(db, 'sales');
     const purchasesCollection = collection(db, 'purchases');
@@ -1484,6 +1586,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number): Promise<{success: boolean, message: string}> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return { success: false, message: 'Authentication required.' };
     const settlementAmount = amount ?? transaction.amount;
 
     if (settlementAmount <= 0) return { success: false, message: 'Settlement amount must be positive.' };
@@ -1571,4 +1674,3 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
-

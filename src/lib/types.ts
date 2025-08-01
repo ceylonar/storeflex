@@ -15,6 +15,7 @@ export type UserProfile = {
     logoUrl?: string;
     googleSheetUrl?: string;
     role: 'admin' | 'manager' | 'sales';
+    password?: string; // Note: Only for prototype purposes
 };
 
 export type Product = {

@@ -1,8 +1,16 @@
+
 import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ClientHeader } from '@/components/layout/client-header';
+import { getCurrentUser } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/login');
+  }
+
   return (
       <div className="flex min-h-screen w-full bg-secondary/50">
         <Sidebar />

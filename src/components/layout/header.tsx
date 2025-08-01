@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -25,13 +26,14 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert, LogOut } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { Logo } from '../icons/logo';
 import Image from 'next/image';
+import { logoutUser } from '@/lib/auth';
 
 
 const allNavLinks = [
@@ -57,10 +59,8 @@ export function Header() {
   useEffect(() => {
     async function getData() {
         try {
-            const [fetchedStores, fetchedProfile] = await Promise.all([
-              fetchStores(),
-              fetchUserProfile()
-            ]);
+            const fetchedProfile = await fetchUserProfile();
+            const fetchedStores = await fetchStores();
             setStores(fetchedStores);
             setUserProfile(fetchedProfile);
         } catch(e) {
@@ -97,10 +97,12 @@ export function Header() {
               href="/dashboard"
               className="mb-4 flex items-center gap-2 text-lg font-semibold"
             >
-              {renderLogo()}
-              <div>
-                <span className="text-foreground">StoreFlex Lite</span>
-                <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>
+              <div className="flex items-center gap-2 font-semibold">
+                {renderLogo()}
+                <div>
+                  <span className="text-lg text-foreground">StoreFlex Lite</span>
+                  <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>
+                </div>
               </div>
             </Link>
             {navigation.map((item) => (
@@ -161,13 +163,15 @@ export function Header() {
                 </DropdownMenuItem>
                 </Link>
             ))}
-             <DropdownMenuItem>
-                <ShieldAlert className="mr-2 h-4 w-4" />
-                <span>Change Password</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Logout</DropdownMenuItem>
+             <form action={logoutUser}>
+                <DropdownMenuItem asChild>
+                    <button type="submit" className="w-full">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Logout</span>
+                    </button>
+                </DropdownMenuItem>
+            </form>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

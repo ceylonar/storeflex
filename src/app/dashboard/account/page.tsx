@@ -1,8 +1,11 @@
 
-import { fetchUserProfile } from "@/lib/queries";
-import { User, ShieldAlert } from "lucide-react";
+
+import { fetchAllUsers, fetchUserProfile } from "@/lib/queries";
+import { User, ShieldAlert, Users } from "lucide-react";
 import DynamicAccountForm from "@/components/account/dynamic-account-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { UserManagement } from "@/components/account/user-management";
+import { Separator } from "@/components/ui/separator";
 
 const PermissionDenied = () => (
     <Card>
@@ -21,6 +24,7 @@ const PermissionDenied = () => (
 
 export default async function AccountPage() {
   const userProfile = await fetchUserProfile();
+  const allUsers = userProfile?.role === 'admin' ? await fetchAllUsers() : [];
   
   const canAccess = userProfile?.role === 'admin';
 
@@ -37,7 +41,22 @@ export default async function AccountPage() {
       </div>
       
       {canAccess ? (
+        <>
           <DynamicAccountForm userProfile={userProfile} />
+          <Separator />
+            <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                    <Users className="h-8 w-8 text-primary" />
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
+                        <p className="text-muted-foreground">
+                            Create, edit, and manage user accounts and permissions.
+                        </p>
+                    </div>
+                </div>
+                <UserManagement initialUsers={allUsers} />
+            </div>
+        </>
       ) : (
           <PermissionDenied />
       )}
