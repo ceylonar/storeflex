@@ -12,7 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { HelpCircle, LayoutDashboard, Boxes, ShoppingCart, Truck, Landmark, Users, Lightbulb, FileText } from 'lucide-react';
+import { HelpCircle, LayoutDashboard, Boxes, ShoppingCart, Truck, Landmark, Users, Lightbulb, FileText, Building } from 'lucide-react';
 
 export default function AboutPage() {
   return (
@@ -26,6 +26,32 @@ export default function AboutPage() {
           </p>
         </div>
       </div>
+
+       <Card>
+        <CardHeader className="flex flex-row items-center gap-4">
+            <Building className="h-8 w-8 text-primary" />
+            <div>
+                <CardTitle>Company Details</CardTitle>
+                 <CardDescription>Developed with precision and care.</CardDescription>
+            </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-md">
+            This system is proudly developed by{' '}
+            <a 
+              href="https://www.ceylonar.com" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="font-semibold text-primary hover:underline"
+            >
+              CEYLONAR
+            </a>.
+          </p>
+          <p className="text-muted-foreground mt-2 italic">
+            &quot;Architecting Tomorrow&apos;s Digital Universe, Today.&quot;
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -141,10 +167,14 @@ export default function AboutPage() {
                 The Reports page allows you to generate detailed financial ledgers. You can filter your transaction history by date range, transaction type (sale, purchase, etc.), or a specific product. The results are displayed in an expandable list, showing full details for each transaction, including items, quantities, and prices. You can also download the filtered report as a CSV file for use in other applications like Excel or Google Sheets.
               </AccordionContent>
             </AccordionItem>
-
           </Accordion>
         </CardContent>
       </Card>
+
+      <footer className="text-center text-sm text-muted-foreground">
+        <p>&copy; 2025 CEYLONAR. All dimensions reserved.</p>
+        <p className="italic">Architecting Tomorrow&apos;s Digital Universe, Today.</p>
+      </footer>
     </div>
   );
 }
