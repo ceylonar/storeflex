@@ -29,12 +29,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import type { RecentActivity, ProductSelect, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
+import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
 import { fetchInventoryRecords } from '@/lib/queries';
-import { fetchDetailedRecordsForExport } from '@/lib/actions';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
@@ -69,7 +74,7 @@ function SafeFormattedDate({ timestamp }: { timestamp: string }) {
 
 
 interface AdvancedReportClientProps {
-  initialRecords: RecentActivity[];
+  initialRecords: DetailedRecord[];
   products: ProductSelect[];
 }
 
@@ -79,12 +84,11 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
   const [date, setDate] = useState<DateRange | undefined>();
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
-  const [records, setRecords] = useState<RecentActivity[]>(initialRecords);
+  const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   useEffect(() => {
-    // The initial load is now handled by the page server component
     if(initialRecords) {
         setRecords(initialRecords);
     }
@@ -126,13 +130,13 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
     }
     
     setIsDownloading(true);
-    toast({ title: 'Preparing Download', description: 'Fetching detailed records for export...' });
+    toast({ title: 'Preparing Download', description: 'Generating detailed report for export...' });
 
     try {
-        const detailedRecords = await fetchDetailedRecordsForExport({ date, type, productId });
+        const detailedRecords = await fetchInventoryRecords({ date, type, productId });
         
         const headers = [
-          'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details'
+          'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details (Customer/Supplier)'
         ];
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
@@ -144,8 +148,7 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                     const quantity = isSale ? `-${saleItem.quantity}` : `+${purchaseItem.quantity}`;
                     const unitPrice = isSale ? saleItem.price_per_unit : purchaseItem.cost_price;
                     const totalAmount = isSale ? (saleItem.price_per_unit * saleItem.quantity) : purchaseItem.total_cost;
-                    const details = isSale ? `Sale to ${rec.details}` : `Purchase from ${rec.details}`;
-
+                    
                     return [
                         rec.id,
                         format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
@@ -155,20 +158,20 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                         quantity,
                         unitPrice.toFixed(2),
                         totalAmount.toFixed(2),
-                        `"${details}"`
+                        `"${rec.details}"`
                     ].join(',');
                 });
             }
-            // For other types or if items are missing
+            
             return [[
                 rec.id,
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 rec.type,
-                `"${rec.product_name}"`,
+                `"${rec.product_name || ''}"`,
                 `"${rec.product_sku || ''}"`,
-                '', // Quantity
-                '', // Unit Price
-                '', // Total
+                '',
+                '',
+                '',
                 `"${rec.details}"`,
             ].join(',')];
         });
@@ -178,19 +181,19 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `inventory_records_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+        link.download = `storeflex_report_${format(new Date(), 'yyyy-MM-dd')}.csv`;
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
 
-        toast({ title: 'Download Started', description: 'Your inventory report is being downloaded.' });
+        toast({ title: 'Download Started', description: 'Your report is being downloaded.' });
 
     } catch (error) {
         toast({
             variant: 'destructive',
             title: 'Download Failed',
-            description: (error as Error).message || 'Could not generate the detailed report.',
+            description: (error as Error).message || 'Could not generate the report.',
         });
     } finally {
         setIsDownloading(false);
@@ -288,7 +291,7 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
             <div>
                 <CardTitle>Report Results</CardTitle>
                 <CardDescription>
-                    {`Displaying ${records.length} of all matching inventory transactions.`}
+                    {`Displaying ${records.length} of all matching transactions.`}
                 </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={handleDownload} disabled={records.length === 0 || isDownloading}>
@@ -312,55 +315,72 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                 </div>
             ) : (
                 <ScrollArea className="h-[60vh]">
-                    <Table>
-                        <TableHeader>
-                        <TableRow>
-                            <TableHead className="hidden w-[80px] sm:table-cell">Image</TableHead>
-                            <TableHead>Product</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Details</TableHead>
-                            <TableHead className="text-right">Date</TableHead>
-                        </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                    <Accordion type="single" collapsible className="w-full">
                         {records.length > 0 ? records.map((activity) => (
-                            <TableRow key={activity.id}>
-                                <TableCell className="hidden sm:table-cell">
-                                <Avatar className="h-12 w-12 rounded-md">
-                                    <AvatarImage src={activity.product_image || 'https://placehold.co/64x64.png'} alt={activity.product_name} data-ai-hint="product image" className="aspect-square object-cover" />
-                                    <AvatarFallback>{activity.product_name?.charAt(0) || 'P'}</AvatarFallback>
-                                </Avatar>
-                                </TableCell>
-                                <TableCell className="font-medium">{activity.product_name}</TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant="outline"
-                                    className={cn(
-                                      'font-semibold capitalize',
-                                      activity.type === 'sale' && 'border-accent text-accent-foreground',
-                                      activity.type === 'update' && 'border-blue-500 text-blue-500',
-                                      activity.type === 'new' && 'border-purple-500 text-purple-500',
-                                      activity.type === 'delete' && 'border-destructive text-destructive',
-                                      activity.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500'
+                            <AccordionItem value={activity.id} key={activity.id}>
+                                <AccordionTrigger className="p-4 text-sm hover:no-underline">
+                                    <div className="flex items-center gap-4 w-full">
+                                        <Badge
+                                            variant="outline"
+                                            className={cn(
+                                            'w-28 justify-center font-semibold capitalize',
+                                            activity.type === 'sale' && 'border-accent text-accent-foreground',
+                                            activity.type === 'update' && 'border-blue-500 text-blue-500',
+                                            activity.type === 'new' && 'border-purple-500 text-purple-500',
+                                            activity.type === 'delete' && 'border-destructive text-destructive',
+                                            activity.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500'
+                                            )}
+                                        >
+                                            {activity.type}
+                                        </Badge>
+                                        <span className="flex-1 text-left font-medium">
+                                            {activity.type === 'sale' || activity.type === 'purchase' ? activity.details : activity.product_name}
+                                        </span>
+                                        <span className="text-muted-foreground"><SafeFormattedDate timestamp={activity.timestamp} /></span>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-4 pt-0 pl-16">
+                                     {activity.items && activity.items.length > 0 ? (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Product</TableHead>
+                                                    <TableHead>Quantity</TableHead>
+                                                    <TableHead>Unit Price</TableHead>
+                                                    <TableHead className="text-right">Total</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {activity.items.map((item, index) => {
+                                                    const isSale = activity.type === 'sale';
+                                                    const saleItem = item as SaleItem;
+                                                    const purchaseItem = item as PurchaseItem;
+                                                    const quantity = isSale ? saleItem.quantity : purchaseItem.quantity;
+                                                    const unitPrice = isSale ? saleItem.price_per_unit : purchaseItem.cost_price;
+                                                    const total = isSale ? saleItem.total_amount : purchaseItem.total_cost;
+
+                                                    return (
+                                                        <TableRow key={`${activity.id}-${index}`}>
+                                                            <TableCell className="font-medium">{item.name}</TableCell>
+                                                            <TableCell>{quantity}</TableCell>
+                                                            <TableCell>LKR {unitPrice.toFixed(2)}</TableCell>
+                                                            <TableCell className="text-right">LKR {total.toFixed(2)}</TableCell>
+                                                        </TableRow>
+                                                    )
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    ) : (
+                                        <p className="text-muted-foreground">{activity.details}</p>
                                     )}
-                                  >
-                                    {activity.type}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{activity.details}</TableCell>
-                                <TableCell className="text-right text-sm text-muted-foreground">
-                                    <SafeFormattedDate timestamp={activity.timestamp} />
-                                </TableCell>
-                            </TableRow>
+                                </AccordionContent>
+                            </AccordionItem>
                         )) : (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    No records found for the selected filters.
-                                </TableCell>
-                            </TableRow>
+                           <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
+                                No records found for the selected filters.
+                            </div>
                         )}
-                        </TableBody>
-                    </Table>
+                    </Accordion>
                 </ScrollArea>
             )}
         </CardContent>

@@ -22,7 +22,7 @@ import {
   setDoc,
   increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, MoneyflowTransaction } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import { DateRange } from 'react-day-picker';
@@ -136,7 +136,6 @@ export async function createProduct(formData: FormData): Promise<Product | null>
   const userId = await getCurrentUserId();
 
   const parsedData = Object.fromEntries(formData.entries());
-  // Ensure stock is optional and defaults to 0 if not provided
   if (!parsedData.stock) {
     parsedData.stock = '0';
   }
@@ -1260,7 +1259,7 @@ interface InventoryRecordsFilter {
     productId?: string;
 }
 
-export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Promise<RecentActivity[]> {
+export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Promise<DetailedRecord[]> {
     noStore();
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -1290,21 +1289,42 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         }
 
         if (filters.productId) {
-            activities = activities.filter(act => {
-                if (act.product_id === 'multiple') {
-                  const saleOrPurchaseId = act.id;
-                  // This is a slow operation, ideally denormalize product_ids into activity
-                  // but for now, we can check if a sale/purchase contains the product
-                  // This part is complex and might be omitted for performance if not strictly needed
-                  return true;
-                }
-                return act.product_id === filters.productId
-            });
+            activities = activities.filter(act => act.product_id === filters.productId || act.product_id === 'multiple');
         }
         
         activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        // Fetch full details for sale/purchase
+        const detailedRecordsPromises = activities.map(async (rec): Promise<DetailedRecord> => {
+            let detailedRec: DetailedRecord = { ...rec, items: [] };
 
-        return activities;
+            if (rec.type === 'sale') {
+                const saleDoc = await getDoc(doc(db, 'sales', rec.id));
+                if (saleDoc.exists()) {
+                    const saleData = saleDoc.data();
+                    detailedRec.details = saleData.customer_name;
+                    detailedRec.items = saleData.items || [];
+                }
+            } else if (rec.type === 'purchase') {
+                const purchaseDoc = await getDoc(doc(db, 'purchases', rec.id));
+                if (purchaseDoc.exists()) {
+                    const purchaseData = purchaseDoc.data();
+                    detailedRec.details = purchaseData.supplier_name;
+                    detailedRec.items = purchaseData.items || [];
+                }
+            }
+
+            if (filters.productId && detailedRec.items) {
+                 detailedRec.items = detailedRec.items.filter(item => item.id === filters.productId);
+                 if(detailedRec.items.length === 0) return null;
+            }
+
+            return detailedRec;
+        });
+
+        const resolvedRecords = await Promise.all(detailedRecordsPromises);
+        return resolvedRecords.filter((rec): rec is DetailedRecord => rec !== null);
+
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch activities.');

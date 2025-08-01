@@ -140,12 +140,11 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
 
 export async function fetchProductHistory(productId: string): Promise<ProductTransaction[]> {
     const { db } = getFirebaseServices();
-    const userId = MOCK_USER_ID;
+    const userId = await getCurrentUserId();
 
     const salesCollection = collection(db, 'sales');
     const purchasesCollection = collection(db, 'purchases');
 
-    // Queries to find transactions containing the product
     const salesQuery = query(salesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
     const purchasesQuery = query(purchasesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
     
@@ -189,70 +188,5 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
-
-interface InventoryRecordsFilter {
-    date?: DateRange;
-    type?: string;
-    productId?: string;
-}
-
-export async function fetchDetailedRecordsForExport(filters: InventoryRecordsFilter): Promise<DetailedRecord[]> {
-    const { db } = getFirebaseServices();
-    const records = await fetchInventoryRecords(filters);
     
-    const productCache = new Map<string, Product>();
 
-    const getProduct = async (id: string) => {
-        if (productCache.has(id)) {
-            return productCache.get(id);
-        }
-        const productDoc = await getDoc(doc(db, 'products', id));
-        if (productDoc.exists()) {
-            const productData = productDoc.data() as Product;
-            productCache.set(id, productData);
-            return productData;
-        }
-        return null;
-    }
-
-    const detailedRecordsPromises = records.map(async (rec): Promise<DetailedRecord> => {
-        let detailedRec: DetailedRecord = { ...rec, items: [] };
-
-        if (rec.type === 'sale') {
-            const saleDoc = await getDoc(doc(db, 'sales', rec.id));
-            if (saleDoc.exists()) {
-                const saleData = saleDoc.data();
-                detailedRec.details = saleData.customer_name;
-                if (saleData.items) {
-                    detailedRec.items = await Promise.all(saleData.items.map(async (item: SaleItem) => ({
-                        ...item,
-                        sku: (await getProduct(item.id))?.sku || ''
-                    })));
-                }
-            }
-        } else if (rec.type === 'purchase') {
-            const purchaseDoc = await getDoc(doc(db, 'purchases', rec.id));
-             if (purchaseDoc.exists()) {
-                const purchaseData = purchaseDoc.data();
-                detailedRec.details = purchaseData.supplier_name;
-                 if (purchaseData.items) {
-                    detailedRec.items = await Promise.all(purchaseData.items.map(async (item: PurchaseItem) => ({
-                        ...item,
-                        sku: (await getProduct(item.id))?.sku || ''
-                    })));
-                }
-            }
-        } else if (rec.product_id && rec.product_id !== 'multiple') {
-             const product = await getProduct(rec.product_id);
-             if(product) {
-                 detailedRec.product_sku = product.sku;
-             }
-        }
-
-        return detailedRec;
-    });
-    
-    return Promise.all(detailedRecordsPromises);
-}
-
-    
