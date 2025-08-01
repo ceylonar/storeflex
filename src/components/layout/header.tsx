@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
@@ -44,6 +44,7 @@ const navigation = [
   { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
 ];
 
 export function Header() {

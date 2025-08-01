@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, History, Landmark } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, History, Landmark, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 import { useEffect, useState } from 'react';
@@ -21,6 +21,7 @@ const navigation = [
   { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
 ];
 
 export function Sidebar() {
