@@ -14,6 +14,7 @@ export type UserProfile = {
     contactNumber?: string;
     logoUrl?: string;
     googleSheetUrl?: string;
+    role: 'admin' | 'manager' | 'sales';
 };
 
 export type Product = {

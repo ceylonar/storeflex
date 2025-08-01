@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, History, Landmark, HelpCircle } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 import { useEffect, useState } from 'react';
@@ -11,17 +11,17 @@ import type { UserProfile } from '@/lib/types';
 import { fetchUserProfile } from '@/lib/queries';
 import Image from 'next/image';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
-  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
-  { name: 'Buy', href: '/dashboard/buy', icon: Truck },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
-  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
+const navigationLinks = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin', 'manager'] },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin', 'manager'] },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin', 'manager'] },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'manager', 'sales'] },
 ];
 
 export function Sidebar() {
@@ -38,11 +38,13 @@ export function Sidebar() {
     }
     return <Logo className="h-6 w-6" />;
   };
+  
+  const navigation = navigationLinks.filter(link => userProfile?.role && link.roles.includes(userProfile.role));
 
   return (
     <aside className="hidden w-64 flex-col border-r bg-card sm:flex">
       <div className="flex h-16 shrink-0 items-center border-b px-6">
-        <Link href="/dashboard" className="flex items-center gap-2 font-semibold text-primary">
+        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
           {renderLogo()}
           <div>
             <span className="text-lg text-foreground">StoreFlex Lite</span>

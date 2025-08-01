@@ -1,10 +1,28 @@
 
 import { fetchUserProfile } from "@/lib/queries";
-import { User } from "lucide-react";
+import { User, ShieldAlert } from "lucide-react";
 import DynamicAccountForm from "@/components/account/dynamic-account-form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const PermissionDenied = () => (
+    <Card>
+        <CardHeader className="flex flex-row items-center gap-4">
+            <ShieldAlert className="h-8 w-8 text-destructive" />
+            <div>
+                <CardTitle>Permission Denied</CardTitle>
+                <CardDescription>You do not have permission to access this page.</CardDescription>
+            </div>
+        </CardHeader>
+        <CardContent>
+            <p>Please contact your administrator if you believe this is an error.</p>
+        </CardContent>
+    </Card>
+);
 
 export default async function AccountPage() {
   const userProfile = await fetchUserProfile();
+  
+  const canAccess = userProfile?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -18,7 +36,11 @@ export default async function AccountPage() {
         </div>
       </div>
       
-      <DynamicAccountForm userProfile={userProfile} />
+      {canAccess ? (
+          <DynamicAccountForm userProfile={userProfile} />
+      ) : (
+          <PermissionDenied />
+      )}
     </div>
   );
 }

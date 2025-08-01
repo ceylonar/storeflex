@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
 import { fetchStores, fetchUserProfile } from '@/lib/queries';
@@ -34,17 +34,18 @@ import { Logo } from '../icons/logo';
 import Image from 'next/image';
 
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
-  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
-  { name: 'Buy', href: '/dashboard/buy', icon: Truck },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
-  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
+const allNavLinks = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin', 'manager'] },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin', 'manager'] },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin', 'manager'] },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'manager', 'sales'] },
+  { name: 'Account', href: '/dashboard/account', icon: User, roles: ['admin'], isUserMenu: true },
 ];
 
 export function Header() {
@@ -52,7 +53,7 @@ export function Header() {
   const [stores, setStores] = useState<StoreType[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [greeting, setGreeting] = useState('');
-
+  
   useEffect(() => {
     async function getData() {
         try {
@@ -77,6 +78,10 @@ export function Header() {
     return <Logo className="h-6 w-6" />;
   };
 
+  const navigation = allNavLinks.filter(link => !link.isUserMenu && userProfile?.role && link.roles.includes(userProfile.role));
+  const userNavigation = allNavLinks.filter(link => link.isUserMenu && userProfile?.role && link.roles.includes(userProfile.role));
+
+
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
       <Sheet>
@@ -90,7 +95,7 @@ export function Header() {
           <nav className="grid gap-4 text-lg font-medium">
             <Link
               href="/dashboard"
-              className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary"
+              className="mb-4 flex items-center gap-2 text-lg font-semibold"
             >
               {renderLogo()}
               <div>
@@ -148,12 +153,18 @@ export function Header() {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{userProfile?.name || 'My Account'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <Link href="/dashboard/account">
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                Account
-              </DropdownMenuItem>
-            </Link>
+            {userNavigation.map(item => (
+                <Link href={item.href} key={item.name}>
+                <DropdownMenuItem>
+                    <item.icon className="mr-2 h-4 w-4" />
+                    {item.name}
+                </DropdownMenuItem>
+                </Link>
+            ))}
+             <DropdownMenuItem>
+                <ShieldAlert className="mr-2 h-4 w-4" />
+                <span>Change Password</span>
+            </DropdownMenuItem>
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Logout</DropdownMenuItem>

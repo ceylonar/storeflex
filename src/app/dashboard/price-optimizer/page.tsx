@@ -1,7 +1,27 @@
-import { PriceOptimizerForm } from '@/components/price-optimizer/price-optimizer-form';
-import { Lightbulb } from 'lucide-react';
 
-export default function PriceOptimizerPage() {
+import { PriceOptimizerForm } from '@/components/price-optimizer/price-optimizer-form';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { fetchUserProfile } from '@/lib/queries';
+import { Lightbulb, ShieldAlert } from 'lucide-react';
+
+const PermissionDenied = () => (
+    <Card>
+        <CardHeader className="flex flex-row items-center gap-4">
+            <ShieldAlert className="h-8 w-8 text-destructive" />
+            <div>
+                <CardTitle>Permission Denied</CardTitle>
+                <CardDescription>You do not have permission to access this page.</CardDescription>
+            </div>
+        </CardHeader>
+        <CardContent>
+            <p>Please contact your administrator if you believe this is an error.</p>
+        </CardContent>
+    </Card>
+);
+
+export default async function PriceOptimizerPage() {
+  const userProfile = await fetchUserProfile();
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -13,7 +33,11 @@ export default function PriceOptimizerPage() {
           </p>
         </div>
       </div>
-      <PriceOptimizerForm />
+      {userProfile?.role === 'admin' ? (
+          <PriceOptimizerForm />
+      ) : (
+          <PermissionDenied />
+      )}
     </div>
   );
 }

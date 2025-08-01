@@ -1,9 +1,42 @@
+
 import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
-import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/lib/queries';
+import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts, fetchUserProfile } from '@/lib/queries';
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
+import { redirect } from 'next/navigation';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ShieldAlert } from 'lucide-react';
+
+const PermissionDenied = () => (
+    <Card className="mt-8">
+        <CardHeader className="flex flex-row items-center gap-4">
+            <ShieldAlert className="h-8 w-8 text-destructive" />
+            <div>
+                <CardTitle>Permission Denied</CardTitle>
+                <CardDescription>You do not have permission to access this page.</CardDescription>
+            </div>
+        </CardHeader>
+        <CardContent>
+            <p>Please contact your administrator if you believe this is an error.</p>
+        </CardContent>
+    </Card>
+);
 
 export default async function DashboardPage() {
+  const userProfile = await fetchUserProfile();
+
+  if (userProfile?.role === 'manager') {
+    redirect('/dashboard/inventory');
+  }
+
+  if (userProfile?.role === 'sales') {
+    redirect('/dashboard/sales');
+  }
+
+  if (userProfile?.role !== 'admin') {
+      return <PermissionDenied />;
+  }
+
   const dashboardData = await fetchDashboardData();
   const salesData = await fetchSalesData('monthly'); // Fetch initial monthly data
   const topProducts = await fetchTopSellingProducts();

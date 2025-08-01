@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1008,6 +1009,7 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
                 address: "123 Demo Street, Colombo",
                 contactNumber: "011-123-4567",
                 logoUrl: '',
+                role: 'admin',
             };
             await setDoc(profileRef, defaultProfile);
             return defaultProfile;
@@ -1569,3 +1571,4 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
