@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from '@/components/icons/logo';
 import { useFormStatus } from 'react-dom';
+import React, { useEffect, useState } from 'react';
 
 
 function LoginButton() {
@@ -24,9 +25,51 @@ function LoginButton() {
   );
 }
 
+function LoginForm() {
+  const [state, formAction] = useActionState(login, null)
+
+  return (
+      <form action={formAction} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="username">Username</Label>
+          <Input
+            id="username"
+            name="username"
+            type="text"
+            placeholder="superadmin"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input 
+            id="password" 
+            name="password"
+            type="password" 
+            required 
+          />
+        </div>
+        
+        {state?.error && (
+           <Alert variant="destructive">
+             <AlertCircle className="h-4 w-4" />
+             <AlertTitle>Login Failed</AlertTitle>
+             <AlertDescription>{state.error}</AlertDescription>
+           </Alert>
+        )}
+
+        <LoginButton />
+      </form>
+  )
+}
+
 
 export default function LoginPage() {
-  const [state, formAction] = useActionState(login, null)
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -39,37 +82,7 @@ export default function LoginPage() {
             <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="superadmin"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                name="password"
-                type="password" 
-                required 
-              />
-            </div>
-            
-            {state?.error && (
-               <Alert variant="destructive">
-                 <AlertCircle className="h-4 w-4" />
-                 <AlertTitle>Login Failed</AlertTitle>
-                 <AlertDescription>{state.error}</AlertDescription>
-               </Alert>
-            )}
-
-            <LoginButton />
-          </form>
+          {isClient ? <LoginForm /> : null}
         </CardContent>
       </Card>
     </main>
