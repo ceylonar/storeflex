@@ -1428,6 +1428,14 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     paymentMethod: 'credit', amount: balance,
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
+            } else if (balance < 0) {
+                // This is a liability for the business (payable) - we owe the customer
+                payablesTotal += Math.abs(balance);
+                transactions.push({
+                    id: `customer-payable-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: Math.abs(balance),
+                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
+                });
             }
         });
 
@@ -1511,7 +1519,8 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
               }
 
               if (status === 'paid') {
-                  t.update(partyRef, { credit_balance: increment(-settlementAmount) });
+                  const incrementValue = transaction.type === 'receivable' ? -settlementAmount : settlementAmount;
+                  t.update(partyRef, { credit_balance: increment(incrementValue) });
               }
 
               details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
@@ -1656,10 +1665,12 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             transaction.update(productRef, { stock: increment(item.return_quantity) });
         }
 
-        // 2. Update customer credit balance if applicable. This becomes a payable for the business.
+        // 2. Update customer credit balance. A refund increases what the business owes the customer.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
+            // Incrementing the balance negatively, as credit balance is money owed TO the customer (a payable)
+            // Or rather, we should treat customer credit as a liability. So a return INCREASES this liability.
+            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
         }
 
         // 3. Create a new sale return document
@@ -1732,4 +1743,5 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
+
 
