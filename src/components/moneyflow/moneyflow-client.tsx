@@ -128,8 +128,8 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard title="Total Receivables" value={`LKR ${data.receivablesTotal.toFixed(2)}`} icon={CreditCard} description="Money owed to you by customers" />
-        <StatCard title="Total Payables" value={`LKR ${data.payablesTotal.toFixed(2)}`} icon={Receipt} description="Money you owe to suppliers" />
+        <StatCard title="Total Receivables" value={`LKR ${data.receivablesTotal.toFixed(2)}`} icon={ArrowDownLeft} description="Money owed to you by customers" />
+        <StatCard title="Total Payables" value={`LKR ${data.payablesTotal.toFixed(2)}`} icon={ArrowUpRight} description="Money you owe to suppliers" />
         <StatCard title="Pending Checks" value={`LKR ${data.pendingChecksTotal.toFixed(2)}`} icon={Landmark} description="Value of all uncleared checks" />
       </div>
 

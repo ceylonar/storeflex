@@ -64,6 +64,16 @@ const SupplierSchema = z.object({
     credit_balance: z.coerce.number().default(0),
 });
 
+const PurchaseItemSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().optional(),
+    quantity: z.number().int().positive(),
+    cost_price: z.number().nonnegative(),
+    total_cost: z.number().nonnegative(),
+    sku: z.string().optional(),
+});
+
 
 const SaleItemSchema = z.object({
     id: z.string(),
@@ -90,15 +100,6 @@ const POSSaleSchema = z.object({
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
   previousBalance: z.number().nonnegative(),
-});
-
-const PurchaseItemSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    image: z.string().optional(),
-    quantity: z.number().int().positive(),
-    cost_price: z.number().nonnegative(),
-    total_cost: z.number().nonnegative(),
 });
 
 const POSPurchaseSchema = z.object({
@@ -165,7 +166,7 @@ export async function createProduct(formData: FormData): Promise<Product | null>
       details: 'New product added to inventory',
       userId,
       timestamp: serverTimestamp(),
-      id: newProductRef.id,
+      id: newActivityRef.id,
     });
 
     await batch.commit();
@@ -261,7 +262,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
         details: 'Product details updated',
         userId,
         timestamp: serverTimestamp(),
-        id,
+        id: newActivityRef.id,
     });
 
     await batch.commit();
@@ -310,7 +311,7 @@ export async function deleteProduct(id: string) {
         details: 'Product removed from inventory',
         userId,
         timestamp: serverTimestamp(),
-        id,
+        id: newActivityRef.id,
     });
 
     await batch.commit();
@@ -1420,10 +1421,10 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                // This is a liability for the business (payable)
-                payablesTotal += balance;
+                // This is money the customer owes the business (receivable)
+                receivablesTotal += balance;
                 transactions.push({
-                    id: `customer-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                    id: `customer-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
@@ -1441,7 +1442,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
-                // This is an asset for the business (receivable)
+                // This is an asset for the business (receivable) - supplier owes us
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
                     id: `supplier-receivable-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
