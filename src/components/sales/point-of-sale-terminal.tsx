@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -41,6 +40,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 
 type GroupedProducts = {
   [category: string]: {
@@ -48,8 +49,7 @@ type GroupedProducts = {
   };
 };
 
-export function PointOfSaleTerminal({ products: initialProducts, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
-  const [isMounted, setIsMounted] = React.useState(false);
+function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { initialProducts: ProductSelect[], initialCustomers: Customer[], onSaleComplete: () => void }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<SaleItem[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
@@ -70,22 +70,17 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
   const { toast } = useToast();
   const searchInputRef = React.useRef<HTMLInputElement>(null);
   
-  // For hardware scanner input
   const barcodeChars = React.useRef<string[]>([]);
   const lastKeystrokeTime = React.useRef<number>(0);
 
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  React.useEffect(() => {
+   React.useEffect(() => {
     if (lastAddedItemId) {
       const input = document.getElementById(`quantity-${lastAddedItemId}`);
       if (input) {
         (input as HTMLInputElement).focus();
         (input as HTMLInputElement).select();
       }
-      setLastAddedItemId(null); // Reset after focusing
+      setLastAddedItemId(null); 
     }
   }, [lastAddedItemId, cart]);
 
@@ -103,7 +98,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
            if (!itemInCart) return item;
 
            if (field === 'quantity' && value > itemInCart.stock) {
-             // Defer toast to avoid calling in render
              setTimeout(() => toast({
                variant: 'destructive',
                title: 'Stock Limit Exceeded',
@@ -168,7 +162,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
         setLastAddedItemId(product.id);
     }
     
-    // Clear search and focus for next item
     setSearchTerm('');
     
   }, [cart, toast]);
@@ -190,10 +183,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
         }
     }, [products, addToCart, toast]);
 
-
-  // Effect for hardware barcode scanner
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-      // Ignore if typing in an input field to prevent interference
       const activeElement = document.activeElement;
       if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
         return;
@@ -201,16 +191,15 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
 
       const currentTime = new Date().getTime();
       
-      // If there's a long pause, clear the buffer
       if (currentTime - lastKeystrokeTime.current > 100) {
         barcodeChars.current = [];
       }
       
       if (e.key === 'Enter') {
-        if (barcodeChars.current.length > 5) { // Typical barcodes are longer
+        if (barcodeChars.current.length > 5) {
           handleBarcodeScan(barcodeChars.current.join(''));
         }
-        barcodeChars.current = []; // Clear buffer after Enter
+        barcodeChars.current = [];
       } else {
         if(e.key.length === 1) barcodeChars.current.push(e.key);
       }
@@ -265,7 +254,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
   const previousBalance = selectedCustomer?.credit_balance || 0;
   const totalDue = previousBalance + total;
 
-  // Update amountPaid when total changes
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
       setAmountPaid(totalDue);
@@ -298,7 +286,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
             total_amount: total,
             paymentMethod,
             amountPaid,
-            creditAmount: finalCreditAmount, // Pass the final calculated credit amount
+            creditAmount: finalCreditAmount,
             checkNumber,
             previousBalance,
         };
@@ -323,7 +311,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     }
   };
 
-  const handleStartNewSale = React.useCallback(async () => {
+  const handleStartNewSale = () => {
     setLastCompletedSale(null);
     setCart([]);
     setSelectedCustomer(null);
@@ -333,22 +321,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     setPaymentMethod('cash');
     setAmountPaid(0);
     setCheckNumber('');
-    
-    // Re-fetch all necessary data
-    const [updatedProducts, updatedCustomers] = await Promise.all([
-      fetchProductsForSelect(),
-      fetchCustomers()
-    ]);
-    setProducts(updatedProducts);
-    setCustomers(updatedCustomers);
-  }, []);
-
-  if (!isMounted) {
-    return (
-        <div className="flex items-center justify-center p-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-    );
+    onSaleComplete();
   }
 
   return (
@@ -364,7 +337,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
         </DialogContent>
       </Dialog>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
-        {/* Left Column: Product Search */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Products</CardTitle>
@@ -444,7 +416,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
           </CardContent>
         </Card>
 
-        {/* Right Column: Bill */}
         <div 
           className="lg:col-span-2"
           onKeyDown={handleKeyDown}
@@ -547,7 +518,6 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
                       <div className="flex justify-between font-bold text-base"><span className="text-primary">Total Due</span><span className="text-primary">LKR {totalDue.toFixed(2)}</span></div>
                       <Separator />
                       
-                      {/* Payment Method Section */}
                       <div className="space-y-4 pt-2">
                         <Label>Payment Method</Label>
                         <RadioGroup value={paymentMethod} onValueChange={(value: 'cash' | 'credit' | 'check') => setPaymentMethod(value)} className="flex gap-4">
@@ -585,3 +555,68 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     </>
   );
 }
+
+function ReturnsTerminal() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Process a Return</CardTitle>
+                <CardDescription>Look up a sale by its ID to process a customer return.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                    <Input placeholder="Enter Sale ID (e.g., sale000001)" />
+                    <Button><Search className="mr-2 h-4 w-4" /> Find Sale</Button>
+                </div>
+                <div className="text-center text-muted-foreground py-10">
+                    <p>Enter a valid Sale ID to begin the return process.</p>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+
+export function PointOfSaleTerminal({ products: initialProducts, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
+  const [isMounted, setIsMounted] = React.useState(false);
+  
+  // This function will be called to refresh all data after a sale is complete.
+  const handleSaleComplete = async () => {
+    // This is a placeholder for a more robust state management solution
+    // For now, we'll just log that a re-fetch would happen here.
+    console.log("A sale was completed. Data would be re-fetched here.");
+  };
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+        <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    );
+  }
+
+  return (
+    <Tabs defaultValue="sale" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="sale">New Sale</TabsTrigger>
+            <TabsTrigger value="return">Returns</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sale">
+            <SaleTerminal 
+                initialProducts={initialProducts} 
+                initialCustomers={initialCustomers} 
+                onSaleComplete={handleSaleComplete}
+            />
+        </TabsContent>
+        <TabsContent value="return">
+            <ReturnsTerminal />
+        </TabsContent>
+    </Tabs>
+  );
+}
+
+    

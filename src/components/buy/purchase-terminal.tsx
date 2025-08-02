@@ -34,9 +34,10 @@ import { PurchaseReceipt } from './purchase-receipt';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
-  const [isMounted, setIsMounted] = React.useState(false);
+
+function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }: { products: ProductSelect[]; initialSuppliers: Supplier[], onPurchaseComplete: () => void }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<PurchaseItem[]>([]);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>(initialSuppliers);
@@ -47,16 +48,11 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
   const [serviceCharge, setServiceCharge] = React.useState(0);
   const [lastCompletedPurchase, setLastCompletedPurchase] = React.useState<Purchase | null>(null);
 
-  // Payment State
   const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'credit' | 'check'>('cash');
   const [amountPaid, setAmountPaid] = React.useState(0);
   const [checkNumber, setCheckNumber] = React.useState('');
 
   const { toast } = useToast();
-
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const handleSupplierCreated = (newSupplier: Supplier) => {
     setSuppliers(prev => [newSupplier, ...prev]);
@@ -155,12 +151,6 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             title: 'Purchase Complete!',
             description: 'The transaction has been recorded and stock updated.',
           });
-          const updatedSuppliers = await fetchSuppliers();
-          setSuppliers(updatedSuppliers);
-          const updatedSelected = updatedSuppliers.find((s: Supplier) => s.id === selectedSupplier.id);
-          if (updatedSelected) {
-              setSelectedSupplier(updatedSelected);
-          }
       }
     } catch (error) {
       toast({
@@ -183,14 +173,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     setPaymentMethod('cash');
     setAmountPaid(0);
     setCheckNumber('');
-  }
-
-  if (!isMounted) {
-    return (
-        <div className="flex items-center justify-center p-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-    );
+    onPurchaseComplete();
   }
 
   return (
@@ -377,3 +360,69 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
     </>
   );
 }
+
+
+function ReturnsTerminal() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Process a Return to Supplier</CardTitle>
+                <CardDescription>Look up a purchase by its ID to process a return.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                    <Input placeholder="Enter Purchase ID (e.g., pur000001)" />
+                    <Button><Search className="mr-2 h-4 w-4" /> Find Purchase</Button>
+                </div>
+                <div className="text-center text-muted-foreground py-10">
+                    <p>Enter a valid Purchase ID to begin the return process.</p>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+
+export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
+  const [isMounted, setIsMounted] = React.useState(false);
+  
+  const handlePurchaseComplete = async () => {
+    // This is a placeholder for a more robust state management solution
+    // For now, we'll just log that a re-fetch would happen here.
+    console.log("A purchase was completed. Data would be re-fetched here.");
+  };
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+        <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    );
+  }
+
+  return (
+    <Tabs defaultValue="purchase" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="purchase">New Purchase</TabsTrigger>
+            <TabsTrigger value="return">Returns to Supplier</TabsTrigger>
+        </TabsList>
+        <TabsContent value="purchase">
+            <NewPurchaseTerminal 
+                products={products} 
+                initialSuppliers={initialSuppliers} 
+                onPurchaseComplete={handlePurchaseComplete}
+            />
+        </TabsContent>
+        <TabsContent value="return">
+            <ReturnsTerminal />
+        </TabsContent>
+    </Tabs>
+  );
+}
+
+
+    
