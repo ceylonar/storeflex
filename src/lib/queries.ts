@@ -1076,7 +1076,7 @@ export async function createInitialUser({email, password}: {email: string, passw
 
     try {
         const usersCollection = collection(db, 'users');
-        const userQuery = query(usersCollection, limit(1));
+        const userQuery = query(usersCollection);
         const userSnapshot = await getDocs(userQuery);
 
         // Only create an initial user if there are no other users
@@ -1086,11 +1086,8 @@ export async function createInitialUser({email, password}: {email: string, passw
         }
 
         const counterRef = doc(db, 'counters', 'users');
-        let nextId = 1;
         const counterDoc = await getDoc(counterRef);
-        if (counterDoc.exists()) {
-            nextId = (counterDoc.data().lastId || 0) + 1;
-        }
+        const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
         const formattedId = `user${String(nextId).padStart(4, '0')}`;
 
         const newUser: Omit<UserProfile, 'id'> = {
@@ -1102,8 +1099,11 @@ export async function createInitialUser({email, password}: {email: string, passw
         };
         
         const newUserRef = doc(db, 'users', formattedId);
-        await setDoc(newUserRef, newUser);
-        await setDoc(counterRef, {lastId: nextId}, {merge: true});
+
+        await runTransaction(db, async (transaction) => {
+            transaction.set(newUserRef, newUser);
+            transaction.set(counterRef, {lastId: nextId}, {merge: true});
+        });
         
         console.log("Initial admin user created successfully.");
 
