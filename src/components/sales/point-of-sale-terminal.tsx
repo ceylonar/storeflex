@@ -199,12 +199,11 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
             }
             
             if (e.key === 'Enter') {
-              if (barcodeChars.current.length > 3) { // Reduced minimum length for more flexibility
-                handleBarcodeScan(barcodeChars.current.join(''));
+              if (barcodeChars.current.length > 3) {
+                handleBarcodeScan(barcodeChars.current.join('').toLowerCase());
               }
               barcodeChars.current = [];
             } else {
-              // Allow any single printable character
               if(e.key.length === 1 && e.key.match(/\S/)) {
                 barcodeChars.current.push(e.key);
               }
@@ -262,11 +261,11 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
   const total = Math.max(0, subtotal + tax + serviceCharge - discountAmount);
   
   const previousBalance = selectedCustomer?.credit_balance || 0;
-  const totalDue = previousBalance + total;
+  const totalDue = total - previousBalance;
 
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
-      setAmountPaid(totalDue);
+      setAmountPaid(totalDue > 0 ? totalDue : 0);
     }
   }, [totalDue, paymentMethod]);
 
@@ -295,7 +294,7 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
             service_charge: serviceCharge,
             total_amount: total,
             paymentMethod,
-            amountPaid,
+            amountPaid: amountPaid,
             creditAmount: finalCreditAmount,
             checkNumber,
             previousBalance,
@@ -520,7 +519,7 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
                       {previousBalance > 0 && (
                         <div className="flex justify-between font-semibold">
                             <span className="text-muted-foreground">Previous Balance</span>
-                            <span className="text-destructive">LKR {previousBalance.toFixed(2)}</span>
+                            <span className="text-green-600 dark:text-green-500">- LKR {previousBalance.toFixed(2)}</span>
                         </div>
                       )}
                       <Separator />
@@ -795,5 +794,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     </Tabs>
   );
 }
+
+    
 
     

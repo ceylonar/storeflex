@@ -99,8 +99,9 @@ const POSSaleSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
-  previousBalance: z.number().nonnegative(),
+  previousBalance: z.number(), // Can be negative now
 });
+
 
 const POSPurchaseSchema = z.object({
   items: z.array(PurchaseItemSchema).min(1, 'At least one item is required.'),
@@ -514,8 +515,8 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             transaction.update(productRef, { stock: increment(-item.quantity) });
         }
         
-        const newTotalDue = previousBalance + total_amount;
-        const newCreditBalance = newTotalDue - amountPaid;
+        const totalDue = total_amount - previousBalance;
+        const newCreditBalance = totalDue - amountPaid;
 
         if (customerRef) {
             transaction.update(customerRef, { credit_balance: newCreditBalance > 0 ? newCreditBalance : 0 });
@@ -569,7 +570,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/customers');
     revalidatePath('/dashboard/moneyflow');
     
-    const finalCreditAmount = (previousBalance + total_amount) - amountPaid;
+    const finalCreditAmount = (total_amount - previousBalance) - amountPaid;
     let paymentStatus: Sale['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && finalCreditAmount > 0.001) {
         paymentStatus = 'partial';
@@ -1103,7 +1104,7 @@ export async function fetchDashboardData() {
           const data = doc.data();
           return {
             ...data,
-            id: doc.id, // Use the unique Firestore document ID as the key
+            id: doc.id,
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
@@ -1266,7 +1267,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             const data = doc.data();
             return {
                 ...data,
-                id: doc.id, // Use the unique Firestore document ID as the key
+                id: doc.id,
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
@@ -1574,7 +1575,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
             const data = doc.data();
             return {
                 ...data,
-                id: doc.id, // Use the unique Firestore document ID as the key
+                id: doc.id,
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
@@ -1668,9 +1669,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
         // 2. Update customer credit balance. A refund increases what the business owes the customer.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            // Incrementing the balance negatively, as credit balance is money owed TO the customer (a payable)
-            // Or rather, we should treat customer credit as a liability. So a return INCREASES this liability.
-            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
+            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
         }
 
         // 3. Create a new sale return document
@@ -1745,3 +1744,6 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
 }
 
 
+
+
+    

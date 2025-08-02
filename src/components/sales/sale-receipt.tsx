@@ -36,6 +36,8 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
     window.print();
   };
 
+  const totalDue = sale.total_amount - (sale.previousBalance || 0);
+
   return (
     <div className="bg-background text-foreground">
       <style jsx global>{`
@@ -109,19 +111,23 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
 
          <Separator className="my-2 border-dashed" />
         
+        <div className="flex justify-between font-semibold">
+          <span>Bill Total</span>
+          <span>LKR {sale.total_amount.toFixed(2)}</span>
+        </div>
+        
         {(sale.previousBalance || 0) > 0 && (
-          <>
-            <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
-                <div className="flex justify-between"><span>Bill Total</span> <span>{sale.total_amount.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span>Prev. Balance</span> <span>{sale.previousBalance.toFixed(2)}</span></div>
+            <div className="flex justify-between text-xs">
+                <span>Prev. Balance</span>
+                <span>- {sale.previousBalance.toFixed(2)}</span>
             </div>
-            <Separator className="my-2 border-dashed" />
-          </>
         )}
+        
+        <Separator className="my-2 border-dashed" />
 
         <div className="flex justify-between font-bold text-base">
           <span>TOTAL DUE</span>
-          <span>LKR {((sale.previousBalance || 0) + sale.total_amount).toFixed(2)}</span>
+          <span>LKR {totalDue.toFixed(2)}</span>
         </div>
 
         
@@ -151,3 +157,5 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
     </div>
   );
 }
+
+    
