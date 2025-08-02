@@ -142,6 +142,7 @@ export async function fetchSalesReport(range: DateRange): Promise<{ success: boo
 export async function fetchProductHistory(productId: string): Promise<ProductTransaction[]> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
+    if (!userId) return [];
 
     const salesCollection = collection(db, 'sales');
     const purchasesCollection = collection(db, 'purchases');
@@ -190,6 +191,3 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     return transactions;
 }
     
-
-
-

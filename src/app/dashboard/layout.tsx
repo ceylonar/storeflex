@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ClientHeader } from '@/components/layout/client-header';
-import { getCurrentUser } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/queries';
 import { redirect } from 'next/navigation';
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {

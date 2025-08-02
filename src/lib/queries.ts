@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -27,14 +26,22 @@ import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, Us
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import { getCurrentUser } from './auth';
+import { getSession } from './auth';
 
 
 // Helper to get a mock user ID
 // In a real app with authentication, this would come from the user's session
 export async function getCurrentUserId() {
-    const user = await getCurrentUser();
-    return user?.id || null;
+    const session = await getSession();
+    return session?.userId || null;
+}
+
+export async function getCurrentUser(): Promise<UserProfile | null> {
+    const session = await getSession();
+    if (!session?.userId) {
+      return null;
+    }
+    return fetchUserProfile(session.userId);
 }
 
 
@@ -1030,9 +1037,14 @@ export async function fetchUserProfile(userId?: string): Promise<UserProfile | n
 export async function fetchAllUsers(): Promise<UserProfile[]> {
     noStore();
     const { db } = getFirebaseServices();
+    const currentUser = await getCurrentUser();
+    // This function should only be callable by an admin, but as an extra check
+    if(currentUser?.role !== 'admin') return [];
+
     try {
         const usersCollection = collection(db, 'users');
-        const querySnapshot = await getDocs(usersCollection);
+        const q = query(usersCollection, where('businessName', '==', currentUser.businessName)); // Only fetch users from the same company
+        const querySnapshot = await getDocs(q);
         return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
     } catch (error) {
         console.error("Failed to fetch all users:", error);
@@ -1054,6 +1066,51 @@ export async function fetchUserByEmail(email: string): Promise<UserProfile | nul
         return { id: userDoc.id, ...userDoc.data() } as UserProfile;
     } catch (error) {
         console.error("Failed to fetch user by email:", error);
+        return null;
+    }
+}
+
+export async function createInitialUser({email, password}: {email: string, password: string}): Promise<UserProfile | null> {
+    noStore();
+    const { db } = getFirebaseServices();
+
+    try {
+        const usersCollection = collection(db, 'users');
+        const userQuery = query(usersCollection, limit(1));
+        const userSnapshot = await getDocs(userQuery);
+
+        // Only create an initial user if there are no other users
+        if (!userSnapshot.empty) {
+            console.log("Database not empty. Initial user creation skipped.");
+            return null;
+        }
+
+        const counterRef = doc(db, 'counters', 'users');
+        let nextId = 1;
+        const counterDoc = await getDoc(counterRef);
+        if (counterDoc.exists()) {
+            nextId = (counterDoc.data().lastId || 0) + 1;
+        }
+        const formattedId = `user${String(nextId).padStart(4, '0')}`;
+
+        const newUser: Omit<UserProfile, 'id'> = {
+            email,
+            password, // In a real app, this should be hashed
+            name: "Admin User",
+            businessName: "My Store",
+            role: "admin"
+        };
+        
+        const newUserRef = doc(db, 'users', formattedId);
+        await setDoc(newUserRef, newUser);
+        await setDoc(counterRef, {lastId: nextId}, {merge: true});
+        
+        console.log("Initial admin user created successfully.");
+
+        return { id: formattedId, ...newUser };
+
+    } catch (error) {
+        console.error("Failed to create initial user:", error);
         return null;
     }
 }
@@ -1105,8 +1162,22 @@ export async function manageUser(formData: FormData): Promise<{ success: boolean
     const { id, password, ...userData } = validatedFields.data;
     
     try {
-        const userRef = id ? doc(db, 'users', id) : doc(collection(db, 'users'));
-        const updateData: any = { ...userData };
+        let finalId = id;
+        if (!finalId) { // Creating new user, generate ID
+             const counterRef = doc(db, 'counters', 'users');
+             const counterDoc = await getDoc(counterRef);
+             const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
+             finalId = `user${String(nextId).padStart(4, '0')}`;
+             await setDoc(counterRef, { lastId: nextId }, { merge: true });
+        }
+
+        const userRef = doc(db, 'users', finalId);
+
+        const updateData: any = { 
+            ...userData, 
+            businessName: adminUser.businessName, // Ensure they are part of the same business
+        };
+        
         if (password) {
             updateData.password = password; // In a real app, hash this
         }
@@ -1658,4 +1729,3 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
-

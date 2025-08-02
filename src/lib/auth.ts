@@ -3,8 +3,8 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { fetchUserByEmail, fetchUserProfile } from './queries';
-import { UserProfile } from './types';
+import { fetchUserByEmail, createInitialUser, getCurrentUser } from './queries';
+import type { UserProfile } from './types';
 
 const SESSION_COOKIE_NAME = 'storeflex-session';
 
@@ -28,9 +28,18 @@ export async function loginUser(formData: FormData) {
     return { success: false, message: 'Email and password are required.' };
   }
 
-  const user = await fetchUserByEmail(email);
+  let user = await fetchUserByEmail(email);
 
-  if (!user || user.password !== password) {
+  // If no user exists, this is the first login. Create the admin user.
+  if (!user) {
+    console.log("No user found, creating initial admin user...");
+    user = await createInitialUser({ email, password });
+    if (!user) {
+        return { success: false, message: 'Failed to create initial admin account.' };
+    }
+  }
+
+  if (user.password !== password) {
     return { success: false, message: 'Invalid credentials.' };
   }
   
@@ -49,12 +58,4 @@ export async function loginUser(formData: FormData) {
 export async function logoutUser() {
     cookies().delete(SESSION_COOKIE_NAME);
     redirect('/login');
-}
-
-export async function getCurrentUser(): Promise<UserProfile | null> {
-    const session = await getSession();
-    if (!session?.userId) {
-      return null;
-    }
-    return fetchUserProfile(session.userId);
 }
