@@ -44,6 +44,7 @@
     "firebase": "^10.12.3",
     "genkit": "^1.13.0",
     "html5-qrcode": "^2.3.8",
+    "jose": "^5.4.1",
     "lucide-react": "^0.475.0",
     "next": "15.3.3",
     "next-themes": "^0.3.0",

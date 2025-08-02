@@ -28,25 +28,10 @@ import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWe
 import type { DateRange } from 'react-day-picker';
 
 
-// Helper to get a mock user ID
-// In a real app with authentication, this would come from the user's session
+// This is now a placeholder, authentication is handled by the auth library
 export async function getCurrentUserId() {
-    return 'user-123-abc'; // Mock user ID
+    return 'predefined_user_main_id';
 }
-
-export async function getCurrentUser(): Promise<UserProfile | null> {
-    const userId = await getCurrentUserId();
-    if (!userId) return null;
-    
-    // Return a mock user profile since auth is removed
-    return {
-        id: userId,
-        email: "owner@storeflex.com",
-        name: "Store Owner",
-        businessName: "StoreFlex Lite"
-    };
-}
-
 
 // Form validation schemas
 const ProductSchema = z.object({
@@ -1535,4 +1520,32 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch financial activities.');
     }
+}
+
+
+export async function fetchUserProfile() {
+  noStore();
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+  const { db } = getFirebaseServices();
+  
+  // As this app doesn't have a user profile collection, we return a default.
+  // In a real app, you would fetch from a 'users' collection.
+  return {
+    id: userId,
+    email: 'test@test.com',
+    name: "Admin User",
+    businessName: "StoreFlex Lite",
+    logoUrl: "",
+    address: "",
+    contactNumber: ""
+  } as UserProfile;
+}
+
+export async function manageUser(formData: FormData) {
+  return {success: false, message: "User management is disabled in this version."}
+}
+
+export async function fetchAllUsers(): Promise<UserProfile[]> {
+    return [];
 }

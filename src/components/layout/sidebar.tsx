@@ -6,39 +6,31 @@ import { usePathname } from 'next/navigation';
 import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
-import type { UserProfile } from '@/lib/types';
-import Image from 'next/image';
+import type { User } from '@/lib/auth';
 
 const navigationLinks = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
-  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
-  { name: 'Buy', href: '/dashboard/buy', icon: Truck },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
-  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin'] },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'sales'] },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin'] },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
 ];
 
-export function Sidebar({ userProfile }: { userProfile: UserProfile | null }) {
+export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
-
-  const renderLogo = () => {
-    if (userProfile?.logoUrl) {
-      return <Image src={userProfile.logoUrl} alt="Store Logo" width={24} height={24} className="h-6 w-6" />;
-    }
-    return <Logo className="h-6 w-6" />;
-  };
   
-  const navigation = navigationLinks;
+  const navigation = navigationLinks.filter(link => link.roles.includes(user.role));
 
   return (
     <aside className="hidden w-64 flex-col border-r bg-card sm:flex">
       <div className="flex h-16 shrink-0 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-          {renderLogo()}
+          <Logo className="h-6 w-6" />
           <div>
             <span className="text-lg text-foreground">StoreFlex Lite</span>
             <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>

@@ -1,5 +1,4 @@
 
-
 import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
 import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/lib/queries';
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';

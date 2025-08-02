@@ -13,29 +13,30 @@ import {
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert, LogOut } from 'lucide-react';
-import type { Store as StoreType, UserProfile } from '@/lib/types';
+import type { Store as StoreType } from '@/lib/types';
+import type { User } from '@/lib/auth';
 import { useEffect, useState } from 'react';
 import { fetchStores } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { Logo } from '../icons/logo';
-import Image from 'next/image';
+import { logout } from '@/lib/auth';
 
 
 const allNavLinks = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
-  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
-  { name: 'Buy', href: '/dashboard/buy', icon: Truck },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users },
-  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
-  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
-  { name: 'Account', href: '/dashboard/account', icon: User, isUserMenu: true },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin'] },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'sales'] },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin'] },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
+  { name: 'Account', href: '/dashboard/account', icon: User, isUserMenu: true, roles: ['admin'] },
 ];
 
-export function Header({ userProfile }: { userProfile: UserProfile | null }) {
+export function Header({ user }: { user: User }) {
   const pathname = usePathname();
   const [stores, setStores] = useState<StoreType[] | null>(null);
   const [greeting, setGreeting] = useState('');
@@ -50,17 +51,11 @@ export function Header({ userProfile }: { userProfile: UserProfile | null }) {
         }
     }
     getData();
-    setGreeting("Let's Grow");
-  }, []);
+    setGreeting(`Hello, ${user.name}`);
+  }, [user.name]);
 
-  const renderLogo = () => {
-    if (userProfile?.logoUrl) {
-      return <Image src={userProfile.logoUrl} alt="Store Logo" width={24} height={24} className="h-6 w-6" />;
-    }
-    return <Logo className="h-6 w-6" />;
-  };
 
-  const navigation = allNavLinks.filter(link => !link.isUserMenu);
+  const navigation = allNavLinks.filter(link => !link.isUserMenu && link.roles.includes(user.role));
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
@@ -78,7 +73,7 @@ export function Header({ userProfile }: { userProfile: UserProfile | null }) {
               className="mb-4 flex items-center gap-2 text-lg font-semibold"
             >
               <div className="flex items-center gap-2 font-semibold">
-                {renderLogo()}
+                <Logo className="h-6 w-6" />
                 <div>
                   <span className="text-lg text-foreground">StoreFlex Lite</span>
                   <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>
@@ -99,6 +94,12 @@ export function Header({ userProfile }: { userProfile: UserProfile | null }) {
                 {item.name}
               </Link>
             ))}
+             <form action={logout} className="mt-auto">
+                <Button variant="ghost" className="w-full justify-start gap-4 px-2.5 text-muted-foreground hover:text-foreground">
+                    <LogOut className="h-5 w-5" />
+                    Logout
+                </Button>
+            </form>
           </nav>
         </SheetContent>
       </Sheet>
@@ -111,7 +112,7 @@ export function Header({ userProfile }: { userProfile: UserProfile | null }) {
           {stores && stores.length > 0 && (
             <Select defaultValue={stores[0].id}>
                 <SelectTrigger id="store-switcher" aria-label="Select Store">
-                <SelectValue placeholder={userProfile?.businessName || "Select a store"} />
+                <SelectValue placeholder={"Select a store"} />
                 </SelectTrigger>
                 <SelectContent>
                 {stores.map((store) => (
@@ -123,11 +124,11 @@ export function Header({ userProfile }: { userProfile: UserProfile | null }) {
             </Select>
           )}
         </div>
-         <Link href="/dashboard/account">
-            <Button variant="ghost" size="icon" className="rounded-full">
-                <User className="h-5 w-5" />
+         <form action={logout}>
+            <Button variant="ghost" size="icon" className="rounded-full" title="Logout">
+                <LogOut className="h-5 w-5" />
             </Button>
-        </Link>
+        </form>
       </div>
     </header>
   );
