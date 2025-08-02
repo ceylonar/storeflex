@@ -22,9 +22,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { createPurchase, fetchSuppliers } from '@/lib/queries';
+import { createPurchase, fetchSuppliers, fetchPurchaseById, createPurchaseReturn } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductSelect, PurchaseItem, Supplier, Purchase } from '@/lib/types';
+import type { ProductSelect, PurchaseItem, Supplier, Purchase, PurchaseReturn, PurchaseReturnItem } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, Truck, Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { SupplierSelection } from './supplier-selection';
@@ -35,6 +35,8 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from '../ui/checkbox';
+import { FormattedDate } from '../ui/formatted-date';
 
 
 function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }: { products: ProductSelect[]; initialSuppliers: Supplier[], onPurchaseComplete: () => void }) {
@@ -362,7 +364,96 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }:
 }
 
 
-function ReturnsTerminal() {
+function ReturnsToSupplierTerminal() {
+    const [purchaseId, setPurchaseId] = React.useState('');
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [foundPurchase, setFoundPurchase] = React.useState<Purchase | null>(null);
+    const [returnItems, setReturnItems] = React.useState<Map<string, PurchaseReturnItem>>(new Map());
+    const { toast } = useToast();
+
+    const handleSearch = async () => {
+        if (!purchaseId) {
+            toast({ variant: 'destructive', title: 'Purchase ID required' });
+            return;
+        }
+        setIsLoading(true);
+        setFoundPurchase(null);
+        setReturnItems(new Map());
+        try {
+            const purchase = await fetchPurchaseById(purchaseId);
+            if (purchase) {
+                setFoundPurchase(purchase);
+                toast({ title: 'Purchase Found', description: `Details for purchase ${purchaseId} loaded.` });
+            } else {
+                toast({ variant: 'destructive', title: 'Purchase Not Found' });
+            }
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleItemSelection = (itemId: string, checked: boolean) => {
+        const newReturnItems = new Map(returnItems);
+        const purchaseItem = foundPurchase?.items.find(i => i.id === itemId);
+        if (!purchaseItem) return;
+
+        if (checked) {
+            newReturnItems.set(itemId, {
+                ...purchaseItem,
+                return_quantity: purchaseItem.quantity,
+                return_reason: '',
+            });
+        } else {
+            newReturnItems.delete(itemId);
+        }
+        setReturnItems(newReturnItems);
+    };
+
+    const handleQuantityChange = (itemId: string, quantity: number) => {
+        const newReturnItems = new Map(returnItems);
+        const item = newReturnItems.get(itemId);
+        const originalItem = foundPurchase?.items.find(i => i.id === itemId);
+        if (item && originalItem) {
+            item.return_quantity = Math.max(0, Math.min(quantity, originalItem.quantity));
+            newReturnItems.set(itemId, item);
+            setReturnItems(newReturnItems);
+        }
+    };
+
+    const totalCreditAmount = Array.from(returnItems.values()).reduce((acc, item) => {
+        return acc + (item.cost_price * item.return_quantity);
+    }, 0);
+
+    const handleProcessReturn = async () => {
+        if (returnItems.size === 0 || !foundPurchase) {
+            toast({ variant: 'destructive', title: 'No items selected for return.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const returnData: PurchaseReturn = {
+                original_purchase_id: foundPurchase.id,
+                supplier_id: foundPurchase.supplier_id,
+                supplier_name: foundPurchase.supplier_name,
+                items: Array.from(returnItems.values()),
+                total_credit_amount: totalCreditAmount,
+            };
+            await createPurchaseReturn(returnData);
+            toast({ title: 'Return Processed', description: `Credit of LKR ${totalCreditAmount.toFixed(2)} has been processed with the supplier.` });
+            setPurchaseId('');
+            setFoundPurchase(null);
+            setReturnItems(new Map());
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -371,16 +462,88 @@ function ReturnsTerminal() {
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex gap-2">
-                    <Input placeholder="Enter Purchase ID (e.g., pur000001)" />
-                    <Button><Search className="mr-2 h-4 w-4" /> Find Purchase</Button>
+                    <Input placeholder="Enter Purchase ID (e.g., pur000001)" value={purchaseId} onChange={(e) => setPurchaseId(e.target.value)} />
+                    <Button onClick={handleSearch} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                        Find Purchase
+                    </Button>
                 </div>
-                <div className="text-center text-muted-foreground py-10">
-                    <p>Enter a valid Purchase ID to begin the return process.</p>
-                </div>
+                {isLoading && (
+                     <div className="text-center text-muted-foreground py-10">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto" />
+                        <p>Searching for purchase...</p>
+                    </div>
+                )}
+                {!isLoading && !foundPurchase && (
+                    <div className="text-center text-muted-foreground py-10">
+                        <p>Enter a valid Purchase ID to begin the return process.</p>
+                    </div>
+                )}
+                {foundPurchase && (
+                    <div className="space-y-4">
+                        <div className="p-4 border rounded-lg">
+                            <h3 className="font-semibold">Purchase Details</h3>
+                            <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4">
+                                <p><strong>Supplier:</strong> {foundPurchase.supplier_name}</p>
+                                <p><strong>Date:</strong> <FormattedDate timestamp={foundPurchase.purchase_date} /></p>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                             <Label>Select items to return:</Label>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[50px]"></TableHead>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead>Original Qty</TableHead>
+                                        <TableHead>Return Qty</TableHead>
+                                        <TableHead className="text-right">Cost</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {foundPurchase.items.map(item => (
+                                        <TableRow key={item.id}>
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={returnItems.has(item.id)}
+                                                    onCheckedChange={(checked) => handleItemSelection(item.id, !!checked)}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{item.name}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>
+                                                <Input 
+                                                    type="number" 
+                                                    className="h-8 w-20"
+                                                    value={returnItems.get(item.id)?.return_quantity || ''}
+                                                    onChange={(e) => handleQuantityChange(item.id, Number(e.target.value))}
+                                                    disabled={!returnItems.has(item.id)}
+                                                    max={item.quantity}
+                                                    min={0}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-right">LKR {item.cost_price.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <Separator />
+                        <div className="text-right space-y-2">
+                            <p className="font-bold text-lg">Total Credit Amount: LKR {totalCreditAmount.toFixed(2)}</p>
+                            <p className="text-xs text-muted-foreground">Credit will be deducted from the supplier's balance.</p>
+                        </div>
+                         <Button onClick={handleProcessReturn} disabled={isSubmitting || returnItems.size === 0} className="w-full">
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Process Return to Supplier
+                        </Button>
+                    </div>
+                )}
             </CardContent>
         </Card>
-    )
+    );
 }
+
 
 
 export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
@@ -418,7 +581,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
             />
         </TabsContent>
         <TabsContent value="return">
-            <ReturnsTerminal />
+            <ReturnsToSupplierTerminal />
         </TabsContent>
     </Tabs>
   );

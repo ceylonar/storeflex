@@ -22,7 +22,7 @@ import {
   setDoc,
   increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -654,6 +654,32 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
     }
 }
 
+export async function fetchSaleById(saleId: string): Promise<Sale | null> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    const { db } = getFirebaseServices();
+    try {
+        const saleRef = doc(db, 'sales', saleId);
+        const saleDoc = await getDoc(saleRef);
+
+        if (!saleDoc.exists() || saleDoc.data().userId !== userId) {
+            return null;
+        }
+
+        const data = saleDoc.data();
+        return {
+            id: saleDoc.id,
+            ...data,
+            sale_date: (data.sale_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        } as Sale;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch sale details.');
+    }
+}
+
 
 // --- SUPPLIER & PURCHASE QUERIES ---
 
@@ -972,6 +998,32 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch purchase history.');
+    }
+}
+
+export async function fetchPurchaseById(purchaseId: string): Promise<Purchase | null> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    const { db } = getFirebaseServices();
+    try {
+        const purchaseRef = doc(db, 'purchases', purchaseId);
+        const purchaseDoc = await getDoc(purchaseRef);
+
+        if (!purchaseDoc.exists() || purchaseDoc.data().userId !== userId) {
+            return null;
+        }
+
+        const data = purchaseDoc.data();
+        return {
+            id: purchaseDoc.id,
+            ...data,
+            purchase_date: (data.purchase_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        } as Purchase;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch purchase details.');
     }
 }
 
@@ -1499,7 +1551,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
 
     const { db } = getFirebaseServices();
     try {
-        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected'];
+        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return'];
         
         const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
         
@@ -1583,4 +1635,96 @@ export async function manageUser(formData: FormData) {
 
 export async function fetchAllUsers(): Promise<UserProfile[]> {
     return [];
+}
+
+// --- RETURN QUERIES ---
+
+export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    await runTransaction(db, async (transaction) => {
+        // 1. Update stock for each returned item
+        for (const item of returnData.items) {
+            const productRef = doc(db, 'products', item.id);
+            transaction.update(productRef, { stock: increment(item.return_quantity) });
+        }
+
+        // 2. Update customer credit balance if applicable
+        if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
+            const customerRef = doc(db, 'customers', returnData.customer_id);
+            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
+        }
+
+        // 3. Create a new sale return document
+        const returnRef = doc(collection(db, 'sales_returns'));
+        transaction.set(returnRef, {
+            ...returnData,
+            userId,
+            return_date: serverTimestamp(),
+        });
+        
+        // 4. Create an activity log
+        const activityRef = doc(collection(db, 'recent_activity'));
+        transaction.set(activityRef, {
+            type: 'sale_return',
+            details: `Return from ${returnData.customer_name} for LKR ${returnData.total_refund_amount.toFixed(2)}`,
+            timestamp: serverTimestamp(),
+            userId,
+            id: returnRef.id,
+        });
+    });
+
+    revalidatePath('/dashboard/sales');
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard/customers');
+    revalidatePath('/dashboard/moneyflow');
+}
+
+export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<void> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    await runTransaction(db, async (transaction) => {
+        // 1. Update stock for each returned item
+        for (const item of returnData.items) {
+            const productRef = doc(db, 'products', item.id);
+            // Ensure stock doesn't go negative, though this should be handled by UI validation
+            const productDoc = await transaction.get(productRef);
+            if (productDoc.exists() && productDoc.data().stock >= item.return_quantity) {
+                transaction.update(productRef, { stock: increment(-item.return_quantity) });
+            } else {
+                throw new Error(`Not enough stock to return for ${item.name}.`);
+            }
+        }
+
+        // 2. Update supplier credit balance
+        const supplierRef = doc(db, 'suppliers', returnData.supplier_id);
+        transaction.update(supplierRef, { credit_balance: increment(-returnData.total_credit_amount) });
+
+        // 3. Create a new purchase return document
+        const returnRef = doc(collection(db, 'purchase_returns'));
+        transaction.set(returnRef, {
+            ...returnData,
+            userId,
+            return_date: serverTimestamp(),
+        });
+        
+        // 4. Create an activity log
+        const activityRef = doc(collection(db, 'recent_activity'));
+        transaction.set(activityRef, {
+            type: 'purchase_return',
+            details: `Return to ${returnData.supplier_name} for LKR ${returnData.total_credit_amount.toFixed(2)}`,
+            timestamp: serverTimestamp(),
+            userId,
+            id: returnRef.id,
+        });
+    });
+    
+    revalidatePath('/dashboard/buy');
+    revalidatePath('/dashboard/inventory');
+    revalidatePath('/dashboard/suppliers');
+    revalidatePath('/dashboard/moneyflow');
 }

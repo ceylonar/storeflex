@@ -50,7 +50,7 @@ export type ProductSelect = {
 export type RecentActivity = {
   id: string;
   userId: string;
-  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected';
+  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return';
   product_id?: string;
   product_name?: string;
   product_image?: string;
@@ -179,3 +179,34 @@ export type MoneyflowTransaction = {
     date: string; // ISO String
     checkNumber?: string;
 };
+
+export type SaleReturnItem = Omit<SaleItem, 'stock' | 'total_amount'> & {
+    return_quantity: number;
+    return_reason: string;
+}
+
+export type SaleReturn = {
+    id?: string;
+    original_sale_id: string;
+    customer_id: string | null;
+    customer_name: string;
+    items: SaleReturnItem[];
+    total_refund_amount: number;
+    refund_method: 'cash' | 'credit_balance';
+    return_date?: string;
+}
+
+export type PurchaseReturnItem = PurchaseItem & {
+    return_quantity: number;
+    return_reason: string;
+}
+
+export type PurchaseReturn = {
+    id?: string;
+    original_purchase_id: string;
+    supplier_id: string;
+    supplier_name: string;
+    items: PurchaseReturnItem[];
+    total_credit_amount: number;
+    return_date?: string;
+}
