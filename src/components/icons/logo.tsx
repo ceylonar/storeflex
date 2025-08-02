@@ -5,7 +5,7 @@ import type { SVGProps } from 'react';
 export function Logo(props: SVGProps<SVGSVGElement> & { className?: string }) {
   return (
     <Image
-      src="https://i.postimg.cc/Qdh5pjHB/Screenshot-2025-08-02-132704.png"
+      src="https://i.postimg.cc/Bb550bj0/image.png"
       alt="StoreFlex Lite Logo"
       width={40}
       height={40}
