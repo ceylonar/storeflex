@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { UserProfile } from '@/lib/types';
-// import { updateUserProfile } from '@/lib/queries'; // This function is removed
+import { updateUserProfile } from '@/lib/queries';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
@@ -58,13 +58,29 @@ export function AccountForm({ userProfile }: AccountFormProps) {
 
   const onSubmit = async (data: ProfileFormValues) => {
     setIsSubmitting(true);
-    toast({
-        title: 'Note:',
-        description: 'Updating store settings is disabled as authentication has been removed.',
-    });
-    // The updateUserProfile function is removed, so we just simulate a delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
+    try {
+        const result = await updateUserProfile(data);
+        if (result.success) {
+            toast({
+                title: 'Success!',
+                description: 'Your store settings have been updated.',
+            });
+        } else {
+             toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: result.message,
+            });
+        }
+    } catch (error) {
+         toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'An unexpected error occurred.',
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (

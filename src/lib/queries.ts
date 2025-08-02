@@ -91,15 +91,6 @@ const POSSaleSchema = z.object({
   previousBalance: z.number().nonnegative(),
 });
 
-const PurchaseItemSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    image: z.string().optional(),
-    quantity: z.number().int().positive(),
-    cost_price: z.number().positive(),
-    total_cost: z.number().positive(),
-});
-
 const POSPurchaseSchema = z.object({
   items: z.array(PurchaseItemSchema).min(1, 'At least one item is required.'),
   supplier_id: z.string(),
@@ -1523,24 +1514,59 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
 }
 
 
-export async function fetchUserProfile() {
+export async function fetchUserProfile(): Promise<UserProfile | null> {
   noStore();
   const userId = await getCurrentUserId();
   if (!userId) return null;
-  const { db } = getFirebaseServices();
   
-  // As this app doesn't have a user profile collection, we return a default.
-  // In a real app, you would fetch from a 'users' collection.
+  const { db } = getFirebaseServices();
+  const profileRef = doc(db, 'user_profiles', userId);
+  const profileDoc = await getDoc(profileRef);
+
+  if (profileDoc.exists()) {
+    return profileDoc.data() as UserProfile;
+  }
+  
+  // Return a default profile if one doesn't exist
   return {
     id: userId,
-    email: 'test@test.com',
-    name: "Admin User",
     businessName: "StoreFlex Lite",
     logoUrl: "",
-    address: "",
-    contactNumber: ""
+    address: "123 Demo Street, Colombo",
+    contactNumber: "011-123-4567"
   } as UserProfile;
 }
+
+const UserProfileSchema = z.object({
+  businessName: z.string().min(1, 'Business name is required'),
+  address: z.string().optional(),
+  contactNumber: z.string().optional(),
+  logoUrl: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+});
+
+export async function updateUserProfile(data: z.infer<typeof UserProfileSchema>): Promise<{success: boolean; message: string;}> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, message: 'User not authenticated.'};
+
+    const validatedData = UserProfileSchema.safeParse(data);
+    if (!validatedData.success) {
+        return { success: false, message: 'Invalid data provided.' };
+    }
+
+    try {
+        const profileRef = doc(db, 'user_profiles', userId);
+        await setDoc(profileRef, validatedData.data, { merge: true });
+        revalidatePath('/dashboard/account');
+        revalidatePath('/dashboard/sales');
+        revalidatePath('/dashboard/buy');
+        return { success: true, message: 'Profile updated successfully.' };
+    } catch(error) {
+        console.error("Update Profile Error:", error);
+        return { success: false, message: 'Failed to update profile.' };
+    }
+}
+
 
 export async function manageUser(formData: FormData) {
   return {success: false, message: "User management is disabled in this version."}
