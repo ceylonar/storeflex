@@ -12,9 +12,9 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert, LogOut } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User, LogOut } from 'lucide-react';
 import type { Store as StoreType } from '@/lib/types';
-import type { User } from '@/lib/auth';
+import type { User as AuthUser } from '@/lib/auth';
 import { useEffect, useState } from 'react';
 import { fetchStores } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
@@ -33,10 +33,10 @@ const allNavLinks = [
   { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
   { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
-  { name: 'Account', href: '/dashboard/account', icon: User, isUserMenu: true, roles: ['admin'] },
+  { name: 'Account', href: '/dashboard/account', icon: User, roles: ['admin'] },
 ];
 
-export function Header({ user }: { user: User }) {
+export function Header({ user }: { user: AuthUser }) {
   const pathname = usePathname();
   const [stores, setStores] = useState<StoreType[] | null>(null);
   const [greeting, setGreeting] = useState('');
@@ -55,57 +55,62 @@ export function Header({ user }: { user: User }) {
   }, [user.name]);
 
 
-  const navigation = allNavLinks.filter(link => !link.isUserMenu && link.roles.includes(user.role));
+  const navigation = allNavLinks.filter(link => link.roles.includes(user.role));
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="sm:hidden">
-            <Menu className="h-6 w-6" />
-            <span className="sr-only">Toggle navigation menu</span>
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left" className="flex flex-col">
-          <nav className="grid gap-4 text-lg font-medium">
-            <Link
-              href="/dashboard"
-              className="mb-4 flex items-center gap-2 text-lg font-semibold"
-            >
-              <div className="flex items-center gap-2 font-semibold">
-                <Logo className="h-6 w-6" />
-                <div>
-                  <span className="text-lg text-foreground">StoreFlex Lite</span>
-                  <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>
-                </div>
-              </div>
-            </Link>
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-4 px-2.5 ${
-                  pathname === item.href
-                    ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </Link>
-            ))}
-             <form action={logout} className="mt-auto">
-                <Button variant="ghost" className="w-full justify-start gap-4 px-2.5 text-muted-foreground hover:text-foreground">
-                    <LogOut className="h-5 w-5" />
-                    Logout
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b bg-card px-4 shadow-sm sm:px-6 lg:px-8">
+      <div className="flex items-center gap-x-4">
+        <Sheet>
+            <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="sm:hidden">
+                <Menu className="h-6 w-6" />
+                <span className="sr-only">Toggle navigation menu</span>
                 </Button>
-            </form>
-          </nav>
-        </SheetContent>
-      </Sheet>
-       <div className="flex-1">
-        {greeting && <div className="animate-fade-in-up font-semibold text-muted-foreground">{greeting}</div>}
+            </SheetTrigger>
+            <SheetContent side="left" className="flex flex-col">
+                <nav className="grid gap-4 text-lg font-medium">
+                <Link
+                    href="/dashboard"
+                    className="mb-4 flex items-center gap-2 text-lg font-semibold"
+                >
+                    <div className="flex items-center gap-2 font-semibold">
+                    <Logo className="h-6 w-6" />
+                    <div>
+                        <span className="text-lg text-foreground">StoreFlex Lite</span>
+                        <span className="block text-xs font-normal text-muted-foreground">by CEYLONAR</span>
+                    </div>
+                    </div>
+                </Link>
+                {navigation.map((item) => (
+                    <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-4 px-2.5 ${
+                        pathname === item.href
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                    >
+                    <item.icon className="h-5 w-5" />
+                    {item.name}
+                    </Link>
+                ))}
+                <form action={logout} className="mt-auto">
+                    <Button variant="ghost" className="w-full justify-start gap-4 px-2.5 text-muted-foreground hover:text-foreground">
+                        <LogOut className="h-5 w-5" />
+                        Logout
+                    </Button>
+                </form>
+                </nav>
+            </SheetContent>
+        </Sheet>
+        <div className="hidden sm:block font-semibold text-muted-foreground">{greeting}</div>
       </div>
+      
+       <div className="sm:hidden flex-1">
+        {greeting && <div className="animate-fade-in-up font-semibold text-muted-foreground text-center">{greeting}</div>}
+      </div>
+
       <div className="flex justify-end items-center gap-4">
         <ModeToggle />
         <div className="w-[200px] hidden sm:block">
@@ -125,7 +130,7 @@ export function Header({ user }: { user: User }) {
           )}
         </div>
          <form action={logout}>
-            <Button variant="ghost" size="icon" className="rounded-full" title="Logout">
+            <Button variant="ghost" size="icon" className="rounded-full hidden sm:inline-flex" title="Logout">
                 <LogOut className="h-5 w-5" />
             </Button>
         </form>

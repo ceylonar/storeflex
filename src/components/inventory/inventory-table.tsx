@@ -218,7 +218,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 <CardTitle>Products</CardTitle>
                 <CardDescription>A list of all products in your inventory.</CardDescription>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button size="sm" className="gap-1 w-full" onClick={() => handleOpenDialog('add')}>
                   <PlusCircle className="h-4 w-4" />
                   Add Product
@@ -412,4 +412,3 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     </Card>
   );
 }
-

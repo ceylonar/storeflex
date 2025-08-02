@@ -9,17 +9,17 @@ import { Logo } from '../icons/logo';
 import type { User } from '@/lib/auth';
 
 const navigationLinks = [
-  { name: 'Dashboard', href: '/dashboard', roles: ['admin'] },
-  { name: 'Inventory', href: '/dashboard/inventory', roles: ['admin'] },
-  { name: 'Sales', href: '/dashboard/sales', roles: ['admin', 'sales'] },
-  { name: 'Buy', href: '/dashboard/buy', roles: ['admin'] },
-  { name: 'Customers', href: '/dashboard/customers', roles: ['admin', 'sales'] },
-  { name: 'Suppliers', href: '/dashboard/suppliers', roles: ['admin'] },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', roles: ['admin'] },
-  { name: 'Reports', href: '/dashboard/reports', roles: ['admin'] },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', roles: ['admin'] },
-  { name: 'About', href: '/dashboard/about', roles: ['admin', 'sales'] },
-  { name: 'Account', href: '/dashboard/account', roles: ['admin'] },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin'] },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'sales'] },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin'] },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
+  { name: 'Account', href: '/dashboard/account', icon: AccountIcon, roles: ['admin'] },
 ];
 
 const icons: { [key: string]: React.ElementType } = {
@@ -58,7 +58,7 @@ export function Sidebar({ user }: { user: User }) {
           <li>
             <ul role="list" className="space-y-1">
               {navigation.map((item) => {
-                const Icon = icons[item.name];
+                const Icon = item.icon;
                 return (
                     <li key={item.name}>
                     <Link

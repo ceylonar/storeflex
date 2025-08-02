@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -394,11 +395,11 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
                                         <Table>
                                           <TableHeader>
                                             <TableRow>
-                                              <TableHead className="w-[80px]">Image</TableHead>
+                                              <TableHead className="w-auto sm:w-[80px]">Image</TableHead>
                                               <TableHead>Name</TableHead>
                                               <TableHead>Price</TableHead>
                                               <TableHead>Stock</TableHead>
-                                              <TableHead className="w-[100px] text-right">Action</TableHead>
+                                              <TableHead className="w-auto sm:w-[100px] text-right">Action</TableHead>
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
@@ -530,10 +531,10 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
               {cart.length > 0 && (
                   <div className="space-y-2 text-sm">
                       <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {subtotal.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between gap-2"><Label htmlFor="service_charge" className="text-muted-foreground flex-1">Service Charge (LKR)</Label><Input id="service_charge" type="number" value={serviceCharge} onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
-                      <div className="flex items-center justify-between gap-2"><Label htmlFor="tax" className="text-muted-foreground flex-1">Tax (%)</Label><Input id="tax" type="number" value={taxPercentage} onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0" /></div>
+                      <div className="grid grid-cols-2 gap-2"><Label htmlFor="service_charge" className="text-muted-foreground my-auto">Service Charge (LKR)</Label><Input id="service_charge" type="number" value={serviceCharge} onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0.00" /></div>
+                      <div className="grid grid-cols-2 gap-2"><Label htmlFor="tax" className="text-muted-foreground my-auto">Tax (%)</Label><Input id="tax" type="number" value={taxPercentage} onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0" /></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Calculated Tax</span><span>LKR {tax.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between gap-2"><Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-24 text-right" placeholder="0.00" /></div>
+                      <div className="grid grid-cols-2 gap-2"><Label htmlFor="discount" className="text-muted-foreground my-auto">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0.00" /></div>
                       <Separator />
                       <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Bill Total</span><span>LKR {total.toFixed(2)}</span></div>
                       {previousBalance > 0 && (
