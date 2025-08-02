@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -25,7 +26,7 @@ import {
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
-import { DateRange } from 'react-day-picker';
+import type { DateRange } from 'react-day-picker';
 import { getCurrentUser } from './auth';
 
 
@@ -1370,7 +1371,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         // Fetch full details for sale/purchase
-        const detailedRecordsPromises = activities.map(async (rec): Promise<DetailedRecord> => {
+        const detailedRecordsPromises = activities.map(async (rec): Promise<DetailedRecord | null> => {
             let detailedRec: DetailedRecord = { ...rec, items: [] };
 
             if (rec.type === 'sale') {

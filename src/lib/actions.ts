@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
@@ -9,7 +10,7 @@ import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
 import type { Sale, ProductTransaction, RecentActivity, DetailedRecord, SaleItem, PurchaseItem, Product } from './types';
 import type { DateRange } from 'react-day-picker';
-import { fetchInventoryRecords } from './queries';
+import { fetchInventoryRecords, getCurrentUserId } from './queries';
 
 
 const FormSchema = z.object({
@@ -189,4 +190,5 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     return transactions;
 }
     
+
 
