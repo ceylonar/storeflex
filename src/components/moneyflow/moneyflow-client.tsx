@@ -30,7 +30,6 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Check, CheckCircle, Landmark, Loader2, X, Receipt, CreditCard } from 'lucide-react';
 import { MoneyflowData, settlePayment, RecentActivity, fetchMoneyflowData, fetchFinancialActivities, MoneyflowTransaction } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import {
   AlertDialog,
@@ -56,6 +55,7 @@ import {
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { FinancialHistory } from './financial-history';
+import { FormattedDate } from '../ui/formatted-date';
 
 
 const StatCard = ({ title, value, icon, description }: { title: string, value: string, icon: React.ElementType, description: string }) => {
@@ -183,7 +183,7 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
                     <TableCell className="font-medium">{tx.partyName}</TableCell>
                     <TableCell className="capitalize">{tx.paymentMethod} {tx.paymentMethod === 'check' && tx.checkNumber && `(#${tx.checkNumber})`}</TableCell>
                     <TableCell>LKR {tx.amount.toFixed(2)}</TableCell>
-                    <TableCell>{format(new Date(tx.date), 'PPP')}</TableCell>
+                    <TableCell><FormattedDate timestamp={tx.date} formatString="PPP" /></TableCell>
                     <TableCell className="text-right">
                        {tx.amount > 0 && tx.paymentMethod === 'credit' && (
                          <Dialog onOpenChange={(open) => { if(!open) setSettlementAmount(0) }}>
@@ -282,4 +282,3 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
     </div>
   );
 }
-

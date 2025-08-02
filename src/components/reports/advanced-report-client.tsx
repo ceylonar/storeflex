@@ -49,28 +49,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-
-// Client-side only date formatter to prevent hydration errors
-function SafeFormattedDate({ timestamp }: { timestamp: string }) {
-    const [formattedDate, setFormattedDate] = useState('');
-
-    useEffect(() => {
-        if (timestamp) {
-            try {
-                const date = new Date(timestamp);
-                if (!isNaN(date.getTime())) {
-                    setFormattedDate(format(date, 'PPP p'));
-                } else {
-                    setFormattedDate('Invalid Date');
-                }
-            } catch (e) {
-                setFormattedDate('Invalid Date');
-            }
-        }
-    }, [timestamp]);
-
-    return <>{formattedDate || '...'}</>;
-}
+import { FormattedDate } from '../ui/formatted-date';
 
 
 interface AdvancedReportClientProps {
@@ -336,7 +315,7 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                                         <span className="flex-1 text-left font-medium">
                                             {activity.type === 'sale' || activity.type === 'purchase' ? activity.details : activity.product_name}
                                         </span>
-                                        <span className="text-muted-foreground"><SafeFormattedDate timestamp={activity.timestamp} /></span>
+                                        <span className="text-muted-foreground"><FormattedDate timestamp={activity.timestamp} /></span>
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="p-4 pt-0 pl-16">

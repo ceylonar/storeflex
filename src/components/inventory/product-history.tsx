@@ -20,29 +20,10 @@ import {
 import type { Product, ProductTransaction } from '@/lib/types';
 import { fetchProductHistory } from '@/lib/actions';
 import { Loader2 } from 'lucide-react';
-import { format } from 'date-fns';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
-
-function FormattedDate({ timestamp }: { timestamp: string }) {
-    const [date, setDate] = React.useState('');
-
-    React.useEffect(() => {
-        if(timestamp && !isNaN(new Date(timestamp).getTime())) {
-            try {
-                setDate(format(new Date(timestamp), 'PPP p'));
-            } catch (error) {
-                console.error("Failed to format date:", error);
-                setDate("Invalid Date");
-            }
-        } else {
-            setDate("Not available");
-        }
-    }, [timestamp]);
-
-    return <>{date || '...'}</>;
-}
+import { FormattedDate } from '../ui/formatted-date';
 
 interface ProductHistoryProps {
     selectedProduct: Product | null;

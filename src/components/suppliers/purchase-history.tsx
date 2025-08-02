@@ -24,32 +24,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import type { Purchase, Supplier } from '@/lib/types';
-import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { fetchPurchasesBySupplier } from '@/lib/queries';
 import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { cn } from '@/lib/utils';
-
-function FormattedDate({ timestamp }: { timestamp: string }) {
-    const [date, setDate] = React.useState('');
-
-    React.useEffect(() => {
-        if(timestamp && !isNaN(new Date(timestamp).getTime())) {
-            try {
-                setDate(format(new Date(timestamp), 'PPP p'));
-            } catch (error) {
-                console.error("Failed to format date:", error);
-                setDate("Invalid Date");
-            }
-        } else {
-            setDate("Not available");
-        }
-    }, [timestamp]);
-
-    return <>{date || '...'}</>;
-}
+import { FormattedDate } from '../ui/formatted-date';
 
 interface PurchaseHistoryProps {
     selectedSupplier: Supplier | null;
