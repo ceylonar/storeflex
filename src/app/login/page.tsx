@@ -82,7 +82,7 @@ export default function LoginPage() {
             <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isClient ? <LoginForm /> : null}
+          {isClient ? <LoginForm /> : <div className="h-[250px] animate-pulse" />}
         </CardContent>
       </Card>
     </main>

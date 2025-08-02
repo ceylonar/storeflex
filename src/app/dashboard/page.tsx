@@ -1,10 +1,19 @@
 
+import { redirect } from 'next/navigation';
+import { getUser } from '@/lib/auth';
 import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
 import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/lib/queries';
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
 
 export default async function DashboardPage() {
+  const user = await getUser();
+
+  if (user?.role === 'sales') {
+    redirect('/dashboard/sales');
+  }
+
+  // Admin and other roles will see the full dashboard
   const dashboardData = await fetchDashboardData();
   const salesData = await fetchSalesData('monthly');
   const topProducts = await fetchTopSellingProducts();
