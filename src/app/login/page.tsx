@@ -1,76 +1,29 @@
 
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
-import { login } from '@/lib/auth'
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from '@/components/icons/logo';
-import { useFormStatus } from 'react-dom';
-import React from 'react';
+import { Skeleton } from "@/components/ui/skeleton";
+import dynamic from "next/dynamic";
 
-function LoginButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button className="w-full" type="submit" aria-disabled={pending}>
-      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      Login
-    </Button>
-  );
-}
-
-function LoginForm() {
-  const [state, formAction] = useActionState(login, null)
-
-  return (
-      <form action={formAction} className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="username">Username</Label>
-          <Input
-            id="username"
-            name="username"
-            type="text"
-            placeholder="superadmin"
-            required
-            autoComplete="username"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <Input 
-            id="password" 
-            name="password"
-            type="password" 
-            required 
-            autoComplete="current-password"
-          />
-        </div>
-        
-        {state?.error && (
-           <Alert variant="destructive">
-             <AlertCircle className="h-4 w-4" />
-             <AlertTitle>Login Failed</AlertTitle>
-             <AlertDescription>{state.error}</AlertDescription>
-           </Alert>
-        )}
-
-        <LoginButton />
-      </form>
+const LoginForm = dynamic(() => import('@/components/login/login-form'), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <Skeleton className="h-10 w-full" />
+    </div>
   )
-}
+});
 
 export default function LoginPage() {
-    const [isClient, setIsClient] = useState(false)
-
-    useEffect(() => {
-        setIsClient(true)
-    }, [])
-
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-4">
             <Card className="mx-auto w-full max-w-sm">
@@ -82,21 +35,7 @@ export default function LoginPage() {
                     <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isClient ? (
-                        <LoginForm />
-                    ) : (
-                        <div className="space-y-4 pt-2">
-                            <div className="space-y-2">
-                                <div className="h-4 w-20 rounded-md bg-muted animate-pulse" />
-                                <div className="h-10 w-full rounded-md bg-muted animate-pulse" />
-                            </div>
-                            <div className="space-y-2">
-                                <div className="h-4 w-20 rounded-md bg-muted animate-pulse" />
-                                <div className="h-10 w-full rounded-md bg-muted animate-pulse" />
-                            </div>
-                            <div className="h-10 w-full rounded-md bg-muted animate-pulse mt-6" />
-                        </div>
-                    )}
+                    <LoginForm />
                 </CardContent>
             </Card>
         </main>
