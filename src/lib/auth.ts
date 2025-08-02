@@ -30,12 +30,12 @@ export async function loginUser(prevState: { message: string } | undefined, form
 
   let user = await fetchUserByEmail(email);
 
-  // If no user exists, this is the first login. Create the admin user.
+  // If no user exists with that email, create it as the first admin.
   if (!user) {
     console.log("No user found, creating initial admin user...");
     user = await createInitialUser({ email, password });
     if (!user) {
-        return { success: false, message: 'Could not create an initial admin account. The database may not be empty.' };
+        return { success: false, message: 'Could not create an initial admin account. There might be a database issue.' };
     }
   }
 

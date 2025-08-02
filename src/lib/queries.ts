@@ -1075,16 +1075,6 @@ export async function createInitialUser({email, password}: {email: string, passw
     const { db } = getFirebaseServices();
 
     try {
-        const usersCollection = collection(db, 'users');
-        const userQuery = query(usersCollection);
-        const userSnapshot = await getDocs(userQuery);
-
-        // Only create an initial user if there are no other users
-        if (!userSnapshot.empty) {
-            console.log("Database not empty. Initial user creation skipped.");
-            return null;
-        }
-
         const counterRef = doc(db, 'counters', 'users');
         const counterDoc = await getDoc(counterRef);
         const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
