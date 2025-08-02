@@ -1,5 +1,4 @@
 
-
 import { fetchAllUsers, fetchUserProfile } from "@/lib/queries";
 import { User, ShieldAlert, Users } from "lucide-react";
 import DynamicAccountForm from "@/components/account/dynamic-account-form";
@@ -25,8 +24,6 @@ const PermissionDenied = () => (
 export default async function AccountPage() {
   const userProfile = await fetchUserProfile();
   const allUsers = userProfile?.role === 'admin' ? await fetchAllUsers() : [];
-  
-  const canAccess = userProfile?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -40,25 +37,24 @@ export default async function AccountPage() {
         </div>
       </div>
       
-      {canAccess ? (
+      <DynamicAccountForm userProfile={userProfile} />
+
+      {userProfile?.role === 'admin' && (
         <>
-          <DynamicAccountForm userProfile={userProfile} />
           <Separator />
-            <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                    <Users className="h-8 w-8 text-primary" />
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
-                        <p className="text-muted-foreground">
-                            Create, edit, and manage user accounts and permissions.
-                        </p>
-                    </div>
-                </div>
-                <UserManagement initialUsers={allUsers} />
-            </div>
+          <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                  <Users className="h-8 w-8 text-primary" />
+                  <div>
+                      <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
+                      <p className="text-muted-foreground">
+                          Create, edit, and manage user accounts and permissions.
+                      </p>
+                  </div>
+              </div>
+              <UserManagement initialUsers={allUsers} />
+          </div>
         </>
-      ) : (
-          <PermissionDenied />
       )}
     </div>
   );

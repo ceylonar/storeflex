@@ -32,13 +32,13 @@ export default async function DashboardPage() {
   if (userProfile?.role === 'sales') {
     redirect('/dashboard/sales');
   }
-
+  
   if (userProfile?.role !== 'admin') {
       return <PermissionDenied />;
   }
 
   const dashboardData = await fetchDashboardData();
-  const salesData = await fetchSalesData('monthly'); // Fetch initial monthly data
+  const salesData = await fetchSalesData('monthly');
   const topProducts = await fetchTopSellingProducts();
 
   return (

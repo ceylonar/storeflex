@@ -12,7 +12,7 @@ const PermissionDenied = () => (
                 <CardTitle>Permission Denied</CardTitle>
                 <CardDescription>You do not have permission to access this page.</CardDescription>
             </div>
-        </CardHeader>
+        </Header>
         <CardContent>
             <p>Please contact your administrator if you believe this is an error.</p>
         </CardContent>
@@ -21,6 +21,23 @@ const PermissionDenied = () => (
 
 export default async function PriceOptimizerPage() {
   const userProfile = await fetchUserProfile();
+
+  if (userProfile?.role !== 'admin') {
+      return (
+          <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Lightbulb className="h-8 w-8 text-primary" />
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight">AI Price Optimizer</h1>
+                  <p className="text-muted-foreground">
+                    Get intelligent price suggestions based on your data.
+                  </p>
+                </div>
+              </div>
+              <PermissionDenied />
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-4">
@@ -33,11 +50,7 @@ export default async function PriceOptimizerPage() {
           </p>
         </div>
       </div>
-      {userProfile?.role === 'admin' ? (
-          <PriceOptimizerForm />
-      ) : (
-          <PermissionDenied />
-      )}
+      <PriceOptimizerForm />
     </div>
   );
 }
