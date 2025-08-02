@@ -9,8 +9,10 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 export const metadata: Metadata = {
   title: 'StoreFlex Lite',
   description: 'Inventory Management System',
+  manifest: '/manifest.json',
   icons: {
     icon: 'https://i.postimg.cc/tCKbfghT/logo-3-1.png',
+    apple: 'https://i.postimg.cc/tCKbfghT/logo-3-1.png',
   },
 };
 
