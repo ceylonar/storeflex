@@ -30,13 +30,8 @@ export async function middleware(request: NextRequest) {
       '/dashboard/account'
     ];
     
-    // Redirect sales user from admin-only pages
-    if (userRole === 'sales' && (adminOnlyPaths.some(path => pathname.startsWith(path)))) {
-        return NextResponse.redirect(new URL('/dashboard/sales', request.url));
-    }
-
-    // Redirect sales user from the main dashboard to their default page
-    if (userRole === 'sales' && pathname === '/dashboard') {
+    if (userRole === 'sales' && (adminOnlyPaths.some(path => pathname.startsWith(path)) || pathname === '/dashboard')) {
+        // If a sales user tries to access an admin-only page, redirect them to their default page
         return NextResponse.redirect(new URL('/dashboard/sales', request.url));
     }
   }
