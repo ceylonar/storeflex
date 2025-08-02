@@ -3,8 +3,9 @@
 
 import { useEffect, useState } from 'react';
 import { Header } from './header';
+import type { UserProfile } from '@/lib/types';
 
-export function ClientHeader() {
+export function ClientHeader({ userProfile }: { userProfile: UserProfile | null }) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -15,5 +16,5 @@ export function ClientHeader() {
     return <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b bg-card px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8"></header>;
   }
 
-  return <Header />;
+  return <Header userProfile={userProfile} />;
 }

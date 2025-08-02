@@ -29,7 +29,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert, LogOut } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { fetchStores, fetchUserProfile, logoutUser } from '@/lib/queries';
+import { fetchStores, logoutUser } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { Logo } from '../icons/logo';
 import Image from 'next/image';
@@ -49,19 +49,16 @@ const allNavLinks = [
   { name: 'Account', href: '/dashboard/account', icon: User, roles: ['admin'], isUserMenu: true },
 ];
 
-export function Header() {
+export function Header({ userProfile }: { userProfile: UserProfile | null }) {
   const pathname = usePathname();
   const [stores, setStores] = useState<StoreType[] | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [greeting, setGreeting] = useState('');
   
   useEffect(() => {
     async function getData() {
         try {
-            const fetchedProfile = await fetchUserProfile();
             const fetchedStores = await fetchStores();
             setStores(fetchedStores);
-            setUserProfile(fetchedProfile);
         } catch(e) {
             console.error("Failed to fetch data:", e)
         }

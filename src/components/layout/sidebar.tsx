@@ -6,9 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
-import { useEffect, useState } from 'react';
 import type { UserProfile } from '@/lib/types';
-import { fetchUserProfile } from '@/lib/queries';
 import Image from 'next/image';
 
 const navigationLinks = [
@@ -24,13 +22,8 @@ const navigationLinks = [
   { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'manager', 'sales'] },
 ];
 
-export function Sidebar() {
+export function Sidebar({ userProfile }: { userProfile: UserProfile | null }) {
   const pathname = usePathname();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    fetchUserProfile().then(setUserProfile);
-  }, []);
 
   const renderLogo = () => {
     if (userProfile?.logoUrl) {
