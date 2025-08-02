@@ -41,7 +41,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, ScanLine, Loader2, Wand2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, Loader2, Wand2 } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -88,7 +88,6 @@ interface InventoryTableProps {
 
 export function InventoryTable({ products, onProductCreated, onProductUpdated, onProductDeleted, onViewHistory }: InventoryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
-  const [isScannerOpen, setIsScannerOpen] = React.useState(false);
   const [isFetchingBarcode, setIsFetchingBarcode] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
   const [selectedProduct, setSelectedProduct] = React.useState<Partial<Product>>(initialProductState);
@@ -125,7 +124,6 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
   }
 
   const handleScanSuccess = React.useCallback(async (decodedText: string) => {
-    setIsScannerOpen(false);
     setIsDialogOpen(true);
     setFormState('add');
     setIsFetchingBarcode(true);
@@ -222,10 +220,6 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 <Button size="sm" className="gap-1 w-full" onClick={() => handleOpenDialog('add')}>
                   <PlusCircle className="h-4 w-4" />
                   Add Product
-                </Button>
-                <Button size="sm" variant="outline" className="gap-1 w-full" onClick={() => setIsScannerOpen(true)}>
-                    <ScanLine className="h-4 w-4" />
-                    Scan to Add
                 </Button>
             </div>
         </div>
@@ -402,13 +396,6 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
             </DialogFooter>
           </DialogContent>
       </Dialog>
-      {isScannerOpen && (
-          <BarcodeScanner 
-            open={isScannerOpen} 
-            onClose={() => setIsScannerOpen(false)}
-            onScanSuccess={handleScanSuccess}
-          />
-      )}
     </Card>
   );
 }
