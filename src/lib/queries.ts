@@ -32,7 +32,7 @@ import { getCurrentUser } from './auth';
 
 // Helper to get a mock user ID
 // In a real app with authentication, this would come from the user's session
-async function getCurrentUserId() {
+export async function getCurrentUserId() {
     const user = await getCurrentUser();
     return user?.id || null;
 }
@@ -1469,6 +1469,17 @@ export type MoneyflowData = {
     transactions: MoneyflowTransaction[];
 }
 
+export type MoneyflowTransaction = {
+    id: string; // Can be a sale, purchase, customer, or supplier ID
+    type: 'receivable' | 'payable';
+    partyName: string; // Customer or Supplier Name
+    partyId: string;
+    paymentMethod: 'credit' | 'check';
+    amount: number;
+    date: string; // ISO String
+    checkNumber?: string;
+};
+
 export async function fetchMoneyflowData(): Promise<MoneyflowData> {
     noStore();
     const userId = await getCurrentUserId();
@@ -1647,3 +1658,4 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+

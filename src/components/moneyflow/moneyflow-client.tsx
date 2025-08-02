@@ -28,7 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { ArrowDownLeft, ArrowUpRight, Check, CheckCircle, Landmark, Loader2, X, Receipt, CreditCard } from 'lucide-react';
-import { MoneyflowData, settlePayment, RecentActivity, fetchMoneyflowData, fetchFinancialActivities } from '@/lib/queries';
+import { MoneyflowData, settlePayment, RecentActivity, fetchMoneyflowData, fetchFinancialActivities, MoneyflowTransaction } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -282,3 +282,4 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
     </div>
   );
 }
+
