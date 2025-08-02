@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { login } from '@/lib/auth'
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,6 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from '@/components/icons/logo';
 import { useFormStatus } from 'react-dom';
 import React from 'react';
-
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -65,22 +64,41 @@ function LoginForm() {
   )
 }
 
-
 export default function LoginPage() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Card className="mx-auto w-full max-w-sm">
-        <CardHeader className="text-center">
-            <div className="flex items-center justify-center gap-2 mb-4">
-                <Logo className="h-10 w-10 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">StoreFlex Lite</CardTitle>
-            <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LoginForm />
-        </CardContent>
-      </Card>
-    </main>
-  );
+    const [isClient, setIsClient] = useState(false)
+
+    useEffect(() => {
+        setIsClient(true)
+    }, [])
+
+    return (
+        <main className="flex min-h-screen flex-col items-center justify-center p-4">
+            <Card className="mx-auto w-full max-w-sm">
+                <CardHeader className="text-center">
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                        <Logo className="h-10 w-10 text-primary" />
+                    </div>
+                    <CardTitle className="text-2xl">StoreFlex Lite</CardTitle>
+                    <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isClient ? (
+                        <LoginForm />
+                    ) : (
+                        <div className="space-y-4 pt-2">
+                            <div className="space-y-2">
+                                <div className="h-4 w-20 rounded-md bg-muted animate-pulse" />
+                                <div className="h-10 w-full rounded-md bg-muted animate-pulse" />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="h-4 w-20 rounded-md bg-muted animate-pulse" />
+                                <div className="h-10 w-full rounded-md bg-muted animate-pulse" />
+                            </div>
+                            <div className="h-10 w-full rounded-md bg-muted animate-pulse mt-6" />
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </main>
+    );
 }
