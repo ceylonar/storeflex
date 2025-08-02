@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { suggestOptimalPrice, type SuggestOptimalPriceInput, type SuggestOptimalPriceOutput } from '@/ai/flows/suggest-optimal-price';
@@ -77,12 +76,10 @@ type ReportData = {
     transactionCount: number;
 };
 
-// A mock user ID. In a real app, you'd get this from the user's session.
-const MOCK_USER_ID = 'user-123-abc';
 
 export async function fetchSalesReport(range: DateRange): Promise<{ success: boolean; data: ReportData | null; message: string; }> {
   const { db } = getFirebaseServices();
-  const userId = MOCK_USER_ID;
+  const userId = await getCurrentUserId();
   try {
     const { from, to } = range;
 
@@ -190,4 +187,3 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     return transactions;
 }
-    

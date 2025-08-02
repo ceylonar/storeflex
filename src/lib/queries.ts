@@ -26,22 +26,25 @@ import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, Us
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import { getSession, logoutUser } from './auth';
 
 
 // Helper to get a mock user ID
 // In a real app with authentication, this would come from the user's session
 export async function getCurrentUserId() {
-    const session = await getSession();
-    return session?.userId || null;
+    return 'user-123-abc'; // Mock user ID
 }
 
 export async function getCurrentUser(): Promise<UserProfile | null> {
-    const session = await getSession();
-    if (!session?.userId) {
-      return null;
-    }
-    return fetchUserProfile(session.userId);
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+    
+    // Return a mock user profile since auth is removed
+    return {
+        id: userId,
+        email: "owner@storeflex.com",
+        name: "Store Owner",
+        businessName: "StoreFlex Lite"
+    };
 }
 
 
@@ -127,22 +130,6 @@ const POSPurchaseSchema = z.object({
   checkNumber: z.string().optional().default(''),
 });
 
-const ProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email address'),
-  businessName: z.string().min(1, 'Business name is required'),
-  address: z.string().optional(),
-  contactNumber: z.string().optional(),
-  logoUrl: z.string().url().optional().or(z.literal('')),
-});
-
-const UserManagementSchema = z.object({
-    id: z.string().optional(),
-    name: z.string().min(1, 'Name is required'),
-    email: z.string().email('Invalid email address'),
-    password: z.string().optional(),
-});
-
 
 // --- PRODUCT QUERIES ---
 
@@ -150,7 +137,7 @@ const UserManagementSchema = z.object({
 export async function createProduct(formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Authentication required.");
+  if (!userId) throw new Error("User ID not found.");
 
   const parsedData = Object.fromEntries(formData.entries());
   if (!parsedData.stock) {
@@ -244,7 +231,7 @@ export async function fetchProducts(): Promise<Product[]> {
 export async function updateProduct(id: string, formData: FormData): Promise<Product | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Authentication required.");
+  if (!userId) throw new Error("User ID not found.");
   
   const parsedData = Object.fromEntries(formData.entries());
   if (!parsedData.stock) {
@@ -313,7 +300,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
 export async function deleteProduct(id: string) {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Authentication required.");
+  if (!userId) throw new Error("User ID not found.");
 
   try {
     const batch = writeBatch(db);
@@ -356,7 +343,7 @@ export async function deleteProduct(id: string) {
 export async function createCustomer(formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Authentication required.");
+    if (!userId) throw new Error("User ID not found.");
 
     const validatedFields = CustomerSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
 
@@ -437,7 +424,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 export async function updateCustomer(id: string, formData: FormData): Promise<Customer | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Authentication required.");
+    if (!userId) throw new Error("User ID not found.");
 
     const validatedFields = CustomerSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
     if (!validatedFields.success) {
@@ -477,7 +464,7 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cu
 export async function deleteCustomer(id: string) {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Authentication required.");
+    if (!userId) throw new Error("User ID not found.");
 
     try {
         const customerRef = doc(db, 'customers', id);
@@ -499,7 +486,7 @@ export async function deleteCustomer(id: string) {
 export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promise<Sale | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Authentication required.");
+  if (!userId) throw new Error("User ID not found.");
 
   const validatedFields = POSSaleSchema.safeParse(saleData);
 
@@ -688,7 +675,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
 export async function createSupplier(formData: FormData): Promise<Supplier | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Authentication required.");
+    if (!userId) throw new Error("User ID not found.");
 
     const validatedFields = SupplierSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
 
@@ -772,7 +759,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
 export async function updateSupplier(id: string, formData: FormData): Promise<Supplier | null> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Authentication required.");
+    if (!userId) throw new Error("User ID not found.");
 
     const validatedFields = SupplierSchema.omit({ id: true }).safeParse(Object.fromEntries(formData.entries()));
     if (!validatedFields.success) {
@@ -814,7 +801,7 @@ export async function updateSupplier(id: string, formData: FormData): Promise<Su
 export async function deleteSupplier(id: string) {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) throw new Error("Authentication required.");
+    if (!userId) throw new Error("User ID not found.");
 
     try {
         const supplierRef = doc(db, 'suppliers', id);
@@ -833,7 +820,7 @@ export async function deleteSupplier(id: string) {
 export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSchema>): Promise<Purchase | null> {
   const { db } = getFirebaseServices();
   const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Authentication required.");
+  if (!userId) throw new Error("User ID not found.");
 
   const validatedFields = POSPurchaseSchema.safeParse(purchaseData);
 
@@ -1011,119 +998,6 @@ export async function fetchStores() {
     // Bypassing Firestore query to avoid index errors.
     const defaultStore = { id: 'store-1', name: 'My Store' };
     return [defaultStore];
-}
-
-export async function fetchUserProfile(userId?: string): Promise<UserProfile | null> {
-    noStore();
-    const currentUserId = userId || await getCurrentUserId();
-    if (!currentUserId) return null;
-
-    const { db } = getFirebaseServices();
-    const profileRef = doc(db, 'users', currentUserId);
-    
-    try {
-        const profileDoc = await getDoc(profileRef);
-        if (profileDoc.exists()) {
-            return { id: profileDoc.id, ...profileDoc.data() } as UserProfile;
-        }
-        return null;
-    } catch (error) {
-        console.error("Failed to fetch user profile:", error);
-        return null;
-    }
-}
-
-export async function fetchAllUsers(): Promise<UserProfile[]> {
-    noStore();
-    const { db } = getFirebaseServices();
-    const currentUser = await getCurrentUser();
-    // This function should only be callable by an admin, but as an extra check
-    if(!currentUser) return [];
-
-    try {
-        const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where('businessName', '==', currentUser.businessName)); // Only fetch users from the same company
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
-    } catch (error) {
-        console.error("Failed to fetch all users:", error);
-        return [];
-    }
-}
-
-export async function fetchUserByEmail(email: string): Promise<UserProfile | null> {
-    noStore();
-    const { db } = getFirebaseServices();
-    try {
-        const usersCollection = collection(db, 'users');
-        const q = query(usersCollection, where('email', '==', email), limit(1));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) {
-            return null;
-        }
-        const userDoc = querySnapshot.docs[0];
-        return { id: userDoc.id, ...userDoc.data() } as UserProfile;
-    } catch (error) {
-        console.error("Failed to fetch user by email:", error);
-        return null;
-    }
-}
-
-export async function createInitialUser({email, password}: {email: string, password: string}): Promise<UserProfile | null> {
-    noStore();
-    const { db } = getFirebaseServices();
-
-    try {
-        const newUser: Omit<UserProfile, 'id'> = {
-            email,
-            password, // In a real app, this should be hashed
-            name: "Admin User",
-            businessName: "My Store",
-        };
-        
-        const usersCollectionRef = collection(db, 'users');
-        const newUserRef = doc(usersCollectionRef);
-
-        await setDoc(newUserRef, newUser);
-        
-        console.log("Initial admin user created successfully.");
-
-        return { id: newUserRef.id, ...newUser };
-
-    } catch (error) {
-        console.error("Failed to create initial user:", error);
-        return null;
-    }
-}
-
-
-export async function updateUserProfile(formData: FormData): Promise<{ success: boolean; message: string }> {
-    const { db } = getFirebaseServices();
-    const userId = await getCurrentUserId();
-    if (!userId) return { success: false, message: 'Authentication required.' };
-
-    const validatedFields = ProfileSchema.safeParse(Object.fromEntries(formData.entries()));
-
-    if (!validatedFields.success) {
-        const errorMessages = Object.entries(validatedFields.error.flatten().fieldErrors)
-            .map(([field, errors]) => `${field}: ${errors.join(', ')}`)
-            .join('; ');
-        return { success: false, message: `Invalid data: ${errorMessages}` };
-    }
-
-    try {
-        const profileRef = doc(db, 'users', userId);
-        await setDoc(profileRef, validatedFields.data, { merge: true });
-
-        revalidatePath('/dashboard/account');
-        revalidatePath('/dashboard/sales'); // For receipt
-        revalidatePath('/dashboard'); // For header
-
-        return { success: true, message: 'Profile updated successfully.' };
-
-    } catch (error) {
-        return { success: false, message: 'Failed to update profile.' };
-    }
 }
 
 export async function fetchDashboardData() {
@@ -1574,7 +1448,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number): Promise<{success: boolean, message: string}> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) return { success: false, message: 'Authentication required.' };
+    if (!userId) return { success: false, message: 'User ID not found.' };
     const settlementAmount = amount ?? transaction.amount;
 
     if (settlementAmount <= 0) return { success: false, message: 'Settlement amount must be positive.' };
@@ -1662,5 +1536,3 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
-
-export { logoutUser };

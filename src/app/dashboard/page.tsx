@@ -1,20 +1,11 @@
 
+
 import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
-import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts, getCurrentUser } from '@/lib/queries';
+import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/lib/queries';
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
-import { redirect } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldAlert } from 'lucide-react';
-
 
 export default async function DashboardPage() {
-  const userProfile = await getCurrentUser();
-
-  if (!userProfile) {
-    return redirect('/login');
-  }
-  
   const dashboardData = await fetchDashboardData();
   const salesData = await fetchSalesData('monthly');
   const topProducts = await fetchTopSellingProducts();

@@ -3,13 +3,10 @@ import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ClientHeader } from '@/components/layout/client-header';
 import { getCurrentUser } from '@/lib/queries';
-import { redirect } from 'next/navigation';
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
+  // Authentication is removed, so we get a default mock user.
   const user = await getCurrentUser();
-  if (!user) {
-    redirect('/login');
-  }
 
   return (
       <div className="flex min-h-screen w-full bg-secondary/50">
