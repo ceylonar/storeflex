@@ -27,11 +27,13 @@ import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, Us
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
+import { getUser } from './auth';
 
 
 // This is now a placeholder, authentication is handled by the auth library
 export async function getCurrentUserId() {
-    return 'predefined_user_main_id';
+    const user = await getUser();
+    return user?.id ?? null;
 }
 
 // Form validation schemas
@@ -1057,7 +1059,7 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
 
         const [productsSnapshot, salesSnapshot, activitySnapshot] = await Promise.all([
             getDocs(productsQuery),
@@ -1109,14 +1111,12 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
 
-        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
         return {
             inventoryValue,
             productCount,
             salesToday,
             totalSales,
-            recentActivities: recentActivities.slice(0, 5),
+            recentActivities,
             lowStockProducts,
         };
     } catch (error) {
@@ -1518,11 +1518,9 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
               } else {
                   partyRef = doc(db, 'suppliers', transaction.partyId);
               }
-
-              if (status === 'paid') {
-                  const incrementValue = transaction.type === 'receivable' ? -settlementAmount : settlementAmount;
-                  t.update(partyRef, { credit_balance: increment(incrementValue) });
-              }
+              
+              const incrementValue = transaction.type === 'receivable' ? -settlementAmount : -settlementAmount;
+              t.update(partyRef, { credit_balance: increment(incrementValue) });
 
               details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
             } else { // Check
@@ -1568,7 +1566,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
     try {
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return'];
         
-        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
+        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes), orderBy('timestamp', 'desc'));
         
         const activitySnapshot = await getDocs(q);
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1579,8 +1577,6 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
-
-        allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return allActivities;
     } catch (error) {
@@ -1600,7 +1596,14 @@ export async function fetchUserProfile(): Promise<UserProfile | null> {
   const profileDoc = await getDoc(profileRef);
 
   if (profileDoc.exists()) {
-    return profileDoc.data() as UserProfile;
+    const data = profileDoc.data();
+    return {
+        id: userId,
+        businessName: data.businessName || "StoreFlex Lite",
+        logoUrl: data.logoUrl || "",
+        address: data.address || "123 Demo Street, Colombo",
+        contactNumber: data.contactNumber || "011-123-4567"
+    } as UserProfile;
   }
   
   // Return a default profile if one doesn't exist
@@ -1644,12 +1647,61 @@ export async function updateUserProfile(data: z.infer<typeof UserProfileSchema>)
 }
 
 
-export async function manageUser(formData: FormData) {
-  return {success: false, message: "User management is disabled in this version."}
+export async function manageUser(formData: FormData): Promise<{success: boolean, message: string}> {
+  const { db } = getFirebaseServices();
+  const currentUserId = await getCurrentUserId();
+  if (!currentUserId) return { success: false, message: 'User not authenticated.' };
+
+  // This is a simplified user management. In a real app, use Firebase Auth.
+  const id = formData.get('id') as string | null;
+  const name = formData.get('name') as string;
+  const email = formData.get('email') as string;
+  const role = formData.get('role') as string;
+  const password = formData.get('password') as string;
+
+  if (!name || !email || !role) {
+    return { success: false, message: 'Name, email, and role are required.' };
+  }
+
+  try {
+    if (id) { // Edit existing user
+      const userRef = doc(db, 'users', id);
+      const updateData: any = { name, email, role };
+      if (password) {
+        updateData.password = password; // In a real app, hash this
+      }
+      await updateDoc(userRef, updateData);
+    } else { // Add new user
+      if (!password) return { success: false, message: 'Password is required for new users.' };
+      await addDoc(collection(db, 'users'), {
+        name,
+        email,
+        role,
+        password, // In a real app, hash this
+        createdBy: currentUserId
+      });
+    }
+    revalidatePath('/dashboard/account');
+    return { success: true, message: `User ${id ? 'updated' : 'created'} successfully.` };
+  } catch (error) {
+    console.error("User management error:", error);
+    return { success: false, message: "Failed to manage user." };
+  }
 }
 
 export async function fetchAllUsers(): Promise<UserProfile[]> {
-    return [];
+    noStore();
+    const { db } = getFirebaseServices();
+    const currentUserId = await getCurrentUserId();
+    if (!currentUserId) return [];
+
+    try {
+        const usersSnapshot = await getDocs(query(collection(db, 'users'), where('createdBy', '==', currentUserId)));
+        return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+    } catch(error) {
+        console.error("Fetch all users error:", error);
+        return [];
+    }
 }
 
 // --- RETURN QUERIES ---
@@ -1666,7 +1718,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             transaction.update(productRef, { stock: increment(item.return_quantity) });
         }
 
-        // 2. Update customer credit balance. A refund increases what the business owes the customer.
+        // 2. Update customer credit balance. A refund increases what the business owes the customer (a payable for the business, so increase the balance).
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
             transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
@@ -1742,8 +1794,3 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
-
-
-
-
-    

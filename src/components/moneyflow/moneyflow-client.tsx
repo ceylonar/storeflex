@@ -185,7 +185,45 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
                     <TableCell>LKR {tx.amount.toFixed(2)}</TableCell>
                     <TableCell><FormattedDate timestamp={tx.date} formatString="PPP" /></TableCell>
                     <TableCell className="text-right">
-                       {tx.amount > 0 && tx.paymentMethod === 'credit' && (
+                       {tx.amount > 0 && tx.paymentMethod === 'credit' && tx.type === 'payable' && (
+                         <Dialog onOpenChange={(open) => { if(!open) setSettlementAmount(0) }}>
+                            <DialogTrigger asChild>
+                               <Button size="sm" disabled={isSettling === tx.id} onClick={() => setSettlementAmount(tx.amount)}>
+                                  {isSettling === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                                  Settle
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Settle Credit Payment</DialogTitle>
+                                <DialogDescription>
+                                  Enter the amount being paid to {tx.partyName}. The outstanding amount is LKR {tx.amount.toFixed(2)}.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="space-y-2 py-4">
+                                <Label htmlFor="settlement-amount">Settlement Amount (LKR)</Label>
+                                <Input 
+                                  id="settlement-amount"
+                                  type="number"
+                                  value={settlementAmount}
+                                  onChange={(e) => setSettlementAmount(Number(e.target.value))}
+                                  max={tx.amount}
+                                />
+                              </div>
+                              <DialogFooter>
+                                <DialogClose asChild>
+                                  <Button variant="secondary">Cancel</Button>
+                                </DialogClose>
+                                <DialogClose asChild>
+                                    <Button onClick={() => handleSettlePayment(tx, 'paid', settlementAmount)} disabled={settlementAmount <= 0 || settlementAmount > tx.amount}>
+                                    Confirm Settlement
+                                    </Button>
+                                </DialogClose>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                      )}
+                      {tx.amount > 0 && tx.paymentMethod === 'credit' && tx.type === 'receivable' && (
                          <Dialog onOpenChange={(open) => { if(!open) setSettlementAmount(0) }}>
                             <DialogTrigger asChild>
                                <Button size="sm" disabled={isSettling === tx.id} onClick={() => setSettlementAmount(tx.amount)}>

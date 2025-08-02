@@ -1,9 +1,11 @@
 
-import { fetchUserProfile } from "@/lib/queries";
+import { fetchUserProfile, fetchAllUsers } from "@/lib/queries";
 import { User } from "lucide-react";
 import { AccountForm } from "@/components/account/account-form";
 import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { UserManagement } from "@/components/account/user-management";
+import { Separator } from "@/components/ui/separator";
 
 
 export default async function AccountPage() {
@@ -13,6 +15,7 @@ export default async function AccountPage() {
   }
 
   const userProfile = await fetchUserProfile();
+  const allUsers = await fetchAllUsers();
   
   return (
     <div className="space-y-6">
@@ -21,12 +24,16 @@ export default async function AccountPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Account Settings</h1>
           <p className="text-muted-foreground">
-            Manage your store profile and branding.
+            Manage your store profile, branding, and user accounts.
           </p>
         </div>
       </div>
       
       <AccountForm userProfile={userProfile} />
+
+      <Separator />
+
+      <UserManagement initialUsers={allUsers} />
     </div>
   );
 }
