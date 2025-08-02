@@ -40,6 +40,7 @@ export function Header({ user }: { user: AuthUser }) {
   const pathname = usePathname();
   const [stores, setStores] = useState<StoreType[] | null>(null);
   const [greeting, setGreeting] = useState('');
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   
   useEffect(() => {
     async function getData() {
@@ -60,7 +61,7 @@ export function Header({ user }: { user: AuthUser }) {
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between gap-x-4 border-b bg-card px-4 shadow-sm sm:px-6 lg:px-8">
       <div className="flex items-center gap-x-4">
-        <Sheet>
+        <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="sm:hidden">
                 <Menu className="h-6 w-6" />
@@ -71,6 +72,7 @@ export function Header({ user }: { user: AuthUser }) {
                 <nav className="grid gap-4 text-lg font-medium">
                 <Link
                     href="/dashboard"
+                    onClick={() => setIsSheetOpen(false)}
                     className="mb-4 flex items-center gap-2 text-lg font-semibold"
                 >
                     <div className="flex items-center gap-2 font-semibold">
@@ -85,6 +87,7 @@ export function Header({ user }: { user: AuthUser }) {
                     <Link
                     key={item.name}
                     href={item.href}
+                    onClick={() => setIsSheetOpen(false)}
                     className={`flex items-center gap-4 px-2.5 ${
                         pathname === item.href
                         ? 'text-foreground'
