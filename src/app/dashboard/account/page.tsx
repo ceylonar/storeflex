@@ -1,18 +1,15 @@
 
-import { fetchUserProfile } from "@/lib/queries";
+import { getUser } from "@/lib/auth";
 import { User } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export default async function AccountPage() {
   const user = await getUser();
-  if (user?.role !== 'admin') {
-      redirect('/dashboard/sales'); // Or some other default page for non-admins
+  if (!user || user.role !== 'admin') {
+      redirect('/dashboard/sales');
   }
   
-  const userProfile = await fetchUserProfile();
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">

@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 import type { User } from '@/lib/auth';
@@ -19,6 +19,7 @@ const navigationLinks = [
   { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
   { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
+  { name: 'Account', href: '/dashboard/account', icon: AccountIcon, roles: ['admin'] },
 ];
 
 export function Sidebar({ user }: { user: User }) {
@@ -46,7 +47,7 @@ export function Sidebar({ user }: { user: User }) {
                   <Link
                     href={item.href}
                     className={cn(
-                      pathname.startsWith(item.href) && (item.href !== '/dashboard' || pathname === '/dashboard')
+                      pathname === item.href
                         ? 'bg-primary/10 text-primary'
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                       'group flex items-center gap-x-3 rounded-md p-2 text-sm font-semibold leading-6'
