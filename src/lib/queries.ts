@@ -26,7 +26,7 @@ import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, Us
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
-import { getSession } from './auth';
+import { getSession, logoutUser } from './auth';
 
 
 // Helper to get a mock user ID
@@ -1075,11 +1075,6 @@ export async function createInitialUser({email, password}: {email: string, passw
     const { db } = getFirebaseServices();
 
     try {
-        const counterRef = doc(db, 'counters', 'users');
-        const counterDoc = await getDoc(counterRef);
-        const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
-        const formattedId = `user${String(nextId).padStart(4, '0')}`;
-
         const newUser: Omit<UserProfile, 'id'> = {
             email,
             password, // In a real app, this should be hashed
@@ -1088,16 +1083,14 @@ export async function createInitialUser({email, password}: {email: string, passw
             role: "admin"
         };
         
-        const newUserRef = doc(db, 'users', formattedId);
+        const usersCollectionRef = collection(db, 'users');
+        const newUserRef = doc(usersCollectionRef);
 
-        await runTransaction(db, async (transaction) => {
-            transaction.set(newUserRef, newUser);
-            transaction.set(counterRef, {lastId: nextId}, {merge: true});
-        });
+        await setDoc(newUserRef, newUser);
         
         console.log("Initial admin user created successfully.");
 
-        return { id: formattedId, ...newUser };
+        return { id: newUserRef.id, ...newUser };
 
     } catch (error) {
         console.error("Failed to create initial user:", error);
@@ -1719,3 +1712,5 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         throw new Error('Failed to fetch financial activities.');
     }
 }
+
+export { logoutUser };

@@ -29,11 +29,10 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, History, User, Landmark, HelpCircle, ShieldAlert, LogOut } from 'lucide-react';
 import type { Store as StoreType, UserProfile } from '@/lib/types';
 import { useEffect, useState } from 'react';
-import { fetchStores, fetchUserProfile } from '@/lib/queries';
+import { fetchStores, fetchUserProfile, logoutUser } from '@/lib/queries';
 import { ModeToggle } from '../mode-toggle';
 import { Logo } from '../icons/logo';
 import Image from 'next/image';
-import { logoutUser } from '@/lib/auth';
 
 
 const allNavLinks = [
@@ -52,7 +51,7 @@ const allNavLinks = [
 
 export function Header() {
   const pathname = usePathname();
-  const [stores, setStores] = useState<StoreType[]>([]);
+  const [stores, setStores] = useState<StoreType[] | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [greeting, setGreeting] = useState('');
   
@@ -128,7 +127,7 @@ export function Header() {
       <div className="flex justify-end items-center gap-4">
         <ModeToggle />
         <div className="w-[200px] hidden sm:block">
-          {stores.length > 0 && (
+          {stores && stores.length > 0 && (
             <Select defaultValue={stores[0].id}>
                 <SelectTrigger id="store-switcher" aria-label="Select Store">
                 <SelectValue placeholder={userProfile?.businessName || "Select a store"} />
