@@ -1102,8 +1102,8 @@ export async function fetchDashboardData() {
         let recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
-            id: data.id || doc.id,
             ...data,
+            id: doc.id, // Use the unique Firestore document ID as the key
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
@@ -1265,8 +1265,8 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         let activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                id: data.id || doc.id,
                 ...data,
+                id: doc.id, // Use the unique Firestore document ID as the key
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
@@ -1564,8 +1564,8 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         let allActivities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                id: doc.id,
                 ...data,
+                id: doc.id, // Use the unique Firestore document ID as the key
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
@@ -1732,3 +1732,4 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
+
