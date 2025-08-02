@@ -893,7 +893,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
               details: `Settled LKR ${settled.toFixed(2)} with ${purchaseDetails.supplier_name}`,
               timestamp: serverTimestamp(),
               userId,
-              id: `settle-${supplierRef.id}-${Date.now()}`
+              id: settlementActivityRef.id
           });
       }
 
@@ -1677,7 +1677,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             details: `Return from ${returnData.customer_name} for LKR ${returnData.total_refund_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
-            id: returnRef.id,
+            id: activityRef.id,
         });
     });
 
@@ -1723,7 +1723,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
             details: `Return to ${returnData.supplier_name} for LKR ${returnData.total_credit_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
-            id: returnRef.id,
+            id: activityRef.id,
         });
     });
     
