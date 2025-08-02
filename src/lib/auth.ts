@@ -20,7 +20,7 @@ export async function getSession() {
   }
 }
 
-export async function loginUser(formData: FormData) {
+export async function loginUser(prevState: { message: string } | undefined, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
