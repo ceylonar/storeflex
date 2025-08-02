@@ -9,6 +9,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 export const metadata: Metadata = {
   title: 'StoreFlex Lite',
   description: 'Inventory Management System',
+  icons: {
+    icon: 'https://i.postimg.cc/tCKbfghT/logo-3-1.png',
+  },
 };
 
 export default function RootLayout({
