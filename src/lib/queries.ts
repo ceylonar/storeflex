@@ -91,6 +91,15 @@ const POSSaleSchema = z.object({
   previousBalance: z.number().nonnegative(),
 });
 
+const PurchaseItemSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().optional(),
+    quantity: z.number().int().positive(),
+    cost_price: z.number().nonnegative(),
+    total_cost: z.number().nonnegative(),
+});
+
 const POSPurchaseSchema = z.object({
   items: z.array(PurchaseItemSchema).min(1, 'At least one item is required.'),
   supplier_id: z.string(),
