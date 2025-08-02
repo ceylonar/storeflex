@@ -169,7 +169,7 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
   }, [cart, toast]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
-        const product = products.find(p => p.barcode === barcode);
+        const product = products.find(p => p.barcode?.toLowerCase() === barcode.toLowerCase());
         if (product) {
             addToCart(product);
             toast({
@@ -199,12 +199,15 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
             }
             
             if (e.key === 'Enter') {
-              if (barcodeChars.current.length > 5) {
+              if (barcodeChars.current.length > 3) { // Reduced minimum length for more flexibility
                 handleBarcodeScan(barcodeChars.current.join(''));
               }
               barcodeChars.current = [];
             } else {
-              if(e.key.length === 1) barcodeChars.current.push(e.key);
+              // Allow any single printable character
+              if(e.key.length === 1 && e.key.match(/\S/)) {
+                barcodeChars.current.push(e.key);
+              }
             }
             
             lastKeystrokeTime.current = currentTime;
@@ -228,7 +231,7 @@ function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { i
             (product.brand && product.brand.toLowerCase().includes(lowercasedTerm)) ||
             (product.category && product.category.toLowerCase().includes(lowercasedTerm)) ||
             (product.sub_category && product.sub_category.toLowerCase().includes(lowercasedTerm)) ||
-            (product.barcode && product.barcode.includes(lowercasedTerm))
+            (product.barcode && product.barcode.toLowerCase().includes(lowercasedTerm))
         );
     });
 
