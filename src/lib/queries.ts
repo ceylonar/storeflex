@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1419,9 +1420,10 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                receivablesTotal += balance;
+                // This is a liability for the business (payable)
+                payablesTotal += balance;
                 transactions.push({
-                    id: `customer-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    id: `customer-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
@@ -1431,6 +1433,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
+                // This is a liability for the business (payable)
                 payablesTotal += balance;
                 transactions.push({
                     id: `supplier-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
@@ -1438,6 +1441,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
+                // This is an asset for the business (receivable)
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
                     id: `supplier-receivable-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
@@ -1651,7 +1655,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             transaction.update(productRef, { stock: increment(item.return_quantity) });
         }
 
-        // 2. Update customer credit balance if applicable
+        // 2. Update customer credit balance if applicable. This becomes a payable for the business.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
             transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
@@ -1669,7 +1673,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
         const activityRef = doc(collection(db, 'recent_activity'));
         transaction.set(activityRef, {
             type: 'sale_return',
-            details: `Return from ${returnData.customer_name} for LKR ${returnData.total_refund_amount.toFixed(2)}`,
+            details: `Return from ${returnData.customer_name} for LKR ${returnData.total_refund_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
             id: returnRef.id,
@@ -1691,7 +1695,6 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
         // 1. Update stock for each returned item
         for (const item of returnData.items) {
             const productRef = doc(db, 'products', item.id);
-            // Ensure stock doesn't go negative, though this should be handled by UI validation
             const productDoc = await transaction.get(productRef);
             if (productDoc.exists() && productDoc.data().stock >= item.return_quantity) {
                 transaction.update(productRef, { stock: increment(-item.return_quantity) });
@@ -1700,7 +1703,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
             }
         }
 
-        // 2. Update supplier credit balance
+        // 2. Update supplier credit balance (reduce what we owe them)
         const supplierRef = doc(db, 'suppliers', returnData.supplier_id);
         transaction.update(supplierRef, { credit_balance: increment(-returnData.total_credit_amount) });
 
@@ -1716,7 +1719,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
         const activityRef = doc(collection(db, 'recent_activity'));
         transaction.set(activityRef, {
             type: 'purchase_return',
-            details: `Return to ${returnData.supplier_name} for LKR ${returnData.total_credit_amount.toFixed(2)}`,
+            details: `Return to ${returnData.supplier_name} for LKR ${returnData.total_credit_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
             id: returnRef.id,
