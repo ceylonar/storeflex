@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useFormState } from 'react-dom'
+import { useActionState } from 'react'
 import { login } from '@/lib/auth'
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ function LoginButton() {
 
 
 export default function LoginPage() {
-  const [state, formAction] = useFormState(login, null)
+  const [state, formAction] = useActionState(login, null)
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
