@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from '@/components/icons/logo';
 import { useFormStatus } from 'react-dom';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 
 function LoginButton() {
@@ -38,6 +38,7 @@ function LoginForm() {
             type="text"
             placeholder="superadmin"
             required
+            autoComplete="username"
           />
         </div>
         <div className="space-y-2">
@@ -47,6 +48,7 @@ function LoginForm() {
             name="password"
             type="password" 
             required 
+            autoComplete="current-password"
           />
         </div>
         
@@ -65,12 +67,6 @@ function LoginForm() {
 
 
 export default function LoginPage() {
-  const [isClient, setIsClient] = useState(false)
-
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <Card className="mx-auto w-full max-w-sm">
@@ -82,7 +78,7 @@ export default function LoginPage() {
             <CardDescription>Enter your credentials to access the dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isClient ? <LoginForm /> : <div className="h-[250px] animate-pulse" />}
+          <LoginForm />
         </CardContent>
       </Card>
     </main>
