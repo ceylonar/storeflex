@@ -1,6 +1,6 @@
 
 import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboard/dashboard-cards';
-import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts, fetchUserProfile } from '@/lib/queries';
+import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts, getCurrentUser } from '@/lib/queries';
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
 import { redirect } from 'next/navigation';
@@ -23,17 +23,21 @@ const PermissionDenied = () => (
 );
 
 export default async function DashboardPage() {
-  const userProfile = await fetchUserProfile();
+  const userProfile = await getCurrentUser();
 
-  if (userProfile?.role === 'manager') {
-    redirect('/dashboard/inventory');
+  if (!userProfile) {
+    return redirect('/login');
   }
 
-  if (userProfile?.role === 'sales') {
-    redirect('/dashboard/sales');
+  if (userProfile.role === 'manager') {
+    return redirect('/dashboard/inventory');
+  }
+
+  if (userProfile.role === 'sales') {
+    return redirect('/dashboard/sales');
   }
   
-  if (userProfile?.role !== 'admin') {
+  if (userProfile.role !== 'admin') {
       return <PermissionDenied />;
   }
 

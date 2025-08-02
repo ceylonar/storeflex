@@ -1,29 +1,21 @@
 
-import { fetchAllUsers, fetchUserProfile } from "@/lib/queries";
+import { fetchAllUsers, getCurrentUser } from "@/lib/queries";
 import { User, ShieldAlert, Users } from "lucide-react";
 import DynamicAccountForm from "@/components/account/dynamic-account-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserManagement } from "@/components/account/user-management";
 import { Separator } from "@/components/ui/separator";
+import { redirect } from "next/navigation";
 
-const PermissionDenied = () => (
-    <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
-            <ShieldAlert className="h-8 w-8 text-destructive" />
-            <div>
-                <CardTitle>Permission Denied</CardTitle>
-                <CardDescription>You do not have permission to access this page.</CardDescription>
-            </div>
-        </CardHeader>
-        <CardContent>
-            <p>Please contact your administrator if you believe this is an error.</p>
-        </CardContent>
-    </Card>
-);
 
 export default async function AccountPage() {
-  const userProfile = await fetchUserProfile();
-  const allUsers = userProfile?.role === 'admin' ? await fetchAllUsers() : [];
+  const userProfile = await getCurrentUser();
+
+  if (!userProfile) {
+    return redirect('/login');
+  }
+
+  const allUsers = userProfile.role === 'admin' ? await fetchAllUsers() : [];
 
   return (
     <div className="space-y-6">
@@ -39,7 +31,7 @@ export default async function AccountPage() {
       
       <DynamicAccountForm userProfile={userProfile} />
 
-      {userProfile?.role === 'admin' && (
+      {userProfile.role === 'admin' && (
         <>
           <Separator />
           <div className="space-y-4">
