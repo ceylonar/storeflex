@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1059,7 +1058,7 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
 
         const [productsSnapshot, salesSnapshot, activitySnapshot] = await Promise.all([
             getDocs(productsQuery),
@@ -1102,14 +1101,18 @@ export async function fetchDashboardData() {
             }
         });
 
-        let recentActivities = activitySnapshot.docs.map(doc => {
+        let allActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
-            id: doc.id,
+            id: doc.id, // Use the unique document ID as the key
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
+        
+        // Sort in code to avoid composite index
+        allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const recentActivities = allActivities.slice(0, 5);
 
         return {
             inventoryValue,
@@ -1566,7 +1569,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
     try {
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return'];
         
-        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes), orderBy('timestamp', 'desc'));
+        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
         
         const activitySnapshot = await getDocs(q);
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1577,6 +1580,9 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
+
+        // Sort in code to avoid composite index
+        allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return allActivities;
     } catch (error) {
@@ -1794,3 +1800,5 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
+
+    
