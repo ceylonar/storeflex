@@ -4,7 +4,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { fetchUserByEmail, createInitialUser } from './queries';
-import type { UserProfile } from './types';
 
 const SESSION_COOKIE_NAME = 'storeflex-session';
 
@@ -32,10 +31,10 @@ export async function loginUser(prevState: { message: string } | undefined, form
 
   // If no user exists with that email, create it as the first admin.
   if (!user) {
-    console.log("No user found, creating initial admin user...");
+    console.log("No user found, creating initial user...");
     user = await createInitialUser({ email, password });
     if (!user) {
-        return { success: false, message: 'Could not create an initial admin account. There might be a database issue.' };
+        return { success: false, message: 'Could not create an initial admin account. The database may not be empty.' };
     }
   }
 
@@ -43,7 +42,7 @@ export async function loginUser(prevState: { message: string } | undefined, form
     return { success: false, message: 'Invalid credentials.' };
   }
   
-  const session = { userId: user.id, role: user.role };
+  const session = { userId: user.id };
 
   cookies().set(SESSION_COOKIE_NAME, JSON.stringify(session), {
     httpOnly: true,

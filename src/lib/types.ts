@@ -1,5 +1,4 @@
 
-
 export type Store = {
   id: string;
   name: string;
@@ -14,7 +13,6 @@ export type UserProfile = {
     contactNumber?: string;
     logoUrl?: string;
     googleSheetUrl?: string;
-    role: 'admin' | 'manager' | 'sales';
     password?: string; // Note: Only for prototype purposes
 };
 
@@ -181,5 +179,3 @@ export type MoneyflowTransaction = {
     date: string; // ISO String
     checkNumber?: string;
 };
-
-      

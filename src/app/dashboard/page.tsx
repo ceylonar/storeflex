@@ -7,20 +7,6 @@ import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldAlert } from 'lucide-react';
 
-const PermissionDenied = () => (
-    <Card className="mt-8">
-        <CardHeader className="flex flex-row items-center gap-4">
-            <ShieldAlert className="h-8 w-8 text-destructive" />
-            <div>
-                <CardTitle>Permission Denied</CardTitle>
-                <CardDescription>You do not have permission to access this page.</CardDescription>
-            </div>
-        </CardHeader>
-        <CardContent>
-            <p>Please contact your administrator if you believe this is an error.</p>
-        </CardContent>
-    </Card>
-);
 
 export default async function DashboardPage() {
   const userProfile = await getCurrentUser();
@@ -28,19 +14,7 @@ export default async function DashboardPage() {
   if (!userProfile) {
     return redirect('/login');
   }
-
-  if (userProfile.role === 'manager') {
-    return redirect('/dashboard/inventory');
-  }
-
-  if (userProfile.role === 'sales') {
-    return redirect('/dashboard/sales');
-  }
   
-  if (userProfile.role !== 'admin') {
-      return <PermissionDenied />;
-  }
-
   const dashboardData = await fetchDashboardData();
   const salesData = await fetchSalesData('monthly');
   const topProducts = await fetchTopSellingProducts();

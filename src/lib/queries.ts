@@ -140,7 +140,6 @@ const UserManagementSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1, 'Name is required'),
     email: z.string().email('Invalid email address'),
-    role: z.enum(['admin', 'manager', 'sales']),
     password: z.string().optional(),
 });
 
@@ -1039,7 +1038,7 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
     const { db } = getFirebaseServices();
     const currentUser = await getCurrentUser();
     // This function should only be callable by an admin, but as an extra check
-    if(currentUser?.role !== 'admin') return [];
+    if(!currentUser) return [];
 
     try {
         const usersCollection = collection(db, 'users');
@@ -1080,7 +1079,6 @@ export async function createInitialUser({email, password}: {email: string, passw
             password, // In a real app, this should be hashed
             name: "Admin User",
             businessName: "My Store",
-            role: "admin"
         };
         
         const usersCollectionRef = collection(db, 'users');
@@ -1127,54 +1125,6 @@ export async function updateUserProfile(formData: FormData): Promise<{ success: 
         return { success: false, message: 'Failed to update profile.' };
     }
 }
-
-export async function manageUser(formData: FormData): Promise<{ success: boolean, message: string }> {
-    const { db } = getFirebaseServices();
-    const adminUser = await getCurrentUser();
-    if (adminUser?.role !== 'admin') {
-        return { success: false, message: "Permission denied." };
-    }
-
-    const rawData = Object.fromEntries(formData.entries());
-    const validatedFields = UserManagementSchema.safeParse(rawData);
-
-    if (!validatedFields.success) {
-        return { success: false, message: "Invalid user data." };
-    }
-    
-    const { id, password, ...userData } = validatedFields.data;
-    
-    try {
-        let finalId = id;
-        if (!finalId) { // Creating new user, generate ID
-             const counterRef = doc(db, 'counters', 'users');
-             const counterDoc = await getDoc(counterRef);
-             const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
-             finalId = `user${String(nextId).padStart(4, '0')}`;
-             await setDoc(counterRef, { lastId: nextId }, { merge: true });
-        }
-
-        const userRef = doc(db, 'users', finalId);
-
-        const updateData: any = { 
-            ...userData, 
-            businessName: adminUser.businessName, // Ensure they are part of the same business
-        };
-        
-        if (password) {
-            updateData.password = password; // In a real app, hash this
-        }
-        
-        await setDoc(userRef, updateData, { merge: true });
-        
-        revalidatePath('/dashboard/account');
-        return { success: true, message: `User ${id ? 'updated' : 'created'} successfully.` };
-
-    } catch (error) {
-        return { success: false, message: "Failed to save user data." };
-    }
-}
-
 
 export async function fetchDashboardData() {
     noStore();

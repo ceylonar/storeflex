@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import Link from 'next/link';
@@ -36,17 +35,17 @@ import Image from 'next/image';
 
 
 const allNavLinks = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin', 'manager'] },
-  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'manager', 'sales'] },
-  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin', 'manager'] },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'manager', 'sales'] },
-  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin', 'manager'] },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin', 'manager', 'sales'] },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
-  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'manager', 'sales'] },
-  { name: 'Account', href: '/dashboard/account', icon: User, roles: ['admin'], isUserMenu: true },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
+  { name: 'Account', href: '/dashboard/account', icon: User, isUserMenu: true },
 ];
 
 export function Header({ userProfile }: { userProfile: UserProfile | null }) {
@@ -74,8 +73,8 @@ export function Header({ userProfile }: { userProfile: UserProfile | null }) {
     return <Logo className="h-6 w-6" />;
   };
 
-  const navigation = allNavLinks.filter(link => !link.isUserMenu && userProfile?.role && link.roles.includes(userProfile.role));
-  const userNavigation = allNavLinks.filter(link => link.isUserMenu && userProfile?.role && link.roles.includes(userProfile.role));
+  const navigation = allNavLinks.filter(link => !link.isUserMenu);
+  const userNavigation = allNavLinks.filter(link => link.isUserMenu);
 
 
   return (
