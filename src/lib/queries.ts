@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -104,7 +103,7 @@ const POSSaleSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
-  previousBalance: z.number(), // Can be negative now
+  previousBalance: z.number(),
 });
 
 
@@ -458,8 +457,8 @@ export async function updateCustomer(id: string, formData: FormData): Promise<Cu
         return {
             id: updatedDoc.id,
             ...data,
-            created_at: (data.created_at as Timestamp)?.toDate().toISOString(),
-            updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
+            created_at: (data?.created_at as Timestamp)?.toDate().toISOString(),
+            updated_at: (data?.updated_at as Timestamp)?.toDate().toISOString(),
         } as Customer;
 
     } catch (error) {
@@ -825,8 +824,8 @@ export async function updateSupplier(id: string, formData: FormData): Promise<Su
         return {
             id: updatedDoc.id,
             ...data,
-            created_at: (data.created_at as Timestamp)?.toDate().toISOString(),
-            updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
+            created_at: (data?.created_at as Timestamp)?.toDate().toISOString(),
+            updated_at: (data?.updated_at as Timestamp)?.toDate().toISOString(),
         } as Supplier;
 
     } catch (error) {
@@ -1081,7 +1080,7 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
 
@@ -1103,7 +1102,7 @@ export async function fetchDashboardData() {
             allProducts.push({
                 ...product,
                 created_at: (product.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-                updated_at: (product.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: (product.updated_at as Timestamp)?.toDate().toISOString(),
             });
         });
         const productCount = productsSnapshot.size;
@@ -1137,26 +1136,24 @@ export async function fetchDashboardData() {
             timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
           }
         }) as RecentActivity[];
-
-        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         
         let totalReceivables = 0;
         let totalPayables = 0;
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance < 0) {
-                 totalPayables += Math.abs(balance);
-            } else if (balance > 0) {
+            if (balance > 0) { // Customer owes us
                 totalReceivables += balance;
+            } else if (balance < 0) { // We owe customer (e.g. from return)
+                totalPayables += Math.abs(balance);
             }
         });
 
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) {
+            if (balance > 0) { // We owe supplier
                 totalPayables += balance;
-            } else if (balance < 0) {
+            } else if (balance < 0) { // Supplier owes us (e.g. from return)
                 totalReceivables += Math.abs(balance);
             }
         });
@@ -1169,7 +1166,7 @@ export async function fetchDashboardData() {
             totalSales,
             totalReceivables,
             totalPayables,
-            recentActivities: recentActivities.slice(0,5),
+            recentActivities,
             lowStockProducts,
         };
     } catch (error) {
@@ -1510,16 +1507,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance < 0) {
-                 // We have customer's money from a return. This is a payable for the business.
-                 payablesTotal += Math.abs(balance);
-                 transactions.push({
-                     id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
-                     paymentMethod: 'credit', amount: Math.abs(balance),
-                     date,
-                 });
-            } else if (balance > 0) {
-                // Customer owes us money => Receivable
+            if (balance > 0) { // Customer owes us
                 receivablesTotal += balance;
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
@@ -1534,20 +1522,11 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance > 0) {
-                // We owe supplier money => Payable
+            if (balance > 0) { // We owe supplier
                 payablesTotal += balance;
                 transactions.push({
                     id: `supplier-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
-                    date,
-                });
-            } else if (balance < 0) {
-                 // Supplier owes us money (e.g. from a return) => Receivable
-                receivablesTotal += Math.abs(balance);
-                transactions.push({
-                    id: `supplier-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
-                    paymentMethod: 'credit', amount: Math.abs(balance),
                     date,
                 });
             }
@@ -1813,10 +1792,12 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             transaction.update(productRef, { stock: increment(item.return_quantity) });
         }
 
-        // 2. Update customer credit balance. A refund creates a liability for the business (a payable), represented as a negative balance.
+        // 2. Update customer credit balance. A refund increases what we owe the customer.
+        // This is a liability (payable). We represent it by *subtracting* from their balance.
+        // A customer with a negative balance has credit with the store.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
+            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
         }
 
         // 3. Create a new sale return document

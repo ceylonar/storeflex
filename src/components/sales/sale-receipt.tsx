@@ -37,6 +37,7 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
   };
 
   const totalDue = sale.total_amount - (sale.previousBalance || 0);
+  const change = Math.max(0, sale.amountPaid - totalDue);
 
   return (
     <div className="bg-background text-foreground">
@@ -133,6 +134,9 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
         
         <div className="mt-2 ml-auto max-w-[150px] text-xs space-y-1">
           <div className="flex justify-between"><span>Paid Amount</span> <span>{sale.amountPaid.toFixed(2)}</span></div>
+            {change > 0 && sale.paymentMethod === 'cash' && (
+              <div className="flex justify-between"><span>Change</span> <span>{change.toFixed(2)}</span></div>
+            )}
             {sale.creditAmount > 0 && (
               <div className="flex justify-between font-bold"><span>New Credit</span> <span>{sale.creditAmount.toFixed(2)}</span></div>
             )}
@@ -157,5 +161,3 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
     </div>
   );
 }
-
-    

@@ -150,7 +150,7 @@ export function PurchaseHistory({ selectedSupplier }: PurchaseHistoryProps) {
                                     <div className="flex justify-between"><span className="text-muted-foreground">Amount Paid</span><span>LKR {(purchase.amountPaid || 0).toFixed(2)}</span></div>
                                     {(purchase.creditAmount || 0) > 0 && (
                                         <div className={cn("flex justify-between font-semibold text-destructive")}>
-                                            <span>Credit Payable</span>
+                                            <span>Payable Balance</span>
                                             <span>LKR {(purchase.creditAmount || 0).toFixed(2)}</span>
                                         </div>
                                     )}
