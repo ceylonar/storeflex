@@ -1080,7 +1080,8 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
+        // Remove orderBy to prevent index error. Sorting will be done in-memory.
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
 
@@ -1137,6 +1138,10 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
         
+        // In-memory sorting and limiting
+        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const limitedActivities = recentActivities.slice(0, 5);
+        
         let totalReceivables = 0;
         let totalPayables = 0;
 
@@ -1166,7 +1171,7 @@ export async function fetchDashboardData() {
             totalSales,
             totalReceivables,
             totalPayables,
-            recentActivities,
+            recentActivities: limitedActivities,
             lowStockProducts,
         };
     } catch (error) {
@@ -1512,6 +1517,13 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
+                    date,
+                });
+            } else if (balance < 0) { // We owe customer (from a return)
+                payablesTotal += Math.abs(balance);
+                transactions.push({
+                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: Math.abs(balance),
                     date,
                 });
             }
