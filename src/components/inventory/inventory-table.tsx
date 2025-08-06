@@ -41,7 +41,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, Loader2, Wand2 } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, Loader2, Wand2, Barcode, Printer } from 'lucide-react';
 import type { Product } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -54,6 +54,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import dynamic from 'next/dynamic';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import ReactBarcode from 'react-barcode';
 
 const BarcodeScanner = dynamic(() => import('./barcode-scanner'), { 
     ssr: false,
@@ -104,6 +105,77 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     setSelectedProduct(product || initialProductState);
     setAiSuggestions(null); // Clear previous suggestions
     setIsDialogOpen(true);
+  };
+
+  const handleGenerateBarcode = () => {
+    const timestamp = Date.now().toString();
+    const uniqueBarcode = timestamp.substring(timestamp.length - 12);
+    // Update the form state directly if you are using a controlled component approach
+    // For this form, we'll update the selectedProduct state, which will be used as defaultValue
+    setSelectedProduct(prev => ({...prev, barcode: uniqueBarcode}));
+    toast({ title: "Barcode Generated", description: "A new unique barcode has been generated." });
+  };
+  
+  const handlePrintBarcode = () => {
+    if (!selectedProduct.barcode || !selectedProduct.name) {
+        toast({variant: 'destructive', title: "Missing Details", description: "Product name and barcode are required to print."});
+        return;
+    }
+    const printableContent = `
+        <html>
+            <head>
+                <title>Print Barcode</title>
+                <style>
+                    @media print {
+                        body {
+                            margin: 0;
+                            padding: 0;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            font-family: sans-serif;
+                            text-align: center;
+                        }
+                        @page { size: 3in 2in; margin: 0; }
+                    }
+                    body {
+                       font-family: sans-serif;
+                       text-align: center;
+                       padding: 20px;
+                    }
+                    h1 { font-size: 14px; margin: 0 0 5px 0; }
+                </style>
+            </head>
+            <body>
+                <div>
+                    <h1>${selectedProduct.name}</h1>
+                    <div id="barcode-container"></div>
+                </div>
+                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+                <script>
+                    window.onload = function() {
+                        const container = document.getElementById('barcode-container');
+                        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                        container.appendChild(svg);
+                        JsBarcode(svg, "${selectedProduct.barcode}", {
+                            format: "CODE128",
+                            displayValue: true,
+                            fontSize: 14,
+                            margin: 5,
+                            width: 2,
+                            height: 50,
+                        });
+                        window.print();
+                        window.close();
+                    }
+                </script>
+            </body>
+        </html>
+    `;
+    const printWindow = window.open('', '_blank');
+    printWindow?.document.write(printableContent);
+    printWindow?.document.close();
   };
 
   const handleDelete = async (id: string) => {
@@ -337,7 +409,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                         )}
                         <div className="space-y-2">
                             <Label htmlFor="name">Name</Label>
-                            <Input id="name" name="name" defaultValue={selectedProduct.name} />
+                            <Input id="name" name="name" defaultValue={selectedProduct.name} onChange={(e) => setSelectedProduct(prev => ({...prev, name: e.target.value}))}/>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -346,7 +418,10 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="barcode">Barcode</Label>
-                                <Input id="barcode" name="barcode" defaultValue={selectedProduct.barcode} />
+                                <div className="flex gap-2">
+                                  <Input id="barcode" name="barcode" value={selectedProduct.barcode || ''} onChange={(e) => setSelectedProduct(prev => ({...prev, barcode: e.target.value}))}/>
+                                  <Button type="button" variant="outline" size="icon" onClick={handleGenerateBarcode}><Barcode className="h-4 w-4"/></Button>
+                                </div>
                             </div>
                         </div>
                          <div className="space-y-2">
@@ -387,14 +462,25 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                             <Label htmlFor="image">Image URL</Label>
                             <Input id="image" name="image" defaultValue={selectedProduct.image} />
                         </div>
+                        {selectedProduct.barcode && (
+                            <div className='pt-4'>
+                                <ReactBarcode value={selectedProduct.barcode} width={1} height={50} fontSize={12} />
+                            </div>
+                        )}
                     </form>
                 )}
             </ScrollArea>
-            <DialogFooter className="pt-4">
-                <DialogClose asChild>
-                    <Button type="button" variant="secondary">Cancel</Button>
-                </DialogClose>
-                <Button type="submit" onClick={() => formRef.current?.requestSubmit()} disabled={isFetchingBarcode}>Save Product</Button>
+            <DialogFooter className="pt-4 justify-between">
+                <Button type="button" variant="outline" onClick={handlePrintBarcode} disabled={!selectedProduct.barcode}>
+                  <Printer className="mr-2 h-4 w-4"/>
+                  Print Barcode
+                </Button>
+                <div className="flex gap-2">
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Cancel</Button>
+                    </DialogClose>
+                    <Button type="submit" onClick={() => formRef.current?.requestSubmit()} disabled={isFetchingBarcode}>Save Product</Button>
+                </div>
             </DialogFooter>
           </DialogContent>
       </Dialog>
