@@ -38,8 +38,8 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
-import { fetchInventoryRecords } from '@/lib/queries';
+import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem, Customer, Supplier } from '@/lib/types';
+import { fetchInventoryRecords, fetchCustomers, fetchSuppliers } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
@@ -55,14 +55,17 @@ import { FormattedDate } from '../ui/formatted-date';
 interface AdvancedReportClientProps {
   initialRecords: DetailedRecord[];
   products: ProductSelect[];
+  customers: Customer[];
+  suppliers: Supplier[];
 }
 
-export function AdvancedReportClient({ initialRecords, products }: AdvancedReportClientProps) {
+export function AdvancedReportClient({ initialRecords, products, customers, suppliers }: AdvancedReportClientProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [date, setDate] = useState<DateRange | undefined>();
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
+  const [partyId, setPartyId] = useState<string>('');
   const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
@@ -75,7 +78,7 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
 
   const handleGenerateReport = () => {
     startTransition(async () => {
-      const result = await fetchInventoryRecords({ date, type, productId });
+      const result = await fetchInventoryRecords({ date, type, productId, partyId });
       setRecords(result);
       toast({
           title: 'Records Filtered',
@@ -88,6 +91,7 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
     setDate(undefined);
     setType('');
     setProductId('');
+    setPartyId('');
     startTransition(async () => {
       const result = await fetchInventoryRecords({});
       setRecords(result);
@@ -112,7 +116,7 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
     toast({ title: 'Preparing Download', description: 'Generating detailed report for export...' });
 
     try {
-        const detailedRecords = await fetchInventoryRecords({ date, type, productId });
+        const detailedRecords = await fetchInventoryRecords({ date, type, productId, partyId });
         
         const headers = [
           'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details'
@@ -204,6 +208,11 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
     }
   }
 
+  const allParties = [
+    ...customers.map(c => ({ value: `customer_${c.id}`, label: `Customer: ${c.name}` })),
+    ...suppliers.map(s => ({ value: `supplier_${s.id}`, label: `Supplier: ${s.name}` }))
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -211,84 +220,98 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
           <CardTitle>Filter Report</CardTitle>
           <CardDescription>Select filters and generate a targeted report of inventory activities.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-4">
-           <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id="date"
-                variant={"outline"}
-                className={cn(
-                  "w-full sm:w-[300px] justify-start text-left font-normal",
-                  !date && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date?.from ? (
-                  date.to ? (
-                    <>
-                      {format(date.from, "LLL dd, y")} -{" "}
-                      {format(date.to, "LLL dd, y")}
-                    </>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date?.from ? (
+                    date.to ? (
+                      <>
+                        {format(date.from, "LLL dd, y")} -{" "}
+                        {format(date.to, "LLL dd, y")}
+                      </>
+                    ) : (
+                      format(date.from, "LLL dd, y")
+                    )
                   ) : (
-                    format(date.from, "LLL dd, y")
-                  )
+                    <span>Pick a date range</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={date?.from}
+                  selected={date}
+                  onSelect={setDate}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+            
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by Type" />
+              </SelectTrigger>
+              <SelectContent>
+                  <SelectItem value="sale">Sale</SelectItem>
+                  <SelectItem value="purchase">Purchase</SelectItem>
+                  <SelectItem value="new">New Product</SelectItem>
+                  <SelectItem value="update">Update</SelectItem>
+                  <SelectItem value="delete">Delete</SelectItem>
+                  <SelectItem value="sale_return">Sale Return</SelectItem>
+                  <SelectItem value="purchase_return">Purchase Return</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={productId} onValueChange={setProductId}>
+              <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by Product" />
+              </SelectTrigger>
+              <SelectContent>
+                  {products.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={partyId} onValueChange={setPartyId}>
+              <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Filter by Customer/Supplier" />
+              </SelectTrigger>
+              <SelectContent>
+                  {allParties.map(p => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+
+            <div className="flex gap-2">
+              <Button onClick={handleGenerateReport} disabled={isPending} className="w-full">
+                {isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <span>Pick a date range</span>
+                  <Filter className="mr-2 h-4 w-4" />
                 )}
+                Apply
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={date?.from}
-                selected={date}
-                onSelect={setDate}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
-          
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by Type" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="sale">Sale</SelectItem>
-                <SelectItem value="purchase">Purchase</SelectItem>
-                <SelectItem value="new">New Product</SelectItem>
-                <SelectItem value="update">Update</SelectItem>
-                <SelectItem value="delete">Delete</SelectItem>
-                 <SelectItem value="sale_return">Sale Return</SelectItem>
-                <SelectItem value="purchase_return">Purchase Return</SelectItem>
-            </SelectContent>
-          </Select>
 
-          <Select value={productId} onValueChange={setProductId}>
-            <SelectTrigger className="w-full sm:w-[280px]">
-                <SelectValue placeholder="Filter by Product" />
-            </SelectTrigger>
-            <SelectContent>
-                {products.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-
-
-          <Button onClick={handleGenerateReport} disabled={isPending}>
-            {isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Filter className="mr-2 h-4 w-4" />
-            )}
-            Apply Filters
-          </Button>
-
-           <Button onClick={clearFilters} variant="ghost" disabled={isPending}>
-              <X className="mr-2 h-4 w-4" />
-              Clear
-          </Button>
+              <Button onClick={clearFilters} variant="ghost" disabled={isPending} className="w-full">
+                  <X className="mr-2 h-4 w-4" />
+                  Clear
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

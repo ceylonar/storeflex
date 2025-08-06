@@ -22,6 +22,9 @@ import {
   runTransaction,
   setDoc,
   increment,
+  Query,
+  collectionGroup,
+  or,
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem } from './types';
 import { z } from 'zod';
@@ -384,6 +387,7 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
       
       revalidatePath('/dashboard/customers');
       revalidatePath('/dashboard/sales');
+      revalidatePath('/dashboard/reports');
       
       return newCustomer;
     } catch (error) {
@@ -742,6 +746,7 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
   
         revalidatePath('/dashboard/suppliers');
         revalidatePath('/dashboard/buy');
+        revalidatePath('/dashboard/reports');
         
         return newSupplier;
 
@@ -1134,19 +1139,18 @@ export async function fetchDashboardData() {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) {
-                // This is a liability for the business (payable) - we owe the customer
-                totalPayables += balance;
+            if (balance < 0) {
+                 totalPayables += Math.abs(balance);
+            } else if (balance > 0) {
+                totalReceivables += balance;
             }
         });
 
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                // This is a liability for the business (payable)
                 totalPayables += balance;
             } else if (balance < 0) {
-                // This is an asset for the business (receivable) - supplier owes us
                 totalReceivables += Math.abs(balance);
             }
         });
@@ -1294,6 +1298,7 @@ interface InventoryRecordsFilter {
     date?: DateRange;
     type?: string;
     productId?: string;
+    partyId?: string;
 }
 
 export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Promise<DetailedRecord[]> {
@@ -1303,35 +1308,53 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
     const { db } = getFirebaseServices();
     try {
-        let activitiesQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        const activityCollection = collection(db, 'recent_activity');
+        let queries: Query[] = [];
         
-        if (filters.type) {
-            activitiesQuery = query(activitiesQuery, where('type', '==', filters.type));
+        // Base query for all user activities
+        const baseQuery = query(activityCollection, where('userId', '==', userId));
+        queries.push(baseQuery);
+        
+        let finalActivities: RecentActivity[] = [];
+        
+        // If there are filters, we need to construct specific queries
+        if (filters.productId || filters.partyId || filters.type) {
+            const constraints = [where('userId', '==', userId)];
+            if (filters.type) {
+                constraints.push(where('type', '==', filters.type));
+            }
+            if (filters.productId) {
+                constraints.push(or(
+                    where('product_id', '==', filters.productId),
+                    where('item_ids', 'array-contains', filters.productId)
+                ));
+            }
+             if (filters.partyId) {
+                const [partyType, id] = filters.partyId.split('_');
+                const field = partyType === 'customer' ? 'customer_id' : 'supplier_id';
+                constraints.push(where(field, '==', id));
+            }
+            
+            const mainQuery = query(activityCollection, ...constraints);
+            const mainSnapshot = await getDocs(mainQuery);
+            finalActivities = mainSnapshot.docs.map(doc => ({...doc.data(), id: doc.id}) as RecentActivity);
+
+        } else {
+            // No specific filter, fetch all
+            const allActivitiesSnapshot = await getDocs(baseQuery);
+            finalActivities = allActivitiesSnapshot.docs.map(doc => ({...doc.data(), id: doc.id}) as RecentActivity);
         }
 
-        const activitySnapshot = await getDocs(activitiesQuery);
-        let activities = activitySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                id: doc.id,
-                timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
-            }
-        }) as RecentActivity[];
-        
+        // Date filtering has to be done in-memory after fetching
         if (filters.date?.from) {
             const from = startOfDay(filters.date.from);
             const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-            activities = activities.filter(act => isWithinInterval(new Date(act.timestamp), { start: from, end: to }));
+            finalActivities = finalActivities.filter(act => isWithinInterval(new Date(act.timestamp), { start: from, end: to }));
         }
 
-        if (filters.productId) {
-            activities = activities.filter(act => act.product_id === filters.productId || act.product_id === 'multiple');
-        }
+        finalActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
-        const detailedRecordsPromises = activities.map(async (rec): Promise<DetailedRecord | null> => {
+        const detailedRecordsPromises = finalActivities.map(async (rec): Promise<DetailedRecord | null> => {
             let detailedRec: DetailedRecord = { ...rec, items: [] };
 
             if (rec.type === 'sale') {
@@ -1364,9 +1387,9 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                  }
             }
 
-            if (filters.productId && detailedRec.items) {
+            if (filters.productId && detailedRec.items && detailedRec.items.length > 0) {
                  detailedRec.items = detailedRec.items.filter(item => item.id === filters.productId);
-                 if(detailedRec.items.length === 0) return null;
+                 if(detailedRec.items.length === 0 && (rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return')) return null;
             }
 
             return detailedRec;
@@ -1778,7 +1801,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             transaction.update(productRef, { stock: increment(item.return_quantity) });
         }
 
-        // 2. Update customer credit balance. A refund increases what the business owes the customer (a payable for the business, so increase the balance).
+        // 2. Update customer credit balance. A refund creates a liability for the business (a payable), represented as a negative balance.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
             transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
@@ -1792,6 +1815,9 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             id: returnId,
             userId,
             return_date: serverTimestamp(),
+            item_ids: returnData.items.map(i => i.id),
+            customer_id: returnData.customer_id,
+            supplier_id: null,
         });
         
         // 4. Create an activity log
@@ -1802,6 +1828,10 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             timestamp: serverTimestamp(),
             userId,
             id: returnId,
+            item_ids: returnData.items.map(i => i.id),
+            customer_id: returnData.customer_id,
+            supplier_id: null,
+            product_id: 'multiple'
         });
     });
 
@@ -1840,6 +1870,9 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
             id: returnId,
             userId,
             return_date: serverTimestamp(),
+            item_ids: returnData.items.map(i => i.id),
+            supplier_id: returnData.supplier_id,
+            customer_id: null
         });
         
         // 4. Create an activity log
@@ -1850,6 +1883,10 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
             timestamp: serverTimestamp(),
             userId,
             id: returnId,
+            item_ids: returnData.items.map(i => i.id),
+            supplier_id: returnData.supplier_id,
+            customer_id: null,
+            product_id: 'multiple'
         });
     });
     
