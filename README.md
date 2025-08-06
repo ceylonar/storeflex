@@ -59,3 +59,4 @@ The AI features in this app, like the Price Optimizer and barcode scanning, are 
 ### 3. Restart Your Application
 
 After you've added all the credentials to your `.env` file, you must **restart the development server** for the changes to take effect.
+# storeflex-Demo
