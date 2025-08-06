@@ -36,7 +36,7 @@ import {
 } from '@/components/ui/collapsible';
 
 import { Button } from '@/components/ui/button';
-import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronDown, ChevronRight, User, ShoppingCart, Truck, Repeat, Scroll } from 'lucide-react';
+import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight } from 'lucide-react';
 import type { ProductSelect, DetailedRecord, Customer, Supplier } from '@/lib/types';
 import { fetchInventoryRecords } from '@/lib/queries';
 import { format } from 'date-fns';
@@ -45,7 +45,6 @@ import { DateRange } from 'react-day-picker';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
-import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { FormattedDate } from '../ui/formatted-date';
 
@@ -57,20 +56,10 @@ interface AdvancedReportClientProps {
   suppliers: Supplier[];
 }
 
-const getRecordIcon = (type: DetailedRecord['type']) => {
-    switch (type) {
-        case 'sale': return ShoppingCart;
-        case 'purchase': return Truck;
-        case 'sale_return': return Repeat;
-        case 'purchase_return': return Repeat;
-        default: return Scroll;
-    }
-}
-
 const getRecordTitle = (record: DetailedRecord) => {
     switch (record.type) {
-      case 'sale': return `Sale to ${record.partyName}`;
-      case 'purchase': return `Purchase from ${record.partyName}`;
+      case 'sale': return `Sale: ${record.partyName}`;
+      case 'purchase': return `Purchase: ${record.partyName}`;
       case 'sale_return': return `Return from ${record.partyName}`;
       case 'purchase_return': return `Return to ${record.partyName}`;
       case 'credit_settled': return `Credit Settlement`;
@@ -84,14 +73,15 @@ const getRecordTitle = (record: DetailedRecord) => {
 };
 
 const getRecordAmount = (record: DetailedRecord) => {
-    if (record.transaction?.total_amount) {
-        return `LKR ${record.transaction.total_amount.toFixed(2)}`;
+    const transaction = record.transaction as any;
+    if (transaction?.total_amount) {
+        return `LKR ${transaction.total_amount.toFixed(2)}`;
     }
-    if (record.type === 'sale_return' && record.transaction?.total_refund_amount) {
-        return `LKR ${record.transaction.total_refund_amount.toFixed(2)}`;
+    if (transaction?.total_refund_amount) {
+        return `LKR ${transaction.total_refund_amount.toFixed(2)}`;
     }
-     if (record.type === 'purchase_return' && record.transaction?.total_credit_amount) {
-        return `LKR ${record.transaction.total_credit_amount.toFixed(2)}`;
+     if (transaction?.total_credit_amount) {
+        return `LKR ${transaction.total_credit_amount.toFixed(2)}`;
     }
     return 'N/A';
 };
@@ -133,7 +123,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     });
   }
 
-  const handleDownload = async () => {
+ const handleDownload = async () => {
     if (!records || records.length === 0) {
         toast({ variant: 'destructive', title: 'No Data', description: 'There is no data to download.' });
         return;
@@ -144,51 +134,31 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     try {
         const detailedRecords = await fetchInventoryRecords({ date, type, productId, partyId });
         const headers = [
-          'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
+          'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Item Total (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
         ];
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
             const commonData = [
-                rec.id,
+                rec.transaction?.id || rec.id,
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                rec.type.replace(/_/g, ' '),
+                `"${rec.type.replace(/_/g, ' ')}"`,
                 `"${rec.partyName || 'N/A'}"`,
             ];
 
+            const trans = rec.transaction as any;
             if (rec.items && rec.items.length > 0) {
                 return rec.items.map(item => {
-                    const trans = rec.transaction;
-                    const paymentMethod = trans?.paymentMethod || (rec.type.includes('return') ? (rec.transaction as any).refund_method || 'credit_balance' : 'N/A');
+                    const paymentMethod = trans?.paymentMethod || (rec.type.includes('return') ? (trans?.refund_method || 'credit_balance') : 'N/A');
                     const amountPaid = trans?.amountPaid?.toFixed(2) || '0.00';
                     const balanceChange = trans?.creditAmount?.toFixed(2) || '0.00';
-                    const totalAmount = trans?.total_amount?.toFixed(2) || '0.00';
+                    const itemTotal = (item as any).total_amount || (item as any).total_cost || 0;
 
-                    const itemDetails = {
-                        name: item.name || 'N/A',
-                        sku: item.sku || 'N/A',
-                        quantity: '0',
-                        unitPrice: '0.00',
-                        itemTotal: '0.00'
-                    };
-
-                    if ('quantity' in item) itemDetails.quantity = `${item.quantity}`;
-                    if ('return_quantity' in item) itemDetails.quantity = `${item.return_quantity}`;
-                    
-                    if ('price_per_unit' in item) itemDetails.unitPrice = item.price_per_unit.toFixed(2);
-                    if ('cost_price' in item) itemDetails.unitPrice = item.cost_price.toFixed(2);
-
-                    if ('total_amount' in item) itemDetails.itemTotal = item.total_amount.toFixed(2);
-                    if ('total_cost' in item) itemDetails.itemTotal = item.total_cost.toFixed(2);
-                    
-                    if (rec.type.includes('return')) {
-                        const quantity = 'return_quantity' in item ? item.return_quantity : 0;
-                        const price = 'price_per_unit' in item ? item.price_per_unit : ('cost_price' in item ? item.cost_price : 0);
-                        itemDetails.itemTotal = (quantity * price).toFixed(2);
-                    }
+                    const quantity = (item as any).quantity || (item as any).return_quantity || 0;
+                    const unitPrice = (item as any).price_per_unit || (item as any).cost_price || 0;
 
                     return [
                         ...commonData,
-                        `"${itemDetails.name}"`, `"${itemDetails.sku}"`, itemDetails.quantity, itemDetails.unitPrice, itemDetails.itemTotal,
+                        `"${item.name || 'N/A'}"`, `"${item.sku || 'N/A'}"`, quantity, unitPrice.toFixed(2), itemTotal.toFixed(2),
                         paymentMethod, amountPaid, balanceChange, `"${rec.details || ''}"`
                     ].join(',');
                 });
@@ -254,6 +224,9 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                   <SelectItem value="delete">Delete</SelectItem>
                   <SelectItem value="sale_return">Sale Return</SelectItem>
                   <SelectItem value="purchase_return">Purchase Return</SelectItem>
+                  <SelectItem value="credit_settled">Credit Settle</SelectItem>
+                  <SelectItem value="check_cleared">Check Cleared</SelectItem>
+                  <SelectItem value="check_rejected">Check Rejected</SelectItem>
               </SelectContent>
             </Select>
             <Select value={productId} onValueChange={setProductId}>
@@ -293,7 +266,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                     </div>
                 ) : records.length > 0 ? (
                     <Table>
-                        <TableHeader className="sticky top-0 bg-card">
+                        <TableHeader className="sticky top-0 bg-card z-10">
                             <TableRow>
                                 <TableHead className="w-[50px]"></TableHead>
                                 <TableHead>Transaction</TableHead>
@@ -303,68 +276,67 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
-                            {records.map(record => (
-                                <Collapsible asChild key={record.id}>
-                                    <>
+                        
+                        {records.map(record => (
+                            <Collapsible asChild key={record.id} className="group">
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell>
+                                            <CollapsibleTrigger asChild>
+                                                <Button variant="ghost" size="icon" disabled={!record.items || record.items.length === 0}>
+                                                    <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
+                                                </Button>
+                                            </CollapsibleTrigger>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="font-medium">{getRecordTitle(record)}</div>
+                                            <div className="text-sm text-muted-foreground font-mono">{record.transaction?.id}</div>
+                                        </TableCell>
+                                        <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                        <TableCell>{record.partyName || 'N/A'}</TableCell>
+                                        <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                        <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                                    </TableRow>
+                                    <CollapsibleContent asChild>
                                         <TableRow>
-                                            <TableCell>
-                                                <CollapsibleTrigger asChild>
-                                                    <Button variant="ghost" size="icon" disabled={!record.items || record.items.length === 0}>
-                                                        <ChevronRight className="h-4 w-4 transition-transform [&[data-state=open]]:rotate-90" />
-                                                    </Button>
-                                                </CollapsibleTrigger>
+                                            <TableCell colSpan={6} className="p-0">
+                                                <div className="p-4 bg-muted/50">
+                                                    <h4 className="font-semibold mb-2 ml-4">Items in Transaction</h4>
+                                                     <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>Product</TableHead>
+                                                                <TableHead>SKU</TableHead>
+                                                                <TableHead>Quantity</TableHead>
+                                                                <TableHead>Unit Price</TableHead>
+                                                                <TableHead className="text-right">Total</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {record.items?.map((item, index) => {
+                                                                const quantity = (item as any).quantity || (item as any).return_quantity || 0;
+                                                                const price = (item as any).price_per_unit || (item as any).cost_price || 0;
+                                                                const total = (item as any).total_amount || (item as any).total_cost || (quantity * price);
+                                                                
+                                                                return(
+                                                                    <TableRow key={`${record.id}-${index}`}>
+                                                                        <TableCell>{item.name}</TableCell>
+                                                                        <TableCell>{item.sku || 'N/A'}</TableCell>
+                                                                        <TableCell>{quantity}</TableCell>
+                                                                        <TableCell>LKR {price.toFixed(2)}</TableCell>
+                                                                        <TableCell className="text-right">LKR {total.toFixed(2)}</TableCell>
+                                                                    </TableRow>
+                                                                )
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
                                             </TableCell>
-                                            <TableCell>
-                                                <div className="font-medium">{getRecordTitle(record)}</div>
-                                                <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                            </TableCell>
-                                            <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                            <TableCell>{record.partyName || 'N/A'}</TableCell>
-                                            <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                            <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
                                         </TableRow>
-                                        <CollapsibleContent asChild>
-                                            <TableRow>
-                                                <TableCell colSpan={6} className="p-0">
-                                                    <div className="p-4 bg-muted/50">
-                                                        <h4 className="font-semibold mb-2 ml-4">Items in Transaction</h4>
-                                                         <Table>
-                                                            <TableHeader>
-                                                                <TableRow>
-                                                                    <TableHead>Product</TableHead>
-                                                                    <TableHead>SKU</TableHead>
-                                                                    <TableHead>Quantity</TableHead>
-                                                                    <TableHead>Unit Price</TableHead>
-                                                                    <TableHead className="text-right">Total</TableHead>
-                                                                </TableRow>
-                                                            </TableHeader>
-                                                            <TableBody>
-                                                                {record.items?.map((item, index) => {
-                                                                    const quantity = 'quantity' in item ? item.quantity : ('return_quantity' in item ? item.return_quantity : 0);
-                                                                    const price = 'price_per_unit' in item ? item.price_per_unit : ('cost_price' in item ? item.cost_price : 0);
-                                                                    const total = 'total_amount' in item ? item.total_amount : ('total_cost' in item ? item.total_cost : quantity * price);
-                                                                    
-                                                                    return(
-                                                                        <TableRow key={`${record.id}-${index}`}>
-                                                                            <TableCell>{item.name}</TableCell>
-                                                                            <TableCell>{item.sku || 'N/A'}</TableCell>
-                                                                            <TableCell>{quantity}</TableCell>
-                                                                            <TableCell>LKR {price.toFixed(2)}</TableCell>
-                                                                            <TableCell className="text-right">LKR {total.toFixed(2)}</TableCell>
-                                                                        </TableRow>
-                                                                    )
-                                                                })}
-                                                            </TableBody>
-                                                        </Table>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        </CollapsibleContent>
-                                    </>
-                                </Collapsible>
-                            ))}
-                        </TableBody>
+                                    </CollapsibleContent>
+                                </TableBody>
+                            </Collapsible>
+                        ))}
                     </Table>
                 ) : (
                     <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
@@ -377,3 +349,5 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     </div>
   );
 }
+
+    
