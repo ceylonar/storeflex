@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -22,14 +21,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { createPurchase, fetchSuppliers, fetchPurchaseById, createPurchaseReturn } from '@/lib/queries';
+import { createPurchase, fetchSuppliers, fetchPurchaseById, createPurchaseReturn, createProduct } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductSelect, PurchaseItem, Supplier, Purchase, PurchaseReturn, PurchaseReturnItem } from '@/lib/types';
+import type { ProductSelect, PurchaseItem, Supplier, Purchase, PurchaseReturn, PurchaseReturnItem, Product } from '@/lib/types';
 import { Search, PlusCircle, MinusCircle, Trash2, Truck, Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { SupplierSelection } from './supplier-selection';
 import { Label } from '../ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose, DialogDescription } from '@/components/ui/dialog';
 import { PurchaseReceipt } from './purchase-receipt';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Separator } from '../ui/separator';
@@ -39,7 +38,21 @@ import { Checkbox } from '../ui/checkbox';
 import { FormattedDate } from '../ui/formatted-date';
 
 
-function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }: { products: ProductSelect[]; initialSuppliers: Supplier[], onPurchaseComplete: () => void }) {
+const initialProductState: Partial<Product> = {
+  name: '',
+  sku: '',
+  barcode: '',
+  category: '',
+  sub_category: '',
+  brand: '',
+  stock: 0,
+  cost_price: 0,
+  selling_price: 0,
+  image: '',
+  low_stock_threshold: 5,
+};
+
+function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, onProductCreated }: { products: ProductSelect[]; initialSuppliers: Supplier[], onPurchaseComplete: () => void, onProductCreated: (product: ProductSelect) => void }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<PurchaseItem[]>([]);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>(initialSuppliers);
@@ -49,6 +62,9 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }:
   const [discountAmount, setDiscountAmount] = React.useState(0);
   const [serviceCharge, setServiceCharge] = React.useState(0);
   const [lastCompletedPurchase, setLastCompletedPurchase] = React.useState<Purchase | null>(null);
+  const [isAddProductOpen, setIsAddProductOpen] = React.useState(false);
+  const addProductFormRef = React.useRef<HTMLFormElement>(null);
+
 
   const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'credit' | 'check'>('cash');
   const [amountPaid, setAmountPaid] = React.useState(0);
@@ -113,6 +129,50 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }:
         setAmountPaid(amount => amount > totalPayable ? totalPayable : amount);
     }
   }, [totalPayable, paymentMethod]);
+
+
+  const handleAddProduct = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const newProduct = await createProduct(formData);
+      if (newProduct) {
+        toast({ title: 'Success', description: 'Product added.' });
+        onProductCreated({
+          id: newProduct.id,
+          name: newProduct.name,
+          selling_price: newProduct.selling_price,
+          cost_price: newProduct.cost_price,
+          stock: newProduct.stock,
+          image: newProduct.image,
+          category: newProduct.category,
+          brand: newProduct.brand,
+          sub_category: newProduct.sub_category,
+          barcode: newProduct.barcode,
+        });
+        setIsAddProductOpen(false);
+        addToCart({
+            id: newProduct.id,
+            name: newProduct.name,
+            selling_price: newProduct.selling_price,
+            cost_price: newProduct.cost_price,
+            stock: newProduct.stock,
+            image: newProduct.image,
+            category: newProduct.category,
+            brand: newProduct.brand,
+            sub_category: newProduct.sub_category,
+            barcode: newProduct.barcode,
+        })
+      }
+    } catch (error) {
+       toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: (error as Error).message,
+      });
+    }
+  };
 
 
   const handleCheckout = async () => {
@@ -190,19 +250,97 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete }:
           )}
         </DialogContent>
       </Dialog>
+      
+      <Dialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
+         <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Add New Product</DialogTitle>
+              <DialogDescription>
+                Fill in the details for the new product. It will be added to the current purchase automatically.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[70vh] -mx-6 px-6">
+                <form ref={addProductFormRef} onSubmit={handleAddProduct} className="py-4 space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <Input id="name" name="name" defaultValue={initialProductState.name} />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="sku">SKU (optional)</Label>
+                            <Input id="sku" name="sku" defaultValue={initialProductState.sku} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="barcode">Barcode</Label>
+                            <Input id="barcode" name="barcode" defaultValue={initialProductState.barcode} />
+                        </div>
+                    </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="brand">Brand</Label>
+                        <Input id="brand" name="brand" defaultValue={initialProductState.brand} />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="category">Category</Label>
+                            <Input id="category" name="category" defaultValue={initialProductState.category} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="sub_category">Sub Category</Label>
+                            <Input id="sub_category" name="sub_category" defaultValue={initialProductState.sub_category} />
+                        </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="stock">Initial Stock</Label>
+                        <Input id="stock" name="stock" type="number" defaultValue={initialProductState.stock} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="low_stock_threshold">Low Stock Level</Label>
+                        <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={initialProductState.low_stock_threshold} />
+                        </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                        <Label htmlFor="cost_price">Cost Price (LKR)</Label>
+                        <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={initialProductState.cost_price} />
+                        </div>
+                        <div className="space-y-2">
+                        <Label htmlFor="selling_price">Selling Price (LKR)</Label>
+                        <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={initialProductState.selling_price} />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="image">Image URL</Label>
+                        <Input id="image" name="image" defaultValue={initialProductState.image} />
+                    </div>
+                </form>
+            </ScrollArea>
+            <DialogFooter className="pt-4">
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">Cancel</Button>
+                </DialogClose>
+                <Button type="submit" onClick={() => addProductFormRef.current?.requestSubmit()}>Save Product</Button>
+            </DialogFooter>
+          </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Products</CardTitle>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search for products..."
-                className="w-full pl-8 sm:w-80"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search for products..."
+                  className="w-full pl-8 sm:w-80"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsAddProductOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -546,14 +684,19 @@ function ReturnsToSupplierTerminal() {
 
 
 
-export function PurchaseTerminal({ products, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
+export function PurchaseTerminal({ products: initialProducts, initialSuppliers }: { products: ProductSelect[]; initialSuppliers: Supplier[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
-  
+  const [products, setProducts] = React.useState(initialProducts);
+
   const handlePurchaseComplete = async () => {
     // This is a placeholder for a more robust state management solution
     // For now, we'll just log that a re-fetch would happen here.
     console.log("A purchase was completed. Data would be re-fetched here.");
   };
+
+  const handleProductCreated = (newProduct: ProductSelect) => {
+    setProducts(prev => [newProduct, ...prev]);
+  }
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -578,6 +721,7 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
                 products={products} 
                 initialSuppliers={initialSuppliers} 
                 onPurchaseComplete={handlePurchaseComplete}
+                onProductCreated={handleProductCreated}
             />
         </TabsContent>
         <TabsContent value="return">
@@ -589,3 +733,5 @@ export function PurchaseTerminal({ products, initialSuppliers }: { products: Pro
 
 
     
+
+      
