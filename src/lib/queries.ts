@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1138,7 +1139,7 @@ export async function fetchDashboardData() {
             }
         });
 
-        const recentActivities = activitySnapshot.docs.map(doc => {
+        let recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
@@ -1147,7 +1148,7 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
         
-        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        recentActivities = recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         const limitedActivities = recentActivities.slice(0, 5);
         
         let totalReceivables = 0;
@@ -1157,7 +1158,7 @@ export async function fetchDashboardData() {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) { // Customer owes us, it's a receivable
                 totalReceivables += balance;
-            } else if (balance < 0) { // Customer has credit, it's a payable
+            } else if (balance < 0) { // Customer has store credit, it's a payable
                 totalPayables += Math.abs(balance);
             }
         });
@@ -1176,8 +1177,15 @@ export async function fetchDashboardData() {
             totalSales,
             totalReceivables,
             totalPayables,
-            recentActivities: limitedActivities,
-            lowStockProducts,
+            recentActivities: limitedActivities.map(act => ({
+                ...act,
+                timestamp: act.timestamp || new Date().toISOString(),
+            })),
+            lowStockProducts: lowStockProducts.map(p => ({
+                ...p,
+                created_at: p.created_at || new Date().toISOString(),
+                updated_at: p.updated_at || new Date().toISOString(),
+            })),
         };
     } catch (error) {
         console.error('Database Error:', error);
@@ -1322,47 +1330,43 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
     const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        let finalActivities: RecentActivity[] = [];
+        const baseQuery = query(activityCollection, where('userId', '==', userId));
         
-        // Construct query based on filters
-        const orConditions = [];
-        if (filters.productId) {
-            orConditions.push(where('product_id', '==', filters.productId));
-            orConditions.push(where('item_ids', 'array-contains', filters.productId));
-        }
-        if (filters.partyId) {
-            const [partyType, id] = filters.partyId.split('_');
-            const field = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-            orConditions.push(where(field, '==', id));
-        }
+        const mainSnapshot = await getDocs(baseQuery);
+        let allActivities = mainSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as RecentActivity);
 
-        let baseQuery;
-        if (orConditions.length > 0) {
-            baseQuery = query(activityCollection, where('userId', '==', userId), or(...orConditions));
-        } else {
-            baseQuery = query(activityCollection, where('userId', '==', userId));
-        }
-        
-        // If type filter is also applied, we chain it
-        const finalQuery = filters.type ? query(baseQuery, where('type', '==', filters.type)) : baseQuery;
+        // In-memory filtering
+        let filteredActivities = allActivities.filter(act => {
+            let pass = true;
+            
+            if (filters.type) {
+                pass = pass && act.type === filters.type;
+            }
 
-        const mainSnapshot = await getDocs(finalQuery);
-        finalActivities = mainSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as RecentActivity);
+            if (filters.productId) {
+                const hasProduct = (act.product_id === filters.productId) || (act.item_ids && act.item_ids.includes(filters.productId));
+                pass = pass && hasProduct;
+            }
 
+            if (filters.partyId) {
+                const [partyType, id] = filters.partyId.split('_');
+                const field = partyType === 'customer' ? 'customer_id' : 'supplier_id';
+                pass = pass && (act as any)[field] === id;
+            }
 
-        // Date filtering has to be done in-memory after fetching
-        if (filters.date?.from) {
-            const from = startOfDay(filters.date.from);
-            const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-            finalActivities = finalActivities.filter(act => {
+            if (filters.date?.from) {
+                const from = startOfDay(filters.date.from);
+                const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
                 const actDate = new Date(act.timestamp);
-                return !isNaN(actDate.getTime()) && isWithinInterval(actDate, { start: from, end: to });
-            });
-        }
+                pass = pass && !isNaN(actDate.getTime()) && isWithinInterval(actDate, { start: from, end: to });
+            }
 
-        finalActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            return pass;
+        });
+
+        filteredActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        const detailedRecordsPromises = finalActivities.map(async (rec): Promise<DetailedRecord | null> => {
+        const detailedRecordsPromises = filteredActivities.map(async (rec): Promise<DetailedRecord | null> => {
             let detailedRec: DetailedRecord = { 
                 ...rec, 
                 items: [],
@@ -1370,9 +1374,14 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             };
             
             let docId = rec.id;
-            // For older records, the activity ID might not match the transaction ID
+
             if ((rec.type === 'sale' || rec.type === 'purchase') && !rec.id.startsWith(rec.type)) {
-                docId = rec.details.split(' for ')[0].split(' ').pop() || rec.id;
+                // Heuristic for older records where activity ID might not match transaction ID
+                const detailsParts = rec.details.split(' for LKR ');
+                if (detailsParts.length > 0) {
+                    const idPart = detailsParts[0].split(' ').pop();
+                    if (idPart) docId = idPart;
+                }
             }
 
 
@@ -1395,14 +1404,20 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                  if (returnDoc.exists()) {
                     const returnData = returnDoc.data() as SaleReturn;
                     detailedRec.details = `Return from ${returnData.customer_name}`;
-                    detailedRec.items = returnData.items;
+                    detailedRec.items = returnData.items.map(item => ({
+                        ...item,
+                        return_date: (returnData.return_date as any)?.toDate().toISOString() || new Date().toISOString()
+                    }));
                  }
             } else if (rec.type === 'purchase_return') {
                  const returnDoc = await getDoc(doc(db, 'purchase_returns', docId));
                  if (returnDoc.exists()) {
                     const returnData = returnDoc.data() as PurchaseReturn;
                     detailedRec.details = `Return to ${returnData.supplier_name}`;
-                    detailedRec.items = returnData.items;
+                    detailedRec.items = returnData.items.map(item => ({
+                        ...item,
+                        return_date: (returnData.return_date as any)?.toDate().toISOString() || new Date().toISOString()
+                    }));
                  }
             } else if (rec.product_id && rec.product_id !== 'multiple') {
                 const productDoc = await getDoc(doc(db, 'products', rec.product_id));
@@ -1411,10 +1426,9 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                 }
             }
 
-            // After fetching details, if a product filter is applied, we must ensure items match
             if (filters.productId && detailedRec.items && detailedRec.items.length > 0) {
                  detailedRec.items = detailedRec.items.filter(item => item.id === filters.productId);
-                 if(detailedRec.items.length === 0) return null; // If no items match, don't include this record
+                 if(detailedRec.items.length === 0) return null;
             }
 
             return detailedRec;
@@ -1563,11 +1577,12 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         
         salesSnapshot.forEach(doc => {
             const sale = doc.data() as Sale;
-            if (sale.paymentStatus === 'pending_check_clearance') {
+            const saleDate = (sale.sale_date as any)?.toDate();
+            if (sale.paymentStatus === 'pending_check_clearance' && saleDate) {
                 pendingChecksTotal += sale.total_amount;
                 transactions.push({
                     id: `sale-check-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: sale.customer_name, partyId: sale.customer_id!,
-                    paymentMethod: 'check', amount: sale.total_amount, date: (sale.sale_date as any).toDate().toISOString(),
+                    paymentMethod: 'check', amount: sale.total_amount, date: saleDate.toISOString(),
                     checkNumber: sale.checkNumber,
                 });
             }
@@ -1575,11 +1590,12 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
         purchasesSnapshot.forEach(doc => {
             const purchase = doc.data() as Purchase;
-            if (purchase.paymentStatus === 'pending_check_clearance') {
+            const purchaseDate = (purchase.purchase_date as any)?.toDate();
+            if (purchase.paymentStatus === 'pending_check_clearance' && purchaseDate) {
                 pendingChecksTotal += purchase.total_amount;
                  transactions.push({
                     id: `purchase-check-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: purchase.supplier_name, partyId: purchase.supplier_id,
-                    paymentMethod: 'check', amount: purchase.total_amount, date: (purchase.purchase_date as any).toDate().toISOString(),
+                    paymentMethod: 'check', amount: purchase.total_amount, date: purchaseDate.toISOString(),
                     checkNumber: purchase.checkNumber,
                 });
             }
@@ -1910,3 +1926,4 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
+
