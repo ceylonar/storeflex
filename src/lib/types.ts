@@ -14,6 +14,8 @@ export type UserProfile = {
     contactNumber?: string;
     logoUrl?: string;
     googleSheetUrl?: string;
+    role?: 'admin' | 'sales';
+    password?: string;
 };
 
 export type Product = {
@@ -59,7 +61,7 @@ export type RecentActivity = {
 };
 
 export type DetailedRecord = Omit<RecentActivity, 'details'> & {
-    items?: (SaleItem | PurchaseItem)[];
+    items?: (SaleItem | PurchaseItem | SaleReturnItem | PurchaseReturnItem)[];
     product_sku?: string;
     details?: string;
 };
@@ -184,6 +186,7 @@ export type MoneyflowTransaction = {
 export type SaleReturnItem = Omit<SaleItem, 'stock' | 'total_amount'> & {
     return_quantity: number;
     return_reason: string;
+    sku?: string;
 }
 
 export type SaleReturn = {
@@ -200,6 +203,7 @@ export type SaleReturn = {
 export type PurchaseReturnItem = PurchaseItem & {
     return_quantity: number;
     return_reason: string;
+    sku?: string;
 }
 
 export type PurchaseReturn = {

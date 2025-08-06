@@ -23,7 +23,7 @@ import {
   setDoc,
   increment,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -1135,11 +1135,8 @@ export async function fetchDashboardData() {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                // This is money the customer owes the business (receivable)
-                totalReceivables += balance;
-            } else if (balance < 0) {
                 // This is a liability for the business (payable) - we owe the customer
-                totalPayables += Math.abs(balance);
+                totalPayables += balance;
             }
         });
 
@@ -1306,9 +1303,13 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
     const { db } = getFirebaseServices();
     try {
-        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        let activitiesQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
-        const activitySnapshot = await getDocs(q);
+        if (filters.type) {
+            activitiesQuery = query(activitiesQuery, where('type', '==', filters.type));
+        }
+
+        const activitySnapshot = await getDocs(activitiesQuery);
         let activities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
@@ -1324,17 +1325,12 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             activities = activities.filter(act => isWithinInterval(new Date(act.timestamp), { start: from, end: to }));
         }
 
-        if (filters.type) {
-            activities = activities.filter(act => act.type === filters.type);
-        }
-
         if (filters.productId) {
             activities = activities.filter(act => act.product_id === filters.productId || act.product_id === 'multiple');
         }
         
         activities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
-        // Fetch full details for sale/purchase
         const detailedRecordsPromises = activities.map(async (rec): Promise<DetailedRecord | null> => {
             let detailedRec: DetailedRecord = { ...rec, items: [] };
 
@@ -1343,15 +1339,29 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                 if (saleDoc.exists()) {
                     const saleData = saleDoc.data();
                     detailedRec.details = saleData.customer_name;
-                    detailedRec.items = saleData.items || [];
+                    detailedRec.items = (saleData.items || []).map((i: SaleItem) => ({...i, sku: i.sku || ''}));
                 }
             } else if (rec.type === 'purchase') {
                 const purchaseDoc = await getDoc(doc(db, 'purchases', rec.id));
                 if (purchaseDoc.exists()) {
                     const purchaseData = purchaseDoc.data();
                     detailedRec.details = purchaseData.supplier_name;
-                    detailedRec.items = purchaseData.items || [];
+                    detailedRec.items = (purchaseData.items || []).map((i: PurchaseItem) => ({...i, sku: i.sku || ''}));
                 }
+            } else if (rec.type === 'sale_return') {
+                 const returnDoc = await getDoc(doc(db, 'sales_returns', rec.id));
+                 if (returnDoc.exists()) {
+                    const returnData = returnDoc.data() as SaleReturn;
+                    detailedRec.details = `Return from ${returnData.customer_name}`;
+                    detailedRec.items = returnData.items;
+                 }
+            } else if (rec.type === 'purchase_return') {
+                 const returnDoc = await getDoc(doc(db, 'purchase_returns', rec.id));
+                 if (returnDoc.exists()) {
+                    const returnData = returnDoc.data() as PurchaseReturn;
+                    detailedRec.details = `Return to ${returnData.supplier_name}`;
+                    detailedRec.items = returnData.items;
+                 }
             }
 
             if (filters.productId && detailedRec.items) {
@@ -1468,20 +1478,20 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) {
+            if (balance < 0) {
+                 // We have customer's money from a return. This is a payable for the business.
+                 payablesTotal += Math.abs(balance);
+                 transactions.push({
+                     id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                     paymentMethod: 'credit', amount: Math.abs(balance),
+                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
+                 });
+            } else if (balance > 0) {
                 // Customer owes us money => Receivable
                 receivablesTotal += balance;
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
-                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
-                });
-            } else if (balance < 0) {
-                // We owe customer money (e.g., from a return) => Payable
-                payablesTotal += Math.abs(balance);
-                transactions.push({
-                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
-                    paymentMethod: 'credit', amount: Math.abs(balance),
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             }
@@ -1771,13 +1781,15 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
         // 2. Update customer credit balance. A refund increases what the business owes the customer (a payable for the business, so increase the balance).
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
+            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
         }
 
         // 3. Create a new sale return document
         const returnRef = doc(collection(db, 'sales_returns'));
+        const returnId = returnRef.id;
         transaction.set(returnRef, {
             ...returnData,
+            id: returnId,
             userId,
             return_date: serverTimestamp(),
         });
@@ -1789,7 +1801,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             details: `Return from ${returnData.customer_name} for LKR ${returnData.total_refund_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
-            id: activityRef.id,
+            id: returnId,
         });
     });
 
@@ -1822,8 +1834,10 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
 
         // 3. Create a new purchase return document
         const returnRef = doc(collection(db, 'purchase_returns'));
+        const returnId = returnRef.id;
         transaction.set(returnRef, {
             ...returnData,
+            id: returnId,
             userId,
             return_date: serverTimestamp(),
         });
@@ -1835,7 +1849,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
             details: `Return to ${returnData.supplier_name} for LKR ${returnData.total_credit_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
-            id: activityRef.id,
+            id: returnId,
         });
     });
     

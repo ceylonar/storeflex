@@ -115,23 +115,47 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
         const detailedRecords = await fetchInventoryRecords({ date, type, productId });
         
         const headers = [
-          'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details (Customer/Supplier)'
+          'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details'
         ];
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
-            if ((rec.type === 'sale' || rec.type === 'purchase') && rec.items && rec.items.length > 0) {
-                return rec.items.map(item => {
+            if ((rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return') && rec.items && rec.items.length > 0) {
+                 return rec.items.map(item => {
                     const isSale = rec.type === 'sale';
-                    const saleItem = item as SaleItem;
-                    const purchaseItem = item as PurchaseItem;
-                    const quantity = isSale ? `-${saleItem.quantity}` : `+${purchaseItem.quantity}`;
-                    const unitPrice = isSale ? saleItem.price_per_unit : purchaseItem.cost_price;
-                    const totalAmount = isSale ? (saleItem.price_per_unit * saleItem.quantity) : purchaseItem.total_cost;
+                    const isPurchase = rec.type === 'purchase';
+                    const isSaleReturn = rec.type === 'sale_return';
+                    const isPurchaseReturn = rec.type === 'purchase_return';
+
+                    let quantity = 0;
+                    let unitPrice = 0;
+                    let totalAmount = 0;
+
+                    if (isSale) {
+                        const saleItem = item as SaleItem;
+                        quantity = -saleItem.quantity;
+                        unitPrice = saleItem.price_per_unit;
+                        totalAmount = saleItem.total_amount;
+                    } else if (isPurchase) {
+                        const purchaseItem = item as PurchaseItem;
+                        quantity = purchaseItem.quantity;
+                        unitPrice = purchaseItem.cost_price;
+                        totalAmount = purchaseItem.total_cost;
+                    } else if (isSaleReturn) {
+                        const returnItem = item as any; // SaleReturnItem
+                        quantity = returnItem.return_quantity;
+                        unitPrice = returnItem.price_per_unit;
+                        totalAmount = unitPrice * quantity;
+                    } else if (isPurchaseReturn) {
+                        const returnItem = item as any; // PurchaseReturnItem
+                        quantity = -returnItem.return_quantity;
+                        unitPrice = returnItem.cost_price;
+                        totalAmount = unitPrice * Math.abs(quantity);
+                    }
                     
                     return [
                         rec.id,
                         format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                        rec.type,
+                        rec.type.replace('_', ' '),
                         `"${item.name}"`,
                         `"${item.sku || ''}"`,
                         quantity,
@@ -142,22 +166,23 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                 });
             }
             
+            // Handle non-transactional records
             return [[
                 rec.id,
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 rec.type,
                 `"${rec.product_name || ''}"`,
                 `"${rec.product_sku || ''}"`,
-                '',
-                '',
-                '',
+                'N/A', // Quantity
+                'N/A', // Unit Price
+                'N/A', // Total Amount
                 `"${rec.details}"`,
             ].join(',')];
         });
 
         const csvContent = [headers.join(','), ...csvRows].join('\n');
 
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
         link.download = `storeflex_report_${format(new Date(), 'yyyy-MM-dd')}.csv`;
@@ -234,6 +259,8 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                 <SelectItem value="new">New Product</SelectItem>
                 <SelectItem value="update">Update</SelectItem>
                 <SelectItem value="delete">Delete</SelectItem>
+                 <SelectItem value="sale_return">Sale Return</SelectItem>
+                <SelectItem value="purchase_return">Purchase Return</SelectItem>
             </SelectContent>
           </Select>
 
@@ -302,18 +329,19 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                                         <Badge
                                             variant="outline"
                                             className={cn(
-                                            'w-28 justify-center font-semibold capitalize',
+                                            'w-32 justify-center font-semibold capitalize',
                                             activity.type === 'sale' && 'border-accent text-accent-foreground',
                                             activity.type === 'update' && 'border-blue-500 text-blue-500',
                                             activity.type === 'new' && 'border-purple-500 text-purple-500',
                                             activity.type === 'delete' && 'border-destructive text-destructive',
-                                            activity.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500'
+                                            activity.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500',
+                                            (activity.type === 'sale_return' || activity.type === 'purchase_return') && 'border-yellow-500 text-yellow-600 dark:text-yellow-500'
                                             )}
                                         >
-                                            {activity.type}
+                                            {activity.type.replace('_', ' ')}
                                         </Badge>
                                         <span className="flex-1 text-left font-medium">
-                                            {activity.type === 'sale' || activity.type === 'purchase' ? activity.details : activity.product_name}
+                                            {activity.type === 'sale' || activity.type === 'purchase' || activity.type === 'sale_return' || activity.type === 'purchase_return' ? activity.details : activity.product_name}
                                         </span>
                                         <span className="text-muted-foreground"><FormattedDate timestamp={activity.timestamp} /></span>
                                     </div>
@@ -331,12 +359,23 @@ export function AdvancedReportClient({ initialRecords, products }: AdvancedRepor
                                             </TableHeader>
                                             <TableBody>
                                                 {activity.items.map((item, index) => {
-                                                    const isSale = activity.type === 'sale';
-                                                    const saleItem = item as SaleItem;
-                                                    const purchaseItem = item as PurchaseItem;
-                                                    const quantity = isSale ? saleItem.quantity : purchaseItem.quantity;
-                                                    const unitPrice = isSale ? saleItem.price_per_unit : purchaseItem.cost_price;
-                                                    const total = isSale ? saleItem.total_amount : purchaseItem.total_cost;
+                                                    let quantity = 0, unitPrice = 0, total = 0;
+                                                    if(activity.type === 'sale'){
+                                                        const saleItem = item as SaleItem;
+                                                        quantity = saleItem.quantity;
+                                                        unitPrice = saleItem.price_per_unit;
+                                                        total = saleItem.total_amount;
+                                                    } else if(activity.type === 'purchase') {
+                                                        const purchaseItem = item as PurchaseItem;
+                                                        quantity = purchaseItem.quantity;
+                                                        unitPrice = purchaseItem.cost_price;
+                                                        total = purchaseItem.total_cost;
+                                                    } else if (activity.type === 'sale_return' || activity.type === 'purchase_return') {
+                                                        const returnItem = item as any;
+                                                        quantity = returnItem.return_quantity;
+                                                        unitPrice = returnItem.price_per_unit || returnItem.cost_price;
+                                                        total = quantity * unitPrice;
+                                                    }
 
                                                     return (
                                                         <TableRow key={`${activity.id}-${index}`}>
