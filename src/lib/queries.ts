@@ -1469,6 +1469,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
+                // Customer owes us money => Receivable
                 receivablesTotal += balance;
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
@@ -1476,6 +1477,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
+                // We owe customer money (e.g., from a return) => Payable
                 payablesTotal += Math.abs(balance);
                 transactions.push({
                     id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
@@ -1488,6 +1490,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
+                // We owe supplier money => Payable
                 payablesTotal += balance;
                 transactions.push({
                     id: `supplier-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
@@ -1495,6 +1498,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
+                 // Supplier owes us money (e.g. from a return) => Receivable
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
                     id: `supplier-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
