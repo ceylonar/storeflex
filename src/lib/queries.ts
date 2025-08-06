@@ -1329,23 +1329,20 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
     const { db } = getFirebaseServices();
     try {
         const allCollections = ['sales', 'purchases', 'sales_returns', 'purchase_returns', 'recent_activity'];
-        const allDocs: (Sale | Purchase | SaleReturn | PurchaseReturn | RecentActivity)[] = [];
-
-        // Base query for the current user, applied to all collections
-        const baseUserQuery = where('userId', '==', userId);
-
+        const allDocs: (any)[] = [];
+        
         for (const colName of allCollections) {
-            const q = query(collection(db, colName), baseUserQuery);
+            const q = query(collection(db, colName), where('userId', '==', userId));
             const snapshot = await getDocs(q);
             snapshot.forEach(doc => {
-                const data = doc.data();
-                let docType: DetailedRecord['type'] = data.type; // Use type from activity log
+                let docType: DetailedRecord['type'] = doc.data().type; // Use type from activity log if available
                 if (colName === 'sales') docType = 'sale';
                 else if (colName === 'purchases') docType = 'purchase';
                 else if (colName === 'sales_returns') docType = 'sale_return';
                 else if (colName === 'purchase_returns') docType = 'purchase_return';
                 
-                allDocs.push({ id: doc.id, ...data, type: docType as any });
+                const docData = { ...doc.data(), id: doc.id, type: docType };
+                allDocs.push(docData);
             });
         }
         
@@ -1371,30 +1368,31 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             
             return true;
         });
-
-        const detailedRecordsPromises = filteredDocs.map(async (doc): Promise<DetailedRecord> => {
-            const rawTimestamp = (doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date;
-            
-            const toPlainObject = (obj: any): any => {
-                if (!obj) return obj;
-                const newObj: {[key: string]: any} = {};
-                for (const key in obj) {
-                    if (obj[key] instanceof Timestamp) {
-                        newObj[key] = obj[key].toDate().toISOString();
-                    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                        newObj[key] = toPlainObject(obj[key]);
-                    } else {
-                        newObj[key] = obj[key];
-                    }
+        
+        const toPlainObject = (obj: any): any => {
+            if (!obj) return obj;
+            const newObj: {[key: string]: any} = {};
+            for (const key in obj) {
+                if (obj[key] instanceof Timestamp) {
+                    newObj[key] = obj[key].toDate().toISOString();
+                } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                    newObj[key] = toPlainObject(obj[key]);
+                } else if (Array.isArray(obj[key])) {
+                    newObj[key] = obj[key].map(toPlainObject);
                 }
-                return newObj;
-            };
-
+                else {
+                    newObj[key] = obj[key];
+                }
+            }
+            return newObj;
+        };
+        
+        const detailedRecordsPromises = filteredDocs.map(async (doc): Promise<DetailedRecord> => {
             const plainDoc = toPlainObject(doc);
             const timestamp = plainDoc.timestamp || plainDoc.sale_date || plainDoc.purchase_date || plainDoc.return_date || new Date(0).toISOString();
             
             const baseRecord: Partial<DetailedRecord> = {
-                id: plainDoc.id,
+                id: `${plainDoc.type}_${plainDoc.id}`, // Create a truly unique key
                 userId: plainDoc.userId,
                 type: plainDoc.type,
                 timestamp: timestamp,
@@ -1421,8 +1419,15 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             } else { // Activity
                 baseRecord.product_id = plainDoc.product_id;
                 baseRecord.product_name = plainDoc.product_name;
-                baseRecord.partyName = plainDoc.customer_id ? (await getDoc(doc(db, 'customers', plainDoc.customer_id))).data()?.name :
-                                        plainDoc.supplier_id ? (await getDoc(doc(db, 'suppliers', plainDoc.supplier_id))).data()?.name : 'N/A';
+                if(plainDoc.customer_id) {
+                     const customerDoc = await getDoc(doc(db, 'customers', plainDoc.customer_id));
+                     baseRecord.partyName = customerDoc.data()?.name || 'N/A';
+                } else if(plainDoc.supplier_id) {
+                    const supplierDoc = await getDoc(doc(db, 'suppliers', plainDoc.supplier_id));
+                    baseRecord.partyName = supplierDoc.data()?.name || 'N/A';
+                } else {
+                    baseRecord.partyName = 'N/A';
+                }
             }
             
             return baseRecord as DetailedRecord;
