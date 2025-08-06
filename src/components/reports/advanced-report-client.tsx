@@ -174,7 +174,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
             return [[
                 rec.id,
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                rec.type,
+                rec.type.replace('_', ' '),
                 `"${rec.product_name || ''}"`,
                 `"${rec.product_sku || ''}"`,
                 'N/A', // Quantity
@@ -361,7 +361,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                             (activity.type === 'sale_return' || activity.type === 'purchase_return') && 'border-yellow-500 text-yellow-600 dark:text-yellow-500'
                                             )}
                                         >
-                                            {activity.type.replace('_', ' ')}
+                                            {activity.type.replace(/_/g, ' ')}
                                         </Badge>
                                         <span className="flex-1 text-left font-medium">
                                             {activity.type === 'sale' || activity.type === 'purchase' || activity.type === 'sale_return' || activity.type === 'purchase_return' ? activity.details : activity.product_name}
