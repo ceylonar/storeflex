@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -127,24 +128,32 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 <title>Print Barcode</title>
                 <style>
                     @media print {
+                        @page { 
+                            size: 3in 2in;
+                            margin: 0;
+                        }
                         body {
                             margin: 0;
                             padding: 0;
                             display: flex;
                             justify-content: center;
                             align-items: center;
-                            height: 100vh;
+                            height: 100%;
                             font-family: sans-serif;
                             text-align: center;
                         }
-                        @page { size: 3in 2in; margin: 0; }
                     }
                     body {
                        font-family: sans-serif;
                        text-align: center;
                        padding: 20px;
+                       display: flex;
+                       flex-direction: column;
+                       justify-content: center;
+                       align-items: center;
+                       height: 100vh;
                     }
-                    h1 { font-size: 14px; margin: 0 0 5px 0; }
+                    h1 { font-size: 14px; margin: 0 0 5px 0; max-width: 90%; word-wrap: break-word; }
                 </style>
             </head>
             <body>
