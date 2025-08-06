@@ -216,8 +216,8 @@ export async function fetchProducts(): Promise<Product[]> {
       return {
         id: doc.id,
         ...data,
-        created_at: data.created_at?.toDate().toISOString(),
-        updated_at: data.updated_at?.toDate().toISOString(),
+        created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        updated_at: (data.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
       }
     }) as Product[];
     return products;
@@ -289,7 +289,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
         userId,
         ...validatedFields.data,
         sku: updatedData.sku,
-        created_at: productDoc.data().created_at.toDate().toISOString(),
+        created_at: (productDoc.data().created_at as Timestamp)?.toDate().toISOString(),
         updated_at: new Date().toISOString(),
     }
   } catch (error) {
@@ -369,6 +369,7 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
             ...validatedFields.data,
             userId,
             created_at: serverTimestamp(),
+            updated_at: serverTimestamp(),
             credit_balance: 0,
         }
 
@@ -381,7 +382,8 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
           name: validatedFields.data.name,
           phone: validatedFields.data.phone || '',
           credit_balance: 0,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         } as Customer;
       });
       
@@ -412,6 +414,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
                 id: doc.id,
                 ...data,
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: (data.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Customer
         });
         
@@ -534,7 +537,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         const newCreditBalance = totalDue - amountPaid;
 
         if (customerRef) {
-            transaction.update(customerRef, { credit_balance: newCreditBalance > 0 ? newCreditBalance : 0 });
+            transaction.update(customerRef, { credit_balance: newCreditBalance });
         }
 
         let paymentStatus: Sale['paymentStatus'] = 'paid';
@@ -728,6 +731,7 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
               ...validatedFields.data,
               userId,
               created_at: serverTimestamp(),
+              updated_at: serverTimestamp(),
               credit_balance: 0,
           }
   
@@ -740,7 +744,8 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
             name: validatedFields.data.name,
             phone: validatedFields.data.phone || '',
             credit_balance: 0,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
           } as Supplier;
         });
   
@@ -772,6 +777,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 id: doc.id,
                 ...data,
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: (data.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Supplier
         });
         
@@ -1096,8 +1102,8 @@ export async function fetchDashboardData() {
             inventoryValue += (product.stock || 0) * (product.cost_price || 0);
             allProducts.push({
                 ...product,
-                created_at: product.created_at.toDate().toISOString(),
-                updated_at: product.updated_at.toDate().toISOString(),
+                created_at: (product.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: (product.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             });
         });
         const productCount = productsSnapshot.size;
@@ -1128,7 +1134,7 @@ export async function fetchDashboardData() {
           return {
             ...data,
             id: doc.id,
-            timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
+            timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
           }
         }) as RecentActivity[];
 
@@ -1500,43 +1506,49 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         ]);
 
         customersSnapshot.forEach(doc => {
-            const balance = doc.data().credit_balance || 0;
+            const data = doc.data();
+            const balance = data.credit_balance || 0;
+            const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
+
             if (balance < 0) {
                  // We have customer's money from a return. This is a payable for the business.
                  payablesTotal += Math.abs(balance);
                  transactions.push({
-                     id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                     id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
                      paymentMethod: 'credit', amount: Math.abs(balance),
-                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
+                     date,
                  });
             } else if (balance > 0) {
                 // Customer owes us money => Receivable
                 receivablesTotal += balance;
                 transactions.push({
-                    id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
-                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
+                    date,
                 });
             }
         });
 
         suppliersSnapshot.forEach(doc => {
-            const balance = doc.data().credit_balance || 0;
+            const data = doc.data();
+            const balance = data.credit_balance || 0;
+            const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
+
             if (balance > 0) {
                 // We owe supplier money => Payable
                 payablesTotal += balance;
                 transactions.push({
-                    id: `supplier-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                    id: `supplier-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
-                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
+                    date,
                 });
             } else if (balance < 0) {
                  // Supplier owes us money (e.g. from a return) => Receivable
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
-                    id: `supplier-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    id: `supplier-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: Math.abs(balance),
-                    date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
+                    date,
                 });
             }
         });
@@ -1654,7 +1666,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
             return {
                 id: doc.id, // Use Firestore's unique doc ID as the key
                 ...data,
-                timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
+                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             }
         }) as RecentActivity[];
 
@@ -1804,7 +1816,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
         // 2. Update customer credit balance. A refund creates a liability for the business (a payable), represented as a negative balance.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
+            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
         }
 
         // 3. Create a new sale return document
