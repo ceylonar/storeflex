@@ -231,6 +231,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
               <TableHead className="hidden w-[80px] sm:table-cell">
                 <span className="sr-only">Image</span>
               </TableHead>
+              <TableHead>ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead className="hidden lg:table-cell">Brand</TableHead>
               <TableHead className="hidden md:table-cell">Category</TableHead>
@@ -250,6 +251,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                     <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                 </TableCell>
+                <TableCell className="font-mono text-xs">{product.id}</TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
                 <TableCell className="hidden lg:table-cell">{product.brand}</TableCell>
                 <TableCell className="hidden md:table-cell">
@@ -339,7 +341,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                         </div>
                         <div className="grid sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="sku">SKU</Label>
+                                <Label htmlFor="sku">SKU (optional)</Label>
                                 <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
                             </div>
                             <div className="space-y-2">

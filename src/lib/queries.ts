@@ -38,7 +38,7 @@ export async function getCurrentUserId() {
 // Form validation schemas
 const ProductSchema = z.object({
   id: z.string().optional(),
-  sku: z.string().min(1, 'SKU is required'),
+  sku: z.string().optional(),
   barcode: z.string().optional(),
   name: z.string().min(1, 'Product name is required'),
   category: z.string().min(1, 'Category is required'),
@@ -143,46 +143,53 @@ export async function createProduct(formData: FormData): Promise<Product | null>
   const { name, image, ...productData } = validatedFields.data;
 
   try {
-    const batch = writeBatch(db);
-    
-    const productsCollection = collection(db, 'products');
-    const newProductRef = doc(productsCollection);
-    
-    const newProductData = {
-      ...productData,
-      name,
-      image: image || '',
-      userId,
-      created_at: serverTimestamp(),
-      updated_at: serverTimestamp(),
-    }
-    batch.set(newProductRef, newProductData);
-    
-    const activityCollection = collection(db, 'recent_activity');
-    const newActivityRef = doc(activityCollection);
-    batch.set(newActivityRef, {
-      type: 'new',
-      product_id: newProductRef.id,
-      product_name: name,
-      product_image: image || '',
-      details: 'New product added to inventory',
-      userId,
-      timestamp: serverTimestamp(),
-      id: newActivityRef.id,
-    });
+    const newProduct = await runTransaction(db, async (transaction) => {
+        const counterRef = doc(db, 'counters', `products_${userId}`);
+        const counterDoc = await transaction.get(counterRef);
+        let nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
+        const formattedId = `prod${String(nextId).padStart(4, '0')}`;
+        
+        const newProductRef = doc(db, 'products', formattedId);
+        
+        const newProductData = {
+          ...productData,
+          sku: productData.sku || formattedId, // Use ID as SKU if not provided
+          name,
+          image: image || '',
+          userId,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        }
+        transaction.set(newProductRef, newProductData);
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
-    await batch.commit();
+        const activityCollection = collection(db, 'recent_activity');
+        const newActivityRef = doc(activityCollection);
+        transaction.set(newActivityRef, {
+          type: 'new',
+          product_id: newProductRef.id,
+          product_name: name,
+          product_image: image || '',
+          details: 'New product added to inventory',
+          userId,
+          timestamp: serverTimestamp(),
+          id: newActivityRef.id,
+        });
+
+        return {
+            id: newProductRef.id,
+            userId,
+            ...validatedFields.data,
+            sku: newProductData.sku,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+        } as Product;
+    });
 
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard');
 
-    return {
-        id: newProductRef.id,
-        userId,
-        ...validatedFields.data,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-    }
+    return newProduct;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to create product.');
@@ -248,6 +255,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
 
     const updatedData = {
       ...productData,
+      sku: productData.sku || id,
       name,
       image: image || '',
       updated_at: serverTimestamp(),
@@ -276,6 +284,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
         id,
         userId,
         ...validatedFields.data,
+        sku: updatedData.sku,
         created_at: productDoc.data().created_at.toDate().toISOString(),
         updated_at: new Date().toISOString(),
     }
@@ -1060,7 +1069,7 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
 
@@ -1069,7 +1078,7 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersQuery),
+            getDocs(customersSnapshot),
             getDocs(suppliersQuery),
         ]);
         
@@ -1117,20 +1126,30 @@ export async function fetchDashboardData() {
           }
         }) as RecentActivity[];
 
+        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        
         let totalReceivables = 0;
         let totalPayables = 0;
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
+                // This is money the customer owes the business (receivable)
                 totalReceivables += balance;
+            } else if (balance < 0) {
+                // This is a liability for the business (payable) - we owe the customer
+                totalPayables += Math.abs(balance);
             }
         });
 
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
+                // This is a liability for the business (payable)
                 totalPayables += balance;
+            } else if (balance < 0) {
+                // This is an asset for the business (receivable) - supplier owes us
+                totalReceivables += Math.abs(balance);
             }
         });
 
@@ -1142,7 +1161,7 @@ export async function fetchDashboardData() {
             totalSales,
             totalReceivables,
             totalPayables,
-            recentActivities,
+            recentActivities: recentActivities.slice(0,5),
             lowStockProducts,
         };
     } catch (error) {
@@ -1598,8 +1617,8 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
         let allActivities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
+                id: doc.id, // Use Firestore's unique doc ID as the key
                 ...data,
-                id: doc.id,
                 timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
             }
         }) as RecentActivity[];
@@ -1823,5 +1842,3 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
-
-    
