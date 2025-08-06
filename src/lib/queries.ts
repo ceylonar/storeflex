@@ -1080,7 +1080,6 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        // Remove orderBy to prevent index error. Sorting will be done in-memory.
         const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
@@ -1102,10 +1101,11 @@ export async function fetchDashboardData() {
             inventoryValue += (product.stock || 0) * (product.cost_price || 0);
             allProducts.push({
                 ...product,
-                created_at: (product.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-                updated_at: (product.updated_at as Timestamp)?.toDate().toISOString(),
+                created_at: product.created_at?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: product.updated_at?.toDate().toISOString() || new Date().toISOString(),
             });
         });
+
         const productCount = productsSnapshot.size;
         const lowStockProducts = allProducts
             .filter(p => p.stock < p.low_stock_threshold)
@@ -1147,10 +1147,12 @@ export async function fetchDashboardData() {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) { // Customer owes us
-                totalReceivables += balance;
-            } else if (balance < 0) { // We owe customer (e.g. from return)
+            if (balance < 0) {
+                // We owe customer (from a return), it's a payable
                 totalPayables += Math.abs(balance);
+            } else if (balance > 0) {
+                // Customer owes us, it's a receivable
+                totalReceivables += balance;
             }
         });
 
@@ -1158,8 +1160,6 @@ export async function fetchDashboardData() {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) { // We owe supplier
                 totalPayables += balance;
-            } else if (balance < 0) { // Supplier owes us (e.g. from return)
-                totalReceivables += Math.abs(balance);
             }
         });
 
