@@ -1093,8 +1093,8 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersSnapshot),
-            getDocs(suppliersSnapshot),
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1331,93 +1331,104 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         const allCollections = ['sales', 'purchases', 'sales_returns', 'purchase_returns', 'recent_activity'];
         const allDocs: (Sale | Purchase | SaleReturn | PurchaseReturn | RecentActivity)[] = [];
 
-        for (const col of allCollections) {
-            let q: Query;
-            const baseQuery = query(collection(db, col), where('userId', '==', userId));
-            q = baseQuery;
+        // Base query for the current user, applied to all collections
+        const baseUserQuery = where('userId', '==', userId);
 
+        for (const colName of allCollections) {
+            const q = query(collection(db, colName), baseUserQuery);
             const snapshot = await getDocs(q);
             snapshot.forEach(doc => {
                 const data = doc.data();
-                let type: DetailedRecord['type'] = 'update'; // default
-                if (col === 'sales') type = 'sale';
-                else if (col === 'purchases') type = 'purchase';
-                else if (col === 'sales_returns') type = 'sale_return';
-                else if (col === 'purchase_returns') type = 'purchase_return';
-                else if (col === 'recent_activity') type = data.type;
+                let docType: DetailedRecord['type'] = data.type; // Use type from activity log
+                if (colName === 'sales') docType = 'sale';
+                else if (colName === 'purchases') docType = 'purchase';
+                else if (colName === 'sales_returns') docType = 'sale_return';
+                else if (colName === 'purchase_returns') docType = 'purchase_return';
                 
-                allDocs.push({ id: doc.id, ...data, type: type as any });
+                allDocs.push({ id: doc.id, ...data, type: docType as any });
             });
         }
         
-        const detailedRecordsPromises = allDocs.map(async (doc): Promise<DetailedRecord | null> => {
-            const rawTimestamp = (doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date;
-            const timestamp = rawTimestamp?.toDate ? rawTimestamp.toDate().toISOString() : new Date(0).toISOString();
-            
-            const baseRecord: Partial<DetailedRecord> = {
-                id: doc.id,
-                userId: doc.userId,
-                type: doc.type,
-                timestamp: timestamp,
-                details: (doc as any).details || '',
-            };
+        let filteredDocs = allDocs.filter(doc => {
+            if (filters.type && doc.type !== filters.type) return false;
 
-            const processTransaction = (trans: any, dateField: string) => {
-                const newTrans = { ...trans };
-                if (newTrans[dateField]?.toDate) {
-                    newTrans[dateField] = newTrans[dateField].toDate().toISOString();
-                }
-                return newTrans;
+            const hasProductId = (doc as any).item_ids?.includes(filters.productId) || (doc as any).product_id === filters.productId;
+            if (filters.productId && !hasProductId) return false;
+
+            if (filters.partyId) {
+                const [partyType, id] = filters.partyId.split('_');
+                const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
+                if ((doc as any)[partyKey] !== id) return false;
             }
 
-            if (doc.type === 'sale') {
-                const sale = doc as Sale;
-                baseRecord.partyName = sale.customer_name;
-                baseRecord.partyId = sale.customer_id;
-                baseRecord.items = sale.items;
-                baseRecord.transaction = processTransaction(sale, 'sale_date');
-            } else if (doc.type === 'purchase') {
-                const purchase = doc as Purchase;
-                baseRecord.partyName = purchase.supplier_name;
-                baseRecord.partyId = purchase.supplier_id;
-                baseRecord.items = purchase.items;
-                baseRecord.transaction = processTransaction(purchase, 'purchase_date');
-            } else if (doc.type === 'sale_return') {
-                const saleReturn = doc as SaleReturn;
-                baseRecord.partyName = saleReturn.customer_name;
-                baseRecord.partyId = saleReturn.customer_id;
-                baseRecord.items = saleReturn.items;
-                baseRecord.transaction = processTransaction(saleReturn, 'return_date');
-            } else if (doc.type === 'purchase_return') {
-                const purchaseReturn = doc as PurchaseReturn;
-                baseRecord.partyName = purchaseReturn.supplier_name;
-                baseRecord.partyId = purchaseReturn.supplier_id;
-                baseRecord.items = purchaseReturn.items;
-                baseRecord.transaction = processTransaction(purchaseReturn, 'return_date');
-            } else {
-                const activity = doc as RecentActivity;
-                baseRecord.product_id = activity.product_id;
-                baseRecord.product_name = activity.product_name;
-            }
-
-            // Filter logic
             if (filters.date?.from) {
                 const from = startOfDay(filters.date.from);
                 const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-                const actDate = new Date(baseRecord.timestamp!);
-                if (!isWithinInterval(actDate, { start: from, end: to })) return null;
+                const rawTimestamp = (doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date;
+                const docDate = (rawTimestamp as Timestamp)?.toDate();
+                if (!docDate || !isWithinInterval(docDate, { start: from, end: to })) return false;
             }
-            if (filters.type && baseRecord.type !== filters.type) return null;
-            if (filters.productId && !(baseRecord.items?.some(i => i.id === filters.productId) || baseRecord.product_id === filters.productId)) return null;
-            if (filters.partyId) {
-                const [partyType, id] = filters.partyId.split('_');
-                if (baseRecord.partyId !== id) return null;
+            
+            return true;
+        });
+
+        const detailedRecordsPromises = filteredDocs.map(async (doc): Promise<DetailedRecord> => {
+            const rawTimestamp = (doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date;
+            
+            const toPlainObject = (obj: any): any => {
+                if (!obj) return obj;
+                const newObj: {[key: string]: any} = {};
+                for (const key in obj) {
+                    if (obj[key] instanceof Timestamp) {
+                        newObj[key] = obj[key].toDate().toISOString();
+                    } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
+                        newObj[key] = toPlainObject(obj[key]);
+                    } else {
+                        newObj[key] = obj[key];
+                    }
+                }
+                return newObj;
+            };
+
+            const plainDoc = toPlainObject(doc);
+            const timestamp = plainDoc.timestamp || plainDoc.sale_date || plainDoc.purchase_date || plainDoc.return_date || new Date(0).toISOString();
+            
+            const baseRecord: Partial<DetailedRecord> = {
+                id: plainDoc.id,
+                userId: plainDoc.userId,
+                type: plainDoc.type,
+                timestamp: timestamp,
+                details: plainDoc.details || '',
+                transaction: plainDoc,
+            };
+
+            if (plainDoc.type === 'sale') {
+                baseRecord.partyName = plainDoc.customer_name;
+                baseRecord.partyId = plainDoc.customer_id;
+                baseRecord.items = plainDoc.items;
+            } else if (plainDoc.type === 'purchase') {
+                baseRecord.partyName = plainDoc.supplier_name;
+                baseRecord.partyId = plainDoc.supplier_id;
+                baseRecord.items = plainDoc.items;
+            } else if (plainDoc.type === 'sale_return') {
+                baseRecord.partyName = plainDoc.customer_name;
+                baseRecord.partyId = plainDoc.customer_id;
+                baseRecord.items = plainDoc.items;
+            } else if (plainDoc.type === 'purchase_return') {
+                baseRecord.partyName = plainDoc.supplier_name;
+                baseRecord.partyId = plainDoc.supplier_id;
+                baseRecord.items = plainDoc.items;
+            } else { // Activity
+                baseRecord.product_id = plainDoc.product_id;
+                baseRecord.product_name = plainDoc.product_name;
+                baseRecord.partyName = plainDoc.customer_id ? (await getDoc(doc(db, 'customers', plainDoc.customer_id))).data()?.name :
+                                        plainDoc.supplier_id ? (await getDoc(doc(db, 'suppliers', plainDoc.supplier_id))).data()?.name : 'N/A';
             }
             
             return baseRecord as DetailedRecord;
         });
 
-        let resolvedRecords = (await Promise.all(detailedRecordsPromises)).filter((rec): rec is DetailedRecord => rec !== null);
+        let resolvedRecords = await Promise.all(detailedRecordsPromises);
         
         resolvedRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
