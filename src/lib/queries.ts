@@ -1093,8 +1093,8 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersQuery),
-            getDocs(suppliersQuery),
+            getDocs(customersSnapshot),
+            getDocs(suppliersSnapshot),
         ]);
         
         let inventoryValue = 0;
@@ -1332,7 +1332,10 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         const allDocs: (Sale | Purchase | SaleReturn | PurchaseReturn | RecentActivity)[] = [];
 
         for (const col of allCollections) {
-            const q = query(collection(db, col), where('userId', '==', userId));
+            let q: Query;
+            const baseQuery = query(collection(db, col), where('userId', '==', userId));
+            q = baseQuery;
+
             const snapshot = await getDocs(q);
             snapshot.forEach(doc => {
                 const data = doc.data();
@@ -1359,30 +1362,38 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                 details: (doc as any).details || '',
             };
 
+            const processTransaction = (trans: any, dateField: string) => {
+                const newTrans = { ...trans };
+                if (newTrans[dateField]?.toDate) {
+                    newTrans[dateField] = newTrans[dateField].toDate().toISOString();
+                }
+                return newTrans;
+            }
+
             if (doc.type === 'sale') {
                 const sale = doc as Sale;
                 baseRecord.partyName = sale.customer_name;
                 baseRecord.partyId = sale.customer_id;
                 baseRecord.items = sale.items;
-                baseRecord.transaction = { ...sale, sale_date: baseRecord.timestamp };
+                baseRecord.transaction = processTransaction(sale, 'sale_date');
             } else if (doc.type === 'purchase') {
                 const purchase = doc as Purchase;
                 baseRecord.partyName = purchase.supplier_name;
                 baseRecord.partyId = purchase.supplier_id;
                 baseRecord.items = purchase.items;
-                baseRecord.transaction = { ...purchase, purchase_date: baseRecord.timestamp };
+                baseRecord.transaction = processTransaction(purchase, 'purchase_date');
             } else if (doc.type === 'sale_return') {
                 const saleReturn = doc as SaleReturn;
                 baseRecord.partyName = saleReturn.customer_name;
                 baseRecord.partyId = saleReturn.customer_id;
                 baseRecord.items = saleReturn.items;
-                baseRecord.transaction = { ...saleReturn, return_date: baseRecord.timestamp };
+                baseRecord.transaction = processTransaction(saleReturn, 'return_date');
             } else if (doc.type === 'purchase_return') {
                 const purchaseReturn = doc as PurchaseReturn;
                 baseRecord.partyName = purchaseReturn.supplier_name;
                 baseRecord.partyId = purchaseReturn.supplier_id;
                 baseRecord.items = purchaseReturn.items;
-                baseRecord.transaction = { ...purchaseReturn, return_date: baseRecord.timestamp };
+                baseRecord.transaction = processTransaction(purchaseReturn, 'return_date');
             } else {
                 const activity = doc as RecentActivity;
                 baseRecord.product_id = activity.product_id;
