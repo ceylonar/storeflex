@@ -1049,6 +1049,8 @@ export async function fetchDashboardData() {
         productCount: 0,
         salesToday: 0,
         totalSales: 0,
+        totalReceivables: 0,
+        totalPayables: 0,
         recentActivities: [],
         lowStockProducts: [],
     };
@@ -1058,12 +1060,17 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
+        const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
+        const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
 
-        const [productsSnapshot, salesSnapshot, activitySnapshot] = await Promise.all([
+
+        const [productsSnapshot, salesSnapshot, activitySnapshot, customersSnapshot, suppliersSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
-            getDocs(activityQuery)
+            getDocs(activityQuery),
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1101,24 +1108,40 @@ export async function fetchDashboardData() {
             }
         });
 
-        let allActivities = activitySnapshot.docs.map(doc => {
+        const recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             ...data,
-            id: doc.id, // Use the unique document ID as the key
+            id: doc.id,
             timestamp: (data.timestamp?.toDate() || new Date()).toISOString(),
           }
         }) as RecentActivity[];
-        
-        // Sort in code to avoid composite index
-        allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        const recentActivities = allActivities.slice(0, 5);
+
+        let totalReceivables = 0;
+        let totalPayables = 0;
+
+        customersSnapshot.forEach(doc => {
+            const balance = doc.data().credit_balance || 0;
+            if (balance > 0) {
+                totalReceivables += balance;
+            }
+        });
+
+        suppliersSnapshot.forEach(doc => {
+            const balance = doc.data().credit_balance || 0;
+            if (balance > 0) {
+                totalPayables += balance;
+            }
+        });
+
 
         return {
             inventoryValue,
             productCount,
             salesToday,
             totalSales,
+            totalReceivables,
+            totalPayables,
             recentActivities,
             lowStockProducts,
         };

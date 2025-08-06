@@ -23,7 +23,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGri
 import type { Product, RecentActivity, SalesData, TopSellingProduct } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2, CheckCircle, XCircle, HandCoins } from 'lucide-react';
+import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2, CheckCircle, XCircle, HandCoins, ArrowDownLeft } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useEffect, useState, useTransition } from 'react';
 import { fetchSalesData } from '@/lib/queries';
@@ -54,7 +54,9 @@ const icons = {
   Package,
   ShoppingCart,
   Users,
-  CreditCard
+  CreditCard,
+  ArrowDownLeft,
+  ArrowUpRight,
 };
 
 const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
@@ -290,7 +292,7 @@ export function RecentActivityCard({ activities }: { activities: RecentActivity[
                     activity.type === 'credit_settled' && 'text-green-600 dark:text-green-500',
                     activity.type === 'check_cleared' && 'text-green-600 dark:text-green-500',
                     activity.type === 'check_rejected' && 'text-destructive',
-                  )}>({activity.type.replace('_', ' ')})</span>
+                  )}>({activity.type.replace(/_/g, ' ')})</span>
                 </p>
                 <p className="text-sm text-muted-foreground">{activity.details}</p>
               </div>

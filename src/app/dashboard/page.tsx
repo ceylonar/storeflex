@@ -20,7 +20,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard 
           title="Inventory Value" 
           value={`LKR ${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
@@ -44,6 +44,18 @@ export default async function DashboardPage() {
           value={`LKR ${dashboardData.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
           iconName="CreditCard"
           description="All-time total sales"
+        />
+        <StatCard 
+          title="Total Receivables" 
+          value={`LKR ${dashboardData.totalReceivables.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="ArrowDownLeft"
+          description="Money owed to you"
+        />
+        <StatCard 
+          title="Total Payables" 
+          value={`LKR ${dashboardData.totalPayables.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="ArrowUpRight"
+          description="Money you owe"
         />
       </div>
 
