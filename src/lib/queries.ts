@@ -1348,11 +1348,14 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         }
         
         const detailedRecordsPromises = allDocs.map(async (doc): Promise<DetailedRecord | null> => {
+            const rawTimestamp = (doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date;
+            const timestamp = rawTimestamp?.toDate ? rawTimestamp.toDate().toISOString() : new Date(0).toISOString();
+            
             const baseRecord: Partial<DetailedRecord> = {
                 id: doc.id,
                 userId: doc.userId,
                 type: doc.type,
-                timestamp: ((doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date)?.toDate().toISOString() || new Date(0).toISOString(),
+                timestamp: timestamp,
                 details: (doc as any).details || '',
             };
 
@@ -1381,7 +1384,6 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                 baseRecord.items = purchaseReturn.items;
                 baseRecord.transaction = { ...purchaseReturn, return_date: baseRecord.timestamp };
             } else {
-                // Handle non-transactional activities from 'recent_activity'
                 const activity = doc as RecentActivity;
                 baseRecord.product_id = activity.product_id;
                 baseRecord.product_name = activity.product_name;
