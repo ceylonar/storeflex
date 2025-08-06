@@ -905,7 +905,6 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         });
       }
       
-      // We owe the supplier money, so their balance increases
       const newBalance = (previousBalance + currentBillTotal) - amountPaid;
       transaction.update(supplierRef, { credit_balance: newBalance });
       
@@ -1156,10 +1155,10 @@ export async function fetchDashboardData() {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) { // Customer owes us, it's a receivable
-                totalReceivables += balance;
-            } else if (balance < 0) { // Customer has store credit, it's a payable
-                totalPayables += Math.abs(balance);
+            if (balance > 0) { // Customer has store credit, it's a payable
+                totalPayables += balance;
+            } else if (balance < 0) { // Customer owes us, it's a receivable
+                totalReceivables += Math.abs(balance);
             }
         });
 
@@ -1330,12 +1329,11 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
     const { db } = getFirebaseServices();
     try {
         const activityCollection = collection(db, 'recent_activity');
-        const baseQuery = query(activityCollection, where('userId', '==', userId));
-        
+        let baseQuery: Query = query(activityCollection, where('userId', '==', userId));
+
         const mainSnapshot = await getDocs(baseQuery);
         let allActivities = mainSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as RecentActivity);
-
-        // In-memory filtering
+        
         let filteredActivities = allActivities.filter(act => {
             let pass = true;
             
@@ -1374,23 +1372,14 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             };
             
             let docId = rec.id;
-
-            if ((rec.type === 'sale' || rec.type === 'purchase') && !rec.id.startsWith(rec.type)) {
-                // Heuristic for older records where activity ID might not match transaction ID
-                const detailsParts = rec.details.split(' for LKR ');
-                if (detailsParts.length > 0) {
-                    const idPart = detailsParts[0].split(' ').pop();
-                    if (idPart) docId = idPart;
-                }
-            }
-
-
+            
             if (rec.type === 'sale') {
                 const saleDoc = await getDoc(doc(db, 'sales', docId));
                 if (saleDoc.exists()) {
                     const saleData = saleDoc.data() as Sale;
                     detailedRec.details = saleData.customer_name;
                     detailedRec.items = (saleData.items || []).map((i: SaleItem) => ({...i, sku: i.sku || ''}));
+                    detailedRec.transaction = {...saleData, sale_date: (saleData.sale_date as any)?.toDate().toISOString() };
                 }
             } else if (rec.type === 'purchase') {
                 const purchaseDoc = await getDoc(doc(db, 'purchases', docId));
@@ -1398,26 +1387,23 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
                     const purchaseData = purchaseDoc.data() as Purchase;
                     detailedRec.details = purchaseData.supplier_name;
                     detailedRec.items = (purchaseData.items || []).map((i: PurchaseItem) => ({...i, sku: i.sku || ''}));
+                    detailedRec.transaction = {...purchaseData, purchase_date: (purchaseData.purchase_date as any)?.toDate().toISOString() };
                 }
             } else if (rec.type === 'sale_return') {
                  const returnDoc = await getDoc(doc(db, 'sales_returns', docId));
                  if (returnDoc.exists()) {
                     const returnData = returnDoc.data() as SaleReturn;
                     detailedRec.details = `Return from ${returnData.customer_name}`;
-                    detailedRec.items = returnData.items.map(item => ({
-                        ...item,
-                        return_date: (returnData.return_date as any)?.toDate().toISOString() || new Date().toISOString()
-                    }));
+                    detailedRec.items = returnData.items.map(item => ({...item}));
+                    detailedRec.transaction = {...returnData, return_date: (returnData.return_date as any)?.toDate().toISOString() };
                  }
             } else if (rec.type === 'purchase_return') {
                  const returnDoc = await getDoc(doc(db, 'purchase_returns', docId));
                  if (returnDoc.exists()) {
                     const returnData = returnDoc.data() as PurchaseReturn;
                     detailedRec.details = `Return to ${returnData.supplier_name}`;
-                    detailedRec.items = returnData.items.map(item => ({
-                        ...item,
-                        return_date: (returnData.return_date as any)?.toDate().toISOString() || new Date().toISOString()
-                    }));
+                    detailedRec.items = returnData.items.map(item => ({...item}));
+                    detailedRec.transaction = {...returnData, return_date: (returnData.return_date as any)?.toDate().toISOString() };
                  }
             } else if (rec.product_id && rec.product_id !== 'multiple') {
                 const productDoc = await getDoc(doc(db, 'products', rec.product_id));
@@ -1543,17 +1529,17 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance > 0) { // Customer owes us
-                receivablesTotal += balance;
+            if (balance > 0) {
+                payablesTotal += balance;
                 transactions.push({
-                    id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
+                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
                     date,
                 });
-            } else if (balance < 0) { // Customer has store credit, so we owe them (payable)
-                payablesTotal += Math.abs(balance);
+            } else if (balance < 0) {
+                receivablesTotal += Math.abs(balance);
                 transactions.push({
-                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
+                    id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
                     paymentMethod: 'credit', amount: Math.abs(balance),
                     date,
                 });
@@ -1629,13 +1615,15 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
             let details = '';
 
             if (transaction.paymentMethod === 'credit') {
+              let partyType = '';
               if(transaction.id.startsWith('customer-')) {
-                  partyRef = doc(db, 'customers', transaction.partyId);
+                  partyType = 'customers';
               } else {
-                  partyRef = doc(db, 'suppliers', transaction.partyId);
+                  partyType = 'suppliers';
               }
+              partyRef = doc(db, partyType, transaction.partyId);
               
-              const incrementValue = transaction.type === 'receivable' ? -settlementAmount : -settlementAmount;
+              const incrementValue = transaction.type === 'receivable' ? settlementAmount : -settlementAmount;
               t.update(partyRef, { credit_balance: increment(incrementValue) });
 
               details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
@@ -1837,11 +1825,10 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             transaction.update(productRef, { stock: increment(item.return_quantity) });
         }
 
-        // 2. Update customer credit balance. A refund increases what we owe the customer.
-        // This is a liability (payable), so we *increase* their credit balance.
+        // 2. Update customer credit balance.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
+            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
         }
 
         // 3. Create a new sale return document
@@ -1926,4 +1913,3 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
-

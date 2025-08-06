@@ -68,6 +68,8 @@ const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
     credit_settled: HandCoins,
     check_cleared: CheckCircle,
     check_rejected: XCircle,
+    sale_return: ShoppingCart,
+    purchase_return: DollarSign,
 }
 
 interface StatCardProps {

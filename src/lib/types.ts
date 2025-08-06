@@ -58,12 +58,16 @@ export type RecentActivity = {
   product_image?: string;
   details: string;
   timestamp: string; // Should be ISO string date
+  item_ids?: string[];
+  customer_id?: string;
+  supplier_id?: string;
 };
 
 export type DetailedRecord = Omit<RecentActivity, 'details'> & {
     items?: (SaleItem | PurchaseItem | SaleReturnItem | PurchaseReturnItem)[];
     product_sku?: string;
     details?: string;
+    transaction?: Sale | Purchase | SaleReturn | PurchaseReturn;
 };
 
 export type SalesData = {

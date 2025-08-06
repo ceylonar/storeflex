@@ -174,7 +174,7 @@ export function MoneyflowClient({ initialData, initialHistory }: MoneyflowClient
                     <TableCell className="font-mono text-xs">{tx.transactionId}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn(
-                        tx.type === 'receivable' ? 'border-green-500 text-green-600' : 'border-destructive text-destructive'
+                        tx.type === 'receivable' ? 'border-destructive text-destructive' : 'border-green-500 text-green-600'
                       )}>
                         <div className="flex items-center gap-2">
                            {tx.type === 'receivable' ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}

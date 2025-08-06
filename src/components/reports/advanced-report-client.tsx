@@ -38,7 +38,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem, Customer, Supplier } from '@/lib/types';
+import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem, Customer, Supplier, Sale, Purchase, SaleReturn, PurchaseReturn } from '@/lib/types';
 import { fetchInventoryRecords, fetchCustomers, fetchSuppliers } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -119,37 +119,62 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
         const detailedRecords = await fetchInventoryRecords({ date, type, productId, partyId });
         
         const headers = [
-          'Transaction ID', 'Date', 'Type', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Details'
+          'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
         ];
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
-            if ((rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return') && rec.items && rec.items.length > 0) {
-                 return rec.items.map(item => {
-                    const isSale = rec.type === 'sale';
-                    const isPurchase = rec.type === 'purchase';
-                    const isSaleReturn = rec.type === 'sale_return';
-                    const isPurchaseReturn = rec.type === 'purchase_return';
+            const commonData = [
+                rec.id,
+                format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+                rec.type.replace(/_/g, ' '),
+            ];
 
+            if ((rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return') && rec.items && rec.items.length > 0) {
+                const transaction = rec.transaction as Sale | Purchase | SaleReturn | PurchaseReturn;
+                let party = '';
+                let paymentMethod = 'N/A';
+                let amountPaid = 'N/A';
+                let balanceChange = 'N/A';
+                
+                if (rec.type === 'sale' || rec.type === 'purchase') {
+                    const trans = transaction as Sale | Purchase;
+                    party = trans.customer_name || trans.supplier_name;
+                    paymentMethod = trans.paymentMethod;
+                    amountPaid = trans.amountPaid.toFixed(2);
+                    balanceChange = trans.creditAmount?.toFixed(2) || '0.00';
+                } else if (rec.type === 'sale_return') {
+                     const trans = transaction as SaleReturn;
+                     party = trans.customer_name;
+                     paymentMethod = trans.refund_method;
+                     balanceChange = (-trans.total_refund_amount).toFixed(2); // Credit to customer
+                } else if (rec.type === 'purchase_return') {
+                     const trans = transaction as PurchaseReturn;
+                     party = trans.supplier_name;
+                     balanceChange = (-trans.total_credit_amount).toFixed(2); // Debit from supplier
+                }
+
+
+                 return rec.items.map(item => {
                     let quantity = 0;
                     let unitPrice = 0;
                     let totalAmount = 0;
 
-                    if (isSale) {
+                    if (rec.type === 'sale') {
                         const saleItem = item as SaleItem;
                         quantity = -saleItem.quantity;
                         unitPrice = saleItem.price_per_unit;
                         totalAmount = saleItem.total_amount;
-                    } else if (isPurchase) {
+                    } else if (rec.type === 'purchase') {
                         const purchaseItem = item as PurchaseItem;
                         quantity = purchaseItem.quantity;
                         unitPrice = purchaseItem.cost_price;
                         totalAmount = purchaseItem.total_cost;
-                    } else if (isSaleReturn) {
+                    } else if (rec.type === 'sale_return') {
                         const returnItem = item as any; // SaleReturnItem
                         quantity = returnItem.return_quantity;
                         unitPrice = returnItem.price_per_unit;
                         totalAmount = unitPrice * quantity;
-                    } else if (isPurchaseReturn) {
+                    } else if (rec.type === 'purchase_return') {
                         const returnItem = item as any; // PurchaseReturnItem
                         quantity = -returnItem.return_quantity;
                         unitPrice = returnItem.cost_price;
@@ -157,14 +182,16 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                     }
                     
                     return [
-                        rec.id,
-                        format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                        rec.type.replace('_', ' '),
+                        ...commonData,
+                        `"${party}"`,
                         `"${item.name}"`,
                         `"${item.sku || ''}"`,
                         quantity,
                         unitPrice.toFixed(2),
                         totalAmount.toFixed(2),
+                        paymentMethod,
+                        amountPaid,
+                        balanceChange,
                         `"${rec.details}"`
                     ].join(',');
                 });
@@ -172,14 +199,16 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
             
             // Handle non-transactional records
             return [[
-                rec.id,
-                format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-                rec.type.replace('_', ' '),
+                ...commonData,
+                'N/A', // Party
                 `"${rec.product_name || ''}"`,
                 `"${rec.product_sku || ''}"`,
                 'N/A', // Quantity
                 'N/A', // Unit Price
                 'N/A', // Total Amount
+                'N/A', // Payment Method
+                'N/A', // Amount Paid
+                'N/A', // Balance Change
                 `"${rec.details}"`,
             ].join(',')];
         });
