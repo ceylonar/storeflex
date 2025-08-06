@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
@@ -128,16 +129,22 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 rec.type.replace(/_/g, ' '),
             ];
 
-            if ((rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return') && rec.items && rec.items.length > 0) {
-                const transaction = rec.transaction as Sale | Purchase | SaleReturn | PurchaseReturn;
+            if ((rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return') && rec.transaction) {
+                const transaction = rec.transaction;
                 let party = '';
                 let paymentMethod = 'N/A';
                 let amountPaid = 'N/A';
                 let balanceChange = 'N/A';
                 
-                if (rec.type === 'sale' || rec.type === 'purchase') {
-                    const trans = transaction as Sale | Purchase;
-                    party = trans.customer_name || trans.supplier_name;
+                 if (rec.type === 'sale') {
+                    const trans = transaction as Sale;
+                    party = trans.customer_name;
+                    paymentMethod = trans.paymentMethod;
+                    amountPaid = (trans.amountPaid || 0).toFixed(2);
+                    balanceChange = trans.creditAmount?.toFixed(2) || '0.00';
+                } else if (rec.type === 'purchase') {
+                    const trans = transaction as Purchase;
+                    party = trans.supplier_name;
                     paymentMethod = trans.paymentMethod;
                     amountPaid = (trans.amountPaid || 0).toFixed(2);
                     balanceChange = trans.creditAmount?.toFixed(2) || '0.00';
@@ -145,58 +152,60 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                      const trans = transaction as SaleReturn;
                      party = trans.customer_name;
                      paymentMethod = trans.refund_method;
-                     balanceChange = (-trans.total_refund_amount).toFixed(2); // Credit to customer
+                     balanceChange = (trans.total_refund_amount).toFixed(2); // Credit to customer
                 } else if (rec.type === 'purchase_return') {
                      const trans = transaction as PurchaseReturn;
                      party = trans.supplier_name;
+                     paymentMethod = 'credit_balance';
                      balanceChange = (-trans.total_credit_amount).toFixed(2); // Debit from supplier
                 }
 
+                 if (rec.items && rec.items.length > 0) {
+                    return rec.items.map(item => {
+                        let quantity = 0;
+                        let unitPrice = 0;
+                        let totalAmount = 0;
 
-                 return rec.items.map(item => {
-                    let quantity = 0;
-                    let unitPrice = 0;
-                    let totalAmount = 0;
-
-                    if (rec.type === 'sale') {
-                        const saleItem = item as SaleItem;
-                        quantity = -saleItem.quantity;
-                        unitPrice = saleItem.price_per_unit;
-                        totalAmount = saleItem.total_amount;
-                    } else if (rec.type === 'purchase') {
-                        const purchaseItem = item as PurchaseItem;
-                        quantity = purchaseItem.quantity;
-                        unitPrice = purchaseItem.cost_price;
-                        totalAmount = purchaseItem.total_cost;
-                    } else if (rec.type === 'sale_return') {
-                        const returnItem = item as any; // SaleReturnItem
-                        quantity = returnItem.return_quantity;
-                        unitPrice = returnItem.price_per_unit;
-                        totalAmount = unitPrice * quantity;
-                    } else if (rec.type === 'purchase_return') {
-                        const returnItem = item as any; // PurchaseReturnItem
-                        quantity = -returnItem.return_quantity;
-                        unitPrice = returnItem.cost_price;
-                        totalAmount = unitPrice * Math.abs(quantity);
-                    }
-                    
-                    return [
-                        ...commonData,
-                        `"${party}"`,
-                        `"${item.name}"`,
-                        `"${item.sku || ''}"`,
-                        quantity,
-                        unitPrice.toFixed(2),
-                        totalAmount.toFixed(2),
-                        paymentMethod,
-                        amountPaid,
-                        balanceChange,
-                        `"${rec.details}"`
-                    ].join(',');
-                });
+                        if (rec.type === 'sale') {
+                            const saleItem = item as SaleItem;
+                            quantity = -saleItem.quantity;
+                            unitPrice = saleItem.price_per_unit;
+                            totalAmount = saleItem.total_amount;
+                        } else if (rec.type === 'purchase') {
+                            const purchaseItem = item as PurchaseItem;
+                            quantity = purchaseItem.quantity;
+                            unitPrice = purchaseItem.cost_price;
+                            totalAmount = purchaseItem.total_cost;
+                        } else if (rec.type === 'sale_return') {
+                            const returnItem = item as any; // SaleReturnItem
+                            quantity = returnItem.return_quantity;
+                            unitPrice = returnItem.price_per_unit;
+                            totalAmount = unitPrice * quantity;
+                        } else if (rec.type === 'purchase_return') {
+                            const returnItem = item as any; // PurchaseReturnItem
+                            quantity = -returnItem.return_quantity;
+                            unitPrice = returnItem.cost_price;
+                            totalAmount = unitPrice * Math.abs(quantity);
+                        }
+                        
+                        return [
+                            ...commonData,
+                            `"${party}"`,
+                            `"${item.name}"`,
+                            `"${item.sku || ''}"`,
+                            quantity,
+                            unitPrice.toFixed(2),
+                            totalAmount.toFixed(2),
+                            paymentMethod,
+                            amountPaid,
+                            balanceChange,
+                            `"${rec.details}"`
+                        ].join(',');
+                    });
+                }
             }
             
-            // Handle non-transactional records
+            // Handle non-transactional/non-item records
             return [[
                 ...commonData,
                 'N/A', // Party
@@ -244,13 +253,13 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const getRecordTitle = (record: DetailedRecord) => {
     switch (record.type) {
       case 'sale':
-        return `Sale: ${record.details}`;
+        return `Sale to ${record.transaction?.customer_name || 'Walk-in'}`;
       case 'purchase':
-        return `Purchase: ${record.details}`;
+        return `Purchase from ${record.transaction?.supplier_name || 'Unknown'}`;
       case 'sale_return':
-        return `Sale Return: ${record.details}`;
+        return `Return from ${record.transaction?.customer_name || 'Walk-in'}`;
       case 'purchase_return':
-        return `Purchase Return: ${record.details}`;
+        return `Return to ${record.transaction?.supplier_name || 'Unknown'}`;
       default:
         return record.product_name || record.details;
     }
