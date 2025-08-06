@@ -1420,8 +1420,12 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             return detailedRec;
         });
 
-        const resolvedRecords = await Promise.all(detailedRecordsPromises);
-        return resolvedRecords.filter((rec): rec is DetailedRecord => rec !== null);
+        let resolvedRecords = (await Promise.all(detailedRecordsPromises)).filter((rec): rec is DetailedRecord => rec !== null);
+
+        // Final sort after all data is fetched
+        resolvedRecords.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        return resolvedRecords;
 
     } catch (error) {
         console.error('Database Error:', error);

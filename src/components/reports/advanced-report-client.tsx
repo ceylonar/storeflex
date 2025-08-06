@@ -39,13 +39,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
 import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem, Customer, Supplier, Sale, Purchase, SaleReturn, PurchaseReturn } from '@/lib/types';
-import { fetchInventoryRecords, fetchCustomers, fetchSuppliers } from '@/lib/queries';
+import { fetchInventoryRecords } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
 import { Calendar } from '../ui/calendar';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
@@ -140,7 +139,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                     const trans = transaction as Sale | Purchase;
                     party = trans.customer_name || trans.supplier_name;
                     paymentMethod = trans.paymentMethod;
-                    amountPaid = trans.amountPaid.toFixed(2);
+                    amountPaid = (trans.amountPaid || 0).toFixed(2);
                     balanceChange = trans.creditAmount?.toFixed(2) || '0.00';
                 } else if (rec.type === 'sale_return') {
                      const trans = transaction as SaleReturn;
@@ -241,6 +240,21 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     ...customers.map(c => ({ value: `customer_${c.id}`, label: `Customer: ${c.name}` })),
     ...suppliers.map(s => ({ value: `supplier_${s.id}`, label: `Supplier: ${s.name}` }))
   ];
+
+  const getRecordTitle = (record: DetailedRecord) => {
+    switch (record.type) {
+      case 'sale':
+        return `Sale: ${record.details}`;
+      case 'purchase':
+        return `Purchase: ${record.details}`;
+      case 'sale_return':
+        return `Sale Return: ${record.details}`;
+      case 'purchase_return':
+        return `Purchase Return: ${record.details}`;
+      default:
+        return record.product_name || record.details;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -392,9 +406,10 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                         >
                                             {activity.type.replace(/_/g, ' ')}
                                         </Badge>
-                                        <span className="flex-1 text-left font-medium">
-                                            {activity.type === 'sale' || activity.type === 'purchase' || activity.type === 'sale_return' || activity.type === 'purchase_return' ? activity.details : activity.product_name}
+                                        <span className="flex-1 text-left font-medium truncate" title={getRecordTitle(activity)}>
+                                            {getRecordTitle(activity)}
                                         </span>
+                                        <span className="text-muted-foreground font-mono text-xs">{activity.id}</span>
                                         <span className="text-muted-foreground"><FormattedDate timestamp={activity.timestamp} /></span>
                                     </div>
                                 </AccordionTrigger>
