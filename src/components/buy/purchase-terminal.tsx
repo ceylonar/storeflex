@@ -152,18 +152,6 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
           barcode: newProduct.barcode,
         });
         setIsAddProductOpen(false);
-        addToCart({
-            id: newProduct.id,
-            name: newProduct.name,
-            selling_price: newProduct.selling_price,
-            cost_price: newProduct.cost_price,
-            stock: newProduct.stock,
-            image: newProduct.image,
-            category: newProduct.category,
-            brand: newProduct.brand,
-            sub_category: newProduct.sub_category,
-            barcode: newProduct.barcode,
-        })
       }
     } catch (error) {
        toast({
@@ -735,3 +723,5 @@ export function PurchaseTerminal({ products: initialProducts, initialSuppliers }
     
 
       
+
+    
