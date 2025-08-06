@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1078,7 +1079,7 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersSnapshot),
+            getDocs(customersQuery),
             getDocs(suppliersQuery),
         ]);
         
@@ -1433,7 +1434,8 @@ export type MoneyflowData = {
 }
 
 export type MoneyflowTransaction = {
-    id: string; // Can be a sale, purchase, customer, or supplier ID
+    id: string; // A unique identifier for the list key
+    transactionId: string; // The readable ID (e.g., cus0001, sale00001)
     type: 'receivable' | 'payable';
     partyName: string; // Customer or Supplier Name
     partyId: string;
@@ -1467,18 +1469,16 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                // This is money the customer owes the business (receivable)
                 receivablesTotal += balance;
                 transactions.push({
-                    id: `customer-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
-                // This is a liability for the business (payable) - we owe the customer
                 payablesTotal += Math.abs(balance);
                 transactions.push({
-                    id: `customer-payable-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: Math.abs(balance),
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
@@ -1488,18 +1488,16 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                // This is a liability for the business (payable)
                 payablesTotal += balance;
                 transactions.push({
-                    id: `supplier-${doc.id}`, type: 'payable', partyName: doc.data().name, partyId: doc.id,
+                    id: `supplier-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: balance,
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
             } else if (balance < 0) {
-                // This is an asset for the business (receivable) - supplier owes us
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
-                    id: `supplier-receivable-${doc.id}`, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
+                    id: `supplier-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: doc.data().name, partyId: doc.id,
                     paymentMethod: 'credit', amount: Math.abs(balance),
                     date: (doc.data().updated_at || doc.data().created_at)?.toDate().toISOString() || new Date().toISOString(),
                 });
@@ -1511,7 +1509,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             if (sale.paymentStatus === 'pending_check_clearance') {
                 pendingChecksTotal += sale.total_amount;
                 transactions.push({
-                    id: doc.id, type: 'receivable', partyName: sale.customer_name, partyId: sale.customer_id!,
+                    id: `sale-check-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: sale.customer_name, partyId: sale.customer_id!,
                     paymentMethod: 'check', amount: sale.total_amount, date: (sale.sale_date as any).toDate().toISOString(),
                     checkNumber: sale.checkNumber,
                 });
@@ -1523,7 +1521,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             if (purchase.paymentStatus === 'pending_check_clearance') {
                 pendingChecksTotal += purchase.total_amount;
                  transactions.push({
-                    id: doc.id, type: 'payable', partyName: purchase.supplier_name, partyId: purchase.supplier_id,
+                    id: `purchase-check-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: purchase.supplier_name, partyId: purchase.supplier_id,
                     paymentMethod: 'check', amount: purchase.total_amount, date: (purchase.purchase_date as any).toDate().toISOString(),
                     checkNumber: purchase.checkNumber,
                 });
@@ -1570,10 +1568,10 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
               details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
             } else { // Check
               if(transaction.type === 'receivable') {
-                  const saleRef = doc(db, 'sales', transaction.id);
+                  const saleRef = doc(db, 'sales', transaction.transactionId);
                   t.update(saleRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
               } else {
-                  const purchaseRef = doc(db, 'purchases', transaction.id);
+                  const purchaseRef = doc(db, 'purchases', transaction.transactionId);
                    t.update(purchaseRef, { paymentStatus: status === 'paid' ? 'paid' : 'rejected' });
               }
               activityType = status === 'paid' ? 'check_cleared' : 'check_rejected';
