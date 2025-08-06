@@ -1,8 +1,7 @@
 
-
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import {
   Card,
   CardContent,
@@ -31,15 +30,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 import { Button } from '@/components/ui/button';
-import { Loader2, Download, Calendar as CalendarIcon, Filter, X } from 'lucide-react';
-import type { ProductSelect, DetailedRecord, SaleItem, PurchaseItem, Customer, Supplier, Sale, Purchase, SaleReturn, PurchaseReturn } from '@/lib/types';
+import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronDown, ChevronRight, User, ShoppingCart, Truck, Repeat, Scroll } from 'lucide-react';
+import type { ProductSelect, DetailedRecord, Customer, Supplier } from '@/lib/types';
 import { fetchInventoryRecords } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -59,22 +57,55 @@ interface AdvancedReportClientProps {
   suppliers: Supplier[];
 }
 
+const getRecordIcon = (type: DetailedRecord['type']) => {
+    switch (type) {
+        case 'sale': return ShoppingCart;
+        case 'purchase': return Truck;
+        case 'sale_return': return Repeat;
+        case 'purchase_return': return Repeat;
+        default: return Scroll;
+    }
+}
+
+const getRecordTitle = (record: DetailedRecord) => {
+    switch (record.type) {
+      case 'sale': return `Sale to ${record.partyName}`;
+      case 'purchase': return `Purchase from ${record.partyName}`;
+      case 'sale_return': return `Return from ${record.partyName}`;
+      case 'purchase_return': return `Return to ${record.partyName}`;
+      case 'credit_settled': return `Credit Settlement`;
+      case 'check_cleared': return `Check Cleared`;
+      case 'check_rejected': return `Check Rejected`;
+      case 'new': return `Product Created`;
+      case 'update': return `Product Updated`;
+      case 'delete': return `Product Deleted`;
+      default: return record.details || 'System Activity';
+    }
+};
+
+const getRecordAmount = (record: DetailedRecord) => {
+    if (record.transaction?.total_amount) {
+        return `LKR ${record.transaction.total_amount.toFixed(2)}`;
+    }
+    if (record.type === 'sale_return' && record.transaction?.total_refund_amount) {
+        return `LKR ${record.transaction.total_refund_amount.toFixed(2)}`;
+    }
+     if (record.type === 'purchase_return' && record.transaction?.total_credit_amount) {
+        return `LKR ${record.transaction.total_credit_amount.toFixed(2)}`;
+    }
+    return 'N/A';
+};
+
+
 export function AdvancedReportClient({ initialRecords, products, customers, suppliers }: AdvancedReportClientProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [date, setDate] = useState<DateRange | undefined>();
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
   const [partyId, setPartyId] = useState<string>('');
   const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
+  const [isDownloading, setIsDownloading] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    if(initialRecords) {
-        setRecords(initialRecords);
-    }
-  }, [initialRecords]);
 
   const handleGenerateReport = () => {
     startTransition(async () => {
@@ -104,20 +135,14 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
 
   const handleDownload = async () => {
     if (!records || records.length === 0) {
-        toast({
-            variant: 'destructive',
-            title: 'No Data',
-            description: 'There is no data to download.',
-        });
+        toast({ variant: 'destructive', title: 'No Data', description: 'There is no data to download.' });
         return;
     }
-    
     setIsDownloading(true);
     toast({ title: 'Preparing Download', description: 'Generating detailed report for export...' });
 
     try {
         const detailedRecords = await fetchInventoryRecords({ date, type, productId, partyId });
-        
         const headers = [
           'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Total Amount (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
         ];
@@ -127,102 +152,56 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 rec.id,
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 rec.type.replace(/_/g, ' '),
+                `"${rec.partyName || 'N/A'}"`,
             ];
 
-            if ((rec.type === 'sale' || rec.type === 'purchase' || rec.type === 'sale_return' || rec.type === 'purchase_return') && rec.transaction) {
-                const transaction = rec.transaction;
-                let party = '';
-                let paymentMethod = 'N/A';
-                let amountPaid = 'N/A';
-                let balanceChange = 'N/A';
-                
-                 if (rec.type === 'sale') {
-                    const trans = transaction as Sale;
-                    party = trans.customer_name;
-                    paymentMethod = trans.paymentMethod;
-                    amountPaid = (trans.amountPaid || 0).toFixed(2);
-                    balanceChange = trans.creditAmount?.toFixed(2) || '0.00';
-                } else if (rec.type === 'purchase') {
-                    const trans = transaction as Purchase;
-                    party = trans.supplier_name;
-                    paymentMethod = trans.paymentMethod;
-                    amountPaid = (trans.amountPaid || 0).toFixed(2);
-                    balanceChange = trans.creditAmount?.toFixed(2) || '0.00';
-                } else if (rec.type === 'sale_return') {
-                     const trans = transaction as SaleReturn;
-                     party = trans.customer_name;
-                     paymentMethod = trans.refund_method;
-                     balanceChange = (trans.total_refund_amount).toFixed(2); // Credit to customer
-                } else if (rec.type === 'purchase_return') {
-                     const trans = transaction as PurchaseReturn;
-                     party = trans.supplier_name;
-                     paymentMethod = 'credit_balance';
-                     balanceChange = (-trans.total_credit_amount).toFixed(2); // Debit from supplier
-                }
+            if (rec.items && rec.items.length > 0) {
+                return rec.items.map(item => {
+                    const trans = rec.transaction;
+                    const paymentMethod = trans?.paymentMethod || (rec.type.includes('return') ? (rec.transaction as any).refund_method || 'credit_balance' : 'N/A');
+                    const amountPaid = trans?.amountPaid?.toFixed(2) || '0.00';
+                    const balanceChange = trans?.creditAmount?.toFixed(2) || '0.00';
+                    const totalAmount = trans?.total_amount?.toFixed(2) || '0.00';
 
-                 if (rec.items && rec.items.length > 0) {
-                    return rec.items.map(item => {
-                        let quantity = 0;
-                        let unitPrice = 0;
-                        let totalAmount = 0;
+                    const itemDetails = {
+                        name: item.name || 'N/A',
+                        sku: item.sku || 'N/A',
+                        quantity: '0',
+                        unitPrice: '0.00',
+                        itemTotal: '0.00'
+                    };
 
-                        if (rec.type === 'sale') {
-                            const saleItem = item as SaleItem;
-                            quantity = -saleItem.quantity;
-                            unitPrice = saleItem.price_per_unit;
-                            totalAmount = saleItem.total_amount;
-                        } else if (rec.type === 'purchase') {
-                            const purchaseItem = item as PurchaseItem;
-                            quantity = purchaseItem.quantity;
-                            unitPrice = purchaseItem.cost_price;
-                            totalAmount = purchaseItem.total_cost;
-                        } else if (rec.type === 'sale_return') {
-                            const returnItem = item as any; // SaleReturnItem
-                            quantity = returnItem.return_quantity;
-                            unitPrice = returnItem.price_per_unit;
-                            totalAmount = unitPrice * quantity;
-                        } else if (rec.type === 'purchase_return') {
-                            const returnItem = item as any; // PurchaseReturnItem
-                            quantity = -returnItem.return_quantity;
-                            unitPrice = returnItem.cost_price;
-                            totalAmount = unitPrice * Math.abs(quantity);
-                        }
-                        
-                        return [
-                            ...commonData,
-                            `"${party}"`,
-                            `"${item.name}"`,
-                            `"${item.sku || ''}"`,
-                            quantity,
-                            unitPrice.toFixed(2),
-                            totalAmount.toFixed(2),
-                            paymentMethod,
-                            amountPaid,
-                            balanceChange,
-                            `"${rec.details}"`
-                        ].join(',');
-                    });
-                }
+                    if ('quantity' in item) itemDetails.quantity = `${item.quantity}`;
+                    if ('return_quantity' in item) itemDetails.quantity = `${item.return_quantity}`;
+                    
+                    if ('price_per_unit' in item) itemDetails.unitPrice = item.price_per_unit.toFixed(2);
+                    if ('cost_price' in item) itemDetails.unitPrice = item.cost_price.toFixed(2);
+
+                    if ('total_amount' in item) itemDetails.itemTotal = item.total_amount.toFixed(2);
+                    if ('total_cost' in item) itemDetails.itemTotal = item.total_cost.toFixed(2);
+                    
+                    if (rec.type.includes('return')) {
+                        const quantity = 'return_quantity' in item ? item.return_quantity : 0;
+                        const price = 'price_per_unit' in item ? item.price_per_unit : ('cost_price' in item ? item.cost_price : 0);
+                        itemDetails.itemTotal = (quantity * price).toFixed(2);
+                    }
+
+                    return [
+                        ...commonData,
+                        `"${itemDetails.name}"`, `"${itemDetails.sku}"`, itemDetails.quantity, itemDetails.unitPrice, itemDetails.itemTotal,
+                        paymentMethod, amountPaid, balanceChange, `"${rec.details || ''}"`
+                    ].join(',');
+                });
             }
-            
-            // Handle non-transactional/non-item records
+
+            // Handle non-item activities
             return [[
                 ...commonData,
-                'N/A', // Party
-                `"${rec.product_name || ''}"`,
-                `"${rec.product_sku || ''}"`,
-                'N/A', // Quantity
-                'N/A', // Unit Price
-                'N/A', // Total Amount
-                'N/A', // Payment Method
-                'N/A', // Amount Paid
-                'N/A', // Balance Change
-                `"${rec.details}"`,
+                `"${rec.product_name || 'N/A'}"`, 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', `"${rec.details || ''}"`
             ].join(',')];
         });
 
         const csvContent = [headers.join(','), ...csvRows].join('\n');
-
         const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -231,39 +210,19 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
         toast({ title: 'Download Started', description: 'Your report is being downloaded.' });
-
     } catch (error) {
-        toast({
-            variant: 'destructive',
-            title: 'Download Failed',
-            description: (error as Error).message || 'Could not generate the report.',
-        });
+        toast({ variant: 'destructive', title: 'Download Failed', description: (error as Error).message || 'Could not generate the report.' });
     } finally {
         setIsDownloading(false);
     }
   }
 
+
   const allParties = [
     ...customers.map(c => ({ value: `customer_${c.id}`, label: `Customer: ${c.name}` })),
     ...suppliers.map(s => ({ value: `supplier_${s.id}`, label: `Supplier: ${s.name}` }))
   ];
-
-  const getRecordTitle = (record: DetailedRecord) => {
-    switch (record.type) {
-      case 'sale':
-        return `Sale to ${record.transaction?.customer_name || 'Walk-in'}`;
-      case 'purchase':
-        return `Purchase from ${record.transaction?.supplier_name || 'Unknown'}`;
-      case 'sale_return':
-        return `Return from ${record.transaction?.customer_name || 'Walk-in'}`;
-      case 'purchase_return':
-        return `Return to ${record.transaction?.supplier_name || 'Unknown'}`;
-      default:
-        return record.product_name || record.details;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -276,45 +235,17 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <Popover>
               <PopoverTrigger asChild>
-                <Button
-                  id="date"
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                  )}
-                >
+                <Button id="date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date?.from ? (
-                    date.to ? (
-                      <>
-                        {format(date.from, "LLL dd, y")} -{" "}
-                        {format(date.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      format(date.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date range</span>
-                  )}
+                  {date?.from ? (date.to ? (<>{format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}</>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={date?.from}
-                  selected={date}
-                  onSelect={setDate}
-                  numberOfMonths={2}
-                />
+                <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
               </PopoverContent>
             </Popover>
-            
             <Select value={type} onValueChange={setType}>
-              <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Filter by Type" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Filter by Type" /></SelectTrigger>
               <SelectContent>
                   <SelectItem value="sale">Sale</SelectItem>
                   <SelectItem value="purchase">Purchase</SelectItem>
@@ -325,158 +256,122 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                   <SelectItem value="purchase_return">Purchase Return</SelectItem>
               </SelectContent>
             </Select>
-
             <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Filter by Product" />
-              </SelectTrigger>
-              <SelectContent>
-                  {products.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Filter by Product" /></SelectTrigger>
+              <SelectContent>{products.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent>
             </Select>
-
             <Select value={partyId} onValueChange={setPartyId}>
-              <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Filter by Customer/Supplier" />
-              </SelectTrigger>
-              <SelectContent>
-                  {allParties.map(p => (
-                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                  ))}
-              </SelectContent>
+              <SelectTrigger><SelectValue placeholder="Filter by Customer/Supplier" /></SelectTrigger>
+              <SelectContent>{allParties.map(p => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}</SelectContent>
             </Select>
-
             <div className="flex gap-2">
               <Button onClick={handleGenerateReport} disabled={isPending} className="w-full">
-                {isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Filter className="mr-2 h-4 w-4" />
-                )}
-                Apply
+                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />} Apply
               </Button>
-
               <Button onClick={clearFilters} variant="ghost" disabled={isPending} className="w-full">
-                  <X className="mr-2 h-4 w-4" />
-                  Clear
+                <X className="mr-2 h-4 w-4" /> Clear
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
-
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
                 <CardTitle>Report Results</CardTitle>
-                <CardDescription>
-                    {`Displaying ${records.length} of all matching transactions.`}
-                </CardDescription>
+                <CardDescription>{`Displaying ${records.length} matching transactions.`}</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={handleDownload} disabled={records.length === 0 || isDownloading}>
-                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4"/>}
-                Download CSV
+                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4"/>} Download CSV
             </Button>
         </CardHeader>
         <CardContent>
-            {isPending ? (
-                 <div className="space-y-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="flex items-center space-x-4 p-2">
-                            <Skeleton className="h-12 w-12 rounded-md" />
-                            <div className="flex-1 space-y-2">
-                                <Skeleton className="h-4 w-1/2" />
-                                <Skeleton className="h-4 w-3/4" />
-                            </div>
-                            <Skeleton className="h-4 w-24" />
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <ScrollArea className="h-[60vh]">
-                    <Accordion type="single" collapsible className="w-full">
-                        {records.length > 0 ? records.map((activity) => (
-                            <AccordionItem value={activity.id} key={activity.id}>
-                                <AccordionTrigger className="p-4 text-sm hover:no-underline">
-                                    <div className="flex items-center gap-4 w-full">
-                                        <Badge
-                                            variant="outline"
-                                            className={cn(
-                                            'w-32 justify-center font-semibold capitalize',
-                                            activity.type === 'sale' && 'border-accent text-accent-foreground',
-                                            activity.type === 'update' && 'border-blue-500 text-blue-500',
-                                            activity.type === 'new' && 'border-purple-500 text-purple-500',
-                                            activity.type === 'delete' && 'border-destructive text-destructive',
-                                            activity.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500',
-                                            (activity.type === 'sale_return' || activity.type === 'purchase_return') && 'border-yellow-500 text-yellow-600 dark:text-yellow-500'
-                                            )}
-                                        >
-                                            {activity.type.replace(/_/g, ' ')}
-                                        </Badge>
-                                        <span className="flex-1 text-left font-medium truncate" title={getRecordTitle(activity)}>
-                                            {getRecordTitle(activity)}
-                                        </span>
-                                        <span className="text-muted-foreground font-mono text-xs">{activity.id}</span>
-                                        <span className="text-muted-foreground"><FormattedDate timestamp={activity.timestamp} /></span>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="p-4 pt-0 pl-16">
-                                     {activity.items && activity.items.length > 0 ? (
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Product</TableHead>
-                                                    <TableHead>Quantity</TableHead>
-                                                    <TableHead>Unit Price</TableHead>
-                                                    <TableHead className="text-right">Total</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {activity.items.map((item, index) => {
-                                                    let quantity = 0, unitPrice = 0, total = 0;
-                                                    if(activity.type === 'sale'){
-                                                        const saleItem = item as SaleItem;
-                                                        quantity = saleItem.quantity;
-                                                        unitPrice = saleItem.price_per_unit;
-                                                        total = saleItem.total_amount;
-                                                    } else if(activity.type === 'purchase') {
-                                                        const purchaseItem = item as PurchaseItem;
-                                                        quantity = purchaseItem.quantity;
-                                                        unitPrice = purchaseItem.cost_price;
-                                                        total = purchaseItem.total_cost;
-                                                    } else if (activity.type === 'sale_return' || activity.type === 'purchase_return') {
-                                                        const returnItem = item as any;
-                                                        quantity = returnItem.return_quantity;
-                                                        unitPrice = returnItem.price_per_unit || returnItem.cost_price;
-                                                        total = quantity * unitPrice;
-                                                    }
-
-                                                    return (
-                                                        <TableRow key={`${activity.id}-${index}`}>
-                                                            <TableCell className="font-medium">{item.name}</TableCell>
-                                                            <TableCell>{quantity}</TableCell>
-                                                            <TableCell>LKR {unitPrice.toFixed(2)}</TableCell>
-                                                            <TableCell className="text-right">LKR {total.toFixed(2)}</TableCell>
-                                                        </TableRow>
-                                                    )
-                                                })}
-                                            </TableBody>
-                                        </Table>
-                                    ) : (
-                                        <p className="text-muted-foreground">{activity.details}</p>
-                                    )}
-                                </AccordionContent>
-                            </AccordionItem>
-                        )) : (
-                           <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
-                                No records found for the selected filters.
-                            </div>
-                        )}
-                    </Accordion>
-                </ScrollArea>
-            )}
+            <ScrollArea className="h-[60vh] border-t">
+                 {isPending ? (
+                    <div className="space-y-4 p-4">
+                        {Array.from({ length: 5 }).map((_, i) => (<Skeleton key={i} className="h-12 w-full" />))}
+                    </div>
+                ) : records.length > 0 ? (
+                    <Table>
+                        <TableHeader className="sticky top-0 bg-card">
+                            <TableRow>
+                                <TableHead className="w-[50px]"></TableHead>
+                                <TableHead>Transaction</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Party</TableHead>
+                                <TableHead>Details</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {records.map(record => (
+                                <Collapsible asChild key={record.id}>
+                                    <>
+                                        <TableRow>
+                                            <TableCell>
+                                                <CollapsibleTrigger asChild>
+                                                    <Button variant="ghost" size="icon" disabled={!record.items || record.items.length === 0}>
+                                                        <ChevronRight className="h-4 w-4 transition-transform [&[data-state=open]]:rotate-90" />
+                                                    </Button>
+                                                </CollapsibleTrigger>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{getRecordTitle(record)}</div>
+                                                <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                            </TableCell>
+                                            <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                            <TableCell>{record.partyName || 'N/A'}</TableCell>
+                                            <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                            <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                                        </TableRow>
+                                        <CollapsibleContent asChild>
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="p-0">
+                                                    <div className="p-4 bg-muted/50">
+                                                        <h4 className="font-semibold mb-2 ml-4">Items in Transaction</h4>
+                                                         <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead>Product</TableHead>
+                                                                    <TableHead>SKU</TableHead>
+                                                                    <TableHead>Quantity</TableHead>
+                                                                    <TableHead>Unit Price</TableHead>
+                                                                    <TableHead className="text-right">Total</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {record.items?.map((item, index) => {
+                                                                    const quantity = 'quantity' in item ? item.quantity : ('return_quantity' in item ? item.return_quantity : 0);
+                                                                    const price = 'price_per_unit' in item ? item.price_per_unit : ('cost_price' in item ? item.cost_price : 0);
+                                                                    const total = 'total_amount' in item ? item.total_amount : ('total_cost' in item ? item.total_cost : quantity * price);
+                                                                    
+                                                                    return(
+                                                                        <TableRow key={`${record.id}-${index}`}>
+                                                                            <TableCell>{item.name}</TableCell>
+                                                                            <TableCell>{item.sku || 'N/A'}</TableCell>
+                                                                            <TableCell>{quantity}</TableCell>
+                                                                            <TableCell>LKR {price.toFixed(2)}</TableCell>
+                                                                            <TableCell className="text-right">LKR {total.toFixed(2)}</TableCell>
+                                                                        </TableRow>
+                                                                    )
+                                                                })}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        </CollapsibleContent>
+                                    </>
+                                </Collapsible>
+                            ))}
+                        </TableBody>
+                    </Table>
+                ) : (
+                    <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
+                        No records found for the selected filters.
+                    </div>
+                )}
+            </ScrollArea>
         </CardContent>
       </Card>
     </div>

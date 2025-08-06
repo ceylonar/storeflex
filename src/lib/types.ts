@@ -63,10 +63,18 @@ export type RecentActivity = {
   supplier_id?: string;
 };
 
-export type DetailedRecord = Omit<RecentActivity, 'details'> & {
-    items?: (SaleItem | PurchaseItem | SaleReturnItem | PurchaseReturnItem)[];
+export type DetailedRecord = {
+    id: string;
+    userId: string;
+    type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return';
+    timestamp: string;
+    details: string;
+    product_id?: string;
+    product_name?: string;
     product_sku?: string;
-    details?: string;
+    partyId?: string | null;
+    partyName?: string;
+    items?: (SaleItem | PurchaseItem | SaleReturnItem | PurchaseReturnItem)[];
     transaction?: Sale | Purchase | SaleReturn | PurchaseReturn;
 };
 

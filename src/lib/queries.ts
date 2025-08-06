@@ -1328,102 +1328,85 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
     const { db } = getFirebaseServices();
     try {
-        const activityCollection = collection(db, 'recent_activity');
-        let baseQuery: Query = query(activityCollection, where('userId', '==', userId));
+        const allCollections = ['sales', 'purchases', 'sales_returns', 'purchase_returns', 'recent_activity'];
+        const allDocs: (Sale | Purchase | SaleReturn | PurchaseReturn | RecentActivity)[] = [];
 
-        const mainSnapshot = await getDocs(baseQuery);
-        let allActivities = mainSnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }) as RecentActivity);
+        for (const col of allCollections) {
+            const q = query(collection(db, col), where('userId', '==', userId));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                let type: DetailedRecord['type'] = 'update'; // default
+                if (col === 'sales') type = 'sale';
+                else if (col === 'purchases') type = 'purchase';
+                else if (col === 'sales_returns') type = 'sale_return';
+                else if (col === 'purchase_returns') type = 'purchase_return';
+                else if (col === 'recent_activity') type = data.type;
+                
+                allDocs.push({ id: doc.id, ...data, type: type as any });
+            });
+        }
         
-        let filteredActivities = allActivities.filter(act => {
-            let pass = true;
-            
-            if (filters.type) {
-                pass = pass && act.type === filters.type;
+        const detailedRecordsPromises = allDocs.map(async (doc): Promise<DetailedRecord | null> => {
+            const baseRecord: Partial<DetailedRecord> = {
+                id: doc.id,
+                userId: doc.userId,
+                type: doc.type,
+                timestamp: ((doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date)?.toDate().toISOString() || new Date(0).toISOString(),
+                details: (doc as any).details || '',
+            };
+
+            if (doc.type === 'sale') {
+                const sale = doc as Sale;
+                baseRecord.partyName = sale.customer_name;
+                baseRecord.partyId = sale.customer_id;
+                baseRecord.items = sale.items;
+                baseRecord.transaction = { ...sale, sale_date: baseRecord.timestamp };
+            } else if (doc.type === 'purchase') {
+                const purchase = doc as Purchase;
+                baseRecord.partyName = purchase.supplier_name;
+                baseRecord.partyId = purchase.supplier_id;
+                baseRecord.items = purchase.items;
+                baseRecord.transaction = { ...purchase, purchase_date: baseRecord.timestamp };
+            } else if (doc.type === 'sale_return') {
+                const saleReturn = doc as SaleReturn;
+                baseRecord.partyName = saleReturn.customer_name;
+                baseRecord.partyId = saleReturn.customer_id;
+                baseRecord.items = saleReturn.items;
+                baseRecord.transaction = { ...saleReturn, return_date: baseRecord.timestamp };
+            } else if (doc.type === 'purchase_return') {
+                const purchaseReturn = doc as PurchaseReturn;
+                baseRecord.partyName = purchaseReturn.supplier_name;
+                baseRecord.partyId = purchaseReturn.supplier_id;
+                baseRecord.items = purchaseReturn.items;
+                baseRecord.transaction = { ...purchaseReturn, return_date: baseRecord.timestamp };
+            } else {
+                // Handle non-transactional activities from 'recent_activity'
+                const activity = doc as RecentActivity;
+                baseRecord.product_id = activity.product_id;
+                baseRecord.product_name = activity.product_name;
             }
 
-            if (filters.productId) {
-                const hasProduct = (act.product_id === filters.productId) || (act.item_ids && act.item_ids.includes(filters.productId));
-                pass = pass && hasProduct;
-            }
-
-            if (filters.partyId) {
-                const [partyType, id] = filters.partyId.split('_');
-                const field = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-                pass = pass && (act as any)[field] === id;
-            }
-
+            // Filter logic
             if (filters.date?.from) {
                 const from = startOfDay(filters.date.from);
                 const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-                const actDate = new Date(act.timestamp);
-                pass = pass && !isNaN(actDate.getTime()) && isWithinInterval(actDate, { start: from, end: to });
+                const actDate = new Date(baseRecord.timestamp!);
+                if (!isWithinInterval(actDate, { start: from, end: to })) return null;
             }
-
-            return pass;
-        });
-
-        filteredActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
-        const detailedRecordsPromises = filteredActivities.map(async (rec): Promise<DetailedRecord | null> => {
-            let detailedRec: DetailedRecord = { 
-                ...rec, 
-                items: [],
-                timestamp: (rec.timestamp as any) instanceof Timestamp ? (rec.timestamp as any).toDate().toISOString() : rec.timestamp 
-            };
+            if (filters.type && baseRecord.type !== filters.type) return null;
+            if (filters.productId && !(baseRecord.items?.some(i => i.id === filters.productId) || baseRecord.product_id === filters.productId)) return null;
+            if (filters.partyId) {
+                const [partyType, id] = filters.partyId.split('_');
+                if (baseRecord.partyId !== id) return null;
+            }
             
-            let docId = rec.id;
-            
-            if (rec.type === 'sale') {
-                const saleDoc = await getDoc(doc(db, 'sales', docId));
-                if (saleDoc.exists()) {
-                    const saleData = saleDoc.data() as Sale;
-                    detailedRec.details = saleData.customer_name;
-                    detailedRec.items = (saleData.items || []).map((i: SaleItem) => ({...i, sku: i.sku || ''}));
-                    detailedRec.transaction = {...saleData, sale_date: (saleData.sale_date as any)?.toDate().toISOString() };
-                }
-            } else if (rec.type === 'purchase') {
-                const purchaseDoc = await getDoc(doc(db, 'purchases', docId));
-                if (purchaseDoc.exists()) {
-                    const purchaseData = purchaseDoc.data() as Purchase;
-                    detailedRec.details = purchaseData.supplier_name;
-                    detailedRec.items = (purchaseData.items || []).map((i: PurchaseItem) => ({...i, sku: i.sku || ''}));
-                    detailedRec.transaction = {...purchaseData, purchase_date: (purchaseData.purchase_date as any)?.toDate().toISOString() };
-                }
-            } else if (rec.type === 'sale_return') {
-                 const returnDoc = await getDoc(doc(db, 'sales_returns', docId));
-                 if (returnDoc.exists()) {
-                    const returnData = returnDoc.data() as SaleReturn;
-                    detailedRec.details = `Return from ${returnData.customer_name}`;
-                    detailedRec.items = returnData.items.map(item => ({...item}));
-                    detailedRec.transaction = {...returnData, return_date: (returnData.return_date as any)?.toDate().toISOString() };
-                 }
-            } else if (rec.type === 'purchase_return') {
-                 const returnDoc = await getDoc(doc(db, 'purchase_returns', docId));
-                 if (returnDoc.exists()) {
-                    const returnData = returnDoc.data() as PurchaseReturn;
-                    detailedRec.details = `Return to ${returnData.supplier_name}`;
-                    detailedRec.items = returnData.items.map(item => ({...item}));
-                    detailedRec.transaction = {...returnData, return_date: (returnData.return_date as any)?.toDate().toISOString() };
-                 }
-            } else if (rec.product_id && rec.product_id !== 'multiple') {
-                const productDoc = await getDoc(doc(db, 'products', rec.product_id));
-                if(productDoc.exists()) {
-                    detailedRec.product_sku = productDoc.data().sku || '';
-                }
-            }
-
-            if (filters.productId && detailedRec.items && detailedRec.items.length > 0) {
-                 detailedRec.items = detailedRec.items.filter(item => item.id === filters.productId);
-                 if(detailedRec.items.length === 0) return null;
-            }
-
-            return detailedRec;
+            return baseRecord as DetailedRecord;
         });
 
         let resolvedRecords = (await Promise.all(detailedRecordsPromises)).filter((rec): rec is DetailedRecord => rec !== null);
-
-        // Final sort after all data is fetched
-        resolvedRecords.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        resolvedRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return resolvedRecords;
 
