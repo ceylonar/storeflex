@@ -18,17 +18,13 @@ export function InventoryClient({ initialProducts }: InventoryClientProps) {
     const refreshProducts = async () => {
         const updatedProducts = await fetchProducts();
         setProducts(updatedProducts);
+        const justUpdatedProduct = updatedProducts.find(p => p.id === selectedProduct?.id);
+        if(justUpdatedProduct) {
+            setSelectedProduct(justUpdatedProduct);
+        }
     };
 
-    const handleCreateOrUpdate = (product: Product) => {
-        // Optimistically update the list for faster UI response
-        const exists = products.some(p => p.id === product.id);
-        if (exists) {
-            setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-        } else {
-            setProducts(prev => [product, ...prev]);
-        }
-        // Then re-fetch for consistency
+    const handleCreateOrUpdate = () => {
         refreshProducts();
     };
 

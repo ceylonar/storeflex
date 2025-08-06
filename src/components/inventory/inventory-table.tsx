@@ -82,8 +82,8 @@ const initialProductState: Partial<Product> = {
 
 interface InventoryTableProps {
     products: Product[];
-    onProductCreated: (product: Product) => void;
-    onProductUpdated: (product: Product) => void;
+    onProductCreated: () => void;
+    onProductUpdated: () => void;
     onProductDeleted: (id: string) => void;
     onViewHistory: (product: Product) => void;
 }
@@ -161,7 +161,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                     <h1>${selectedProduct.name}</h1>
                     <div id="barcode-container"></div>
                 </div>
-                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"><\/script>
                 <script>
                     window.onload = function() {
                         const container = document.getElementById('barcode-container');
@@ -178,7 +178,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                         window.print();
                         window.close();
                     }
-                </script>
+                <\/script>
             </body>
         </html>
     `;
@@ -271,12 +271,12 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
 
     try {
       if (formState === 'add') {
-        const newProduct = await createProduct(formData);
-        if (newProduct) onProductCreated(newProduct);
+        await createProduct(formData);
+        onProductCreated();
         toast({ title: 'Success', description: 'Product added.' });
       } else if (selectedProduct.id) {
-        const updatedProduct = await updateProduct(selectedProduct.id, formData);
-        if (updatedProduct) onProductUpdated(updatedProduct);
+        await updateProduct(selectedProduct.id, formData);
+        onProductUpdated();
         toast({ title: 'Success', description: 'Product updated.' });
       }
       setIsDialogOpen(false);
