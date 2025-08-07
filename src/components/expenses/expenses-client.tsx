@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Loader2, Download, Receipt } from 'lucide-react';
-import type { Expense, ExpenseData } from '@/lib/types';
+import type { Expense, ExpenseData, ProductSelect } from '@/lib/types';
 import { createExpense, fetchExpenses, fetchExpenseChartData } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import { ExpensesChart } from './expenses-chart';
@@ -22,9 +22,10 @@ import { format } from 'date-fns';
 interface ExpensesClientProps {
   initialExpenses: Expense[];
   initialChartData: ExpenseData[];
+  products: ProductSelect[];
 }
 
-export function ExpensesClient({ initialExpenses, initialChartData }: ExpensesClientProps) {
+export function ExpensesClient({ initialExpenses, initialChartData, products }: ExpensesClientProps) {
   const [isMounted, setIsMounted] = React.useState(false);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
@@ -39,6 +40,7 @@ export function ExpensesClient({ initialExpenses, initialChartData }: ExpensesCl
   const refreshExpenses = async () => {
     const updatedExpenses = await fetchExpenses();
     setExpenses(updatedExpenses);
+    // You might want to refresh chart data as well if it's derived from expenses
   };
   
   const handleAddExpense = async (formData: FormData) => {
@@ -125,6 +127,7 @@ export function ExpensesClient({ initialExpenses, initialChartData }: ExpensesCl
         isOpen={isDialogOpen} 
         onOpenChange={setIsDialogOpen}
         onSubmit={handleAddExpense}
+        products={products}
       />
 
       <ExpensesChart initialData={chartData} onDataChange={setChartData} />

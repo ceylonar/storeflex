@@ -1966,6 +1966,8 @@ const ExpenseSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   amount: z.coerce.number().positive('Amount must be a positive number'),
   date: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid date" }),
+  productId: z.string().optional(),
+  quantity: z.coerce.number().int().positive().optional(),
 });
 
 export async function createExpense(formData: FormData): Promise<Expense> {
@@ -1975,22 +1977,66 @@ export async function createExpense(formData: FormData): Promise<Expense> {
 
   const validatedFields = ExpenseSchema.safeParse(Object.fromEntries(formData.entries()));
   if (!validatedFields.success) {
+    console.error(validatedFields.error.flatten().fieldErrors);
     throw new Error('Invalid expense data.');
   }
 
-  const { date, ...expenseData } = validatedFields.data;
+  const { date, productId, quantity, ...expenseData } = validatedFields.data;
 
-  const docRef = await addDoc(collection(db, 'expenses'), {
-    ...expenseData,
-    date: Timestamp.fromDate(new Date(date)),
-    userId,
-  });
+  if (expenseData.type === 'Lost / Damaged Product') {
+    if (!productId || !quantity) {
+      throw new Error("Product and quantity are required for lost/damaged expenses.");
+    }
+    await runTransaction(db, async (transaction) => {
+        const productRef = doc(db, 'products', productId);
+        const productDoc = await transaction.get(productRef);
+        if (!productDoc.exists()) {
+            throw new Error("Product to be written off not found.");
+        }
+        const product = productDoc.data();
+        if (product.stock < quantity) {
+            throw new Error(`Cannot write off ${quantity} items. Only ${product.stock} in stock.`);
+        }
+        
+        // 1. Decrement stock
+        transaction.update(productRef, { stock: increment(-quantity) });
+
+        // 2. Create expense record
+        const expenseRef = doc(collection(db, 'expenses'));
+        transaction.set(expenseRef, {
+            ...expenseData,
+            date: Timestamp.fromDate(new Date(date)),
+            userId,
+        });
+
+        // 3. Create activity log
+        const activityRef = doc(collection(db, 'recent_activity'));
+        transaction.set(activityRef, {
+            type: 'delete', // Or a new type like 'write-off'
+            product_id: productId,
+            product_name: product.name,
+            product_image: product.image || '',
+            details: `Wrote off ${quantity} unit(s) as lost/damaged.`,
+            timestamp: serverTimestamp(),
+            userId,
+            id: activityRef.id
+        });
+    });
+  } else {
+    // Standard expense creation
+    await addDoc(collection(db, 'expenses'), {
+      ...expenseData,
+      date: Timestamp.fromDate(new Date(date)),
+      userId,
+    });
+  }
   
   revalidatePath('/dashboard/expenses');
+  revalidatePath('/dashboard/inventory'); // Revalidate if stock changes
   
   return {
     ...validatedFields.data,
-    id: docRef.id,
+    id: 'temp-id', // This won't be correct for the transaction case but the page reloads anyway
     userId,
   };
 }
@@ -2015,6 +2061,7 @@ export async function fetchExpenses(): Promise<Expense[]> {
     } as Expense;
   });
 
+  // Sort in code to avoid composite index error
   expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   return expenses;

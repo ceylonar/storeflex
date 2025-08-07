@@ -188,7 +188,7 @@ export type ProductTransaction = {
 
 export type MoneyflowTransaction = {
     id: string; // A unique identifier for the list key
-    transactionId: string; // The readable ID (e.g., cus0001, sale000001)
+    transactionId: string; // The readable ID (e.g., cus0001, sale00001)
     type: 'receivable' | 'payable';
     partyName: string; // Customer or Supplier Name
     partyId: string;
@@ -238,6 +238,8 @@ export type Expense = {
   description: string;
   amount: number;
   date: string; // ISO String
+  productId?: string;
+  quantity?: number;
 };
 
 export type ExpenseData = {
