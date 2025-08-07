@@ -94,33 +94,33 @@ export function CustomerSelection({
              <Command>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList>
-                   <CommandEmpty>No customer found.</CommandEmpty>
-                   <CommandGroup>
+                <CommandEmpty>No customer found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                      value="walk-in"
+                      onSelect={() => {
+                        onSelectCustomer(null);
+                        setIsSelectOpen(false);
+                      }}
+                    >
+                     Walk-in Customer
+                    </CommandItem>
+                  {customers.map((customer) => (
                     <CommandItem
-                        value="walk-in"
-                        onSelect={() => {
-                          onSelectCustomer(null);
-                          setIsSelectOpen(false);
-                        }}
-                      >
-                       Walk-in Customer
-                      </CommandItem>
-                    {customers.map((customer) => (
-                      <CommandItem
-                        key={customer.id}
-                        value={`${customer.name} ${customer.phone}`}
-                        onSelect={() => {
-                          onSelectCustomer(customer);
-                          setIsSelectOpen(false);
-                        }}
-                      >
-                        <div>
-                          <p>{customer.name}</p>
-                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+                      key={customer.id}
+                      value={`${customer.name} ${customer.phone}`}
+                      onSelect={() => {
+                        onSelectCustomer(customer);
+                        setIsSelectOpen(false);
+                      }}
+                    >
+                      <div>
+                        <p>{customer.name}</p>
+                        <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
               </CommandList>
             </Command>
           </PopoverContent>
