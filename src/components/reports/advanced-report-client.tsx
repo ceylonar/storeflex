@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -34,7 +35,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight } from 'lucide-react';
 import type { ProductSelect, DetailedRecord, Customer, Supplier } from '@/lib/types';
@@ -47,6 +47,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
 import { FormattedDate } from '../ui/formatted-date';
+import { Separator } from '../ui/separator';
 
 
 interface AdvancedReportClientProps {
@@ -95,6 +96,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const { toast } = useToast();
 
   const handleGenerateReport = () => {
@@ -195,74 +197,79 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   ];
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Filter Report</CardTitle>
-          <CardDescription>Select filters and generate a targeted report of inventory activities.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button id="date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date?.from ? (date.to ? (<>{format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}</>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-              </PopoverContent>
-            </Popover>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger><SelectValue placeholder="Filter by Type" /></SelectTrigger>
-              <SelectContent>
-                  <SelectItem value="sale">Sale</SelectItem>
-                  <SelectItem value="purchase">Purchase</SelectItem>
-                  <SelectItem value="new">New Product</SelectItem>
-                  <SelectItem value="update">Update</SelectItem>
-                  <SelectItem value="delete">Delete</SelectItem>
-                  <SelectItem value="sale_return">Sale Return</SelectItem>
-                  <SelectItem value="purchase_return">Purchase Return</SelectItem>
-                  <SelectItem value="credit_settled">Credit Settle</SelectItem>
-                  <SelectItem value="check_cleared">Check Cleared</SelectItem>
-                  <SelectItem value="check_rejected">Check Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={productId} onValueChange={setProductId}>
-              <SelectTrigger><SelectValue placeholder="Filter by Product" /></SelectTrigger>
-              <SelectContent>{products.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent>
-            </Select>
-            <Select value={partyId} onValueChange={setPartyId}>
-              <SelectTrigger><SelectValue placeholder="Filter by Customer/Supplier" /></SelectTrigger>
-              <SelectContent>{allParties.map(p => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}</SelectContent>
-            </Select>
-            <div className="flex gap-2">
-              <Button onClick={handleGenerateReport} disabled={isPending} className="w-full">
-                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />} Apply
-              </Button>
-              <Button onClick={clearFilters} variant="ghost" disabled={isPending} className="w-full">
-                <X className="mr-2 h-4 w-4" /> Clear
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      <Card>
+    <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
                 <CardTitle>Report Results</CardTitle>
                 <CardDescription>{`Displaying ${records.length} matching transactions.`}</CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={handleDownload} disabled={records.length === 0 || isDownloading}>
-                {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4"/>} Download CSV
-            </Button>
+            <div className="flex items-center gap-2">
+                 <Button variant="outline" size="sm" onClick={() => setIsFilterOpen(!isFilterOpen)}>
+                    <Filter className="mr-2 h-4 w-4"/> Filter Report
+                </Button>
+                <Button variant="default" size="sm" onClick={handleDownload} disabled={records.length === 0 || isDownloading}>
+                    {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4"/>} Download CSV
+                </Button>
+            </div>
         </CardHeader>
-        <CardContent>
+
+        <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+            <CollapsibleContent>
+                <Separator />
+                <div className="p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <Button id="date" variant={"outline"} className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {date?.from ? (date.to ? (<>{format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}</>) : (format(date.from, "LLL dd, y"))) : (<span>Pick a date range</span>)}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                        </PopoverContent>
+                        </Popover>
+                        <Select value={type} onValueChange={setType}>
+                        <SelectTrigger><SelectValue placeholder="Filter by Type" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="sale">Sale</SelectItem>
+                            <SelectItem value="purchase">Purchase</SelectItem>
+                            <SelectItem value="new">New Product</SelectItem>
+                            <SelectItem value="update">Update</SelectItem>
+                            <SelectItem value="delete">Delete</SelectItem>
+                            <SelectItem value="sale_return">Sale Return</SelectItem>
+                            <SelectItem value="purchase_return">Purchase Return</SelectItem>
+                            <SelectItem value="credit_settled">Credit Settle</SelectItem>
+                            <SelectItem value="check_cleared">Check Cleared</SelectItem>
+                            <SelectItem value="check_rejected">Check Rejected</SelectItem>
+                        </SelectContent>
+                        </Select>
+                        <Select value={productId} onValueChange={setProductId}>
+                        <SelectTrigger><SelectValue placeholder="Filter by Product" /></SelectTrigger>
+                        <SelectContent>{products.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent>
+                        </Select>
+                        <Select value={partyId} onValueChange={setPartyId}>
+                        <SelectTrigger><SelectValue placeholder="Filter by Customer/Supplier" /></SelectTrigger>
+                        <SelectContent>{allParties.map(p => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}</SelectContent>
+                        </Select>
+                        <div className="flex gap-2">
+                        <Button onClick={handleGenerateReport} disabled={isPending} className="w-full">
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />} Apply
+                        </Button>
+                        <Button onClick={clearFilters} variant="ghost" disabled={isPending} className="w-full">
+                            <X className="mr-2 h-4 w-4" /> Clear
+                        </Button>
+                        </div>
+                    </div>
+                </div>
+            </CollapsibleContent>
+        </Collapsible>
+        
+        <CardContent className="p-0">
             <ScrollArea className="h-[60vh] border-t">
                  {isPending ? (
-                    <div className="space-y-4 p-4">
-                        {Array.from({ length: 5 }).map((_, i) => (<Skeleton key={i} className="h-12 w-full" />))}
+                    <div className="space-y-px p-0">
+                        {Array.from({ length: 10 }).map((_, i) => (<Skeleton key={i} className="h-14 w-full" />))}
                     </div>
                 ) : records.length > 0 ? (
                     <Table>
@@ -339,15 +346,12 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                         ))}
                     </Table>
                 ) : (
-                    <div className="h-24 text-center flex items-center justify-center text-muted-foreground">
-                        No records found for the selected filters.
+                    <div className="h-48 text-center flex items-center justify-center text-muted-foreground">
+                        <p>No records found for the selected filters.</p>
                     </div>
                 )}
             </ScrollArea>
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   );
 }
-
-    
