@@ -5,22 +5,36 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { redirect } from 'next/navigation';
+import { getFirebaseServices } from './firebase';
+import { collection, query, where, getDocs, limit, setDoc, doc } from 'firebase/firestore';
 
 const secretKey = process.env.SESSION_SECRET || 'fallback-secret-key-for-session'
 const key = new TextEncoder().encode(secretKey)
-
-// --- Hardcoded Users ---
-const users = [
-    { id: '1', name: 'Admin', username: 'superadmin', password: 'storeflexadmin', role: 'admin' },
-    { id: '2', name: 'Sales Associate', username: 'sales', password: 'storeflexsales', role: 'sales' },
-]
-// -----------------------
 
 export interface User {
     id: string;
     name: string;
     username: string;
     role: 'admin' | 'sales';
+}
+
+
+async function initializeHardcodedUsers() {
+    const { db } = getFirebaseServices();
+    const usersCollection = collection(db, 'users');
+
+    const adminUserRef = doc(db, 'users', '1');
+    const salesUserRef = doc(db, 'users', '2');
+
+    const adminDoc = await getDocs(query(usersCollection, where('username', '==', 'superadmin'), limit(1)));
+    if (adminDoc.empty) {
+        await setDoc(adminUserRef, { id: '1', name: 'Admin', username: 'superadmin', password: 'storeflexadmin', role: 'admin' });
+    }
+
+    const salesDoc = await getDocs(query(usersCollection, where('username', '==', 'sales'), limit(1)));
+    if (salesDoc.empty) {
+        await setDoc(salesUserRef, { id: '2', name: 'Sales Associate', username: 'sales', password: 'storeflexsales', role: 'sales' });
+    }
 }
 
 
@@ -45,6 +59,7 @@ export async function decrypt(input: string): Promise<any> {
 }
 
 export async function login(prevState: { error: string | undefined } | null, formData: FormData) {
+  const { db } = getFirebaseServices();
   const username = formData.get('username') as string
   const password = formData.get('password') as string
 
@@ -52,10 +67,22 @@ export async function login(prevState: { error: string | undefined } | null, for
       return { error: 'Username and password are required.'}
   }
 
-  const user = users.find((u) => u.username === username && u.password === password)
+  // Ensure default users exist
+  await initializeHardcodedUsers();
 
-  if (!user) {
-    return { error: 'Invalid username or password.' }
+  const usersCollection = collection(db, 'users');
+  const q = query(usersCollection, where('username', '==', username), limit(1));
+  const querySnapshot = await getDocs(q);
+
+  if (querySnapshot.empty) {
+      return { error: 'Invalid username or password.' };
+  }
+  
+  const userDoc = querySnapshot.docs[0];
+  const user = userDoc.data();
+
+  if (user.password !== password) {
+      return { error: 'Invalid username or password.' };
   }
 
   const expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours

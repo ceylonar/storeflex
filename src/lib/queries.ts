@@ -1827,57 +1827,26 @@ export async function updateUserProfile(data: z.infer<typeof UserProfileSchema>)
     }
 }
 
+export async function updateUserCredentials(userId: string, password: string):Promise<void> {
+    const { db } = getFirebaseServices();
+    const currentUser = await getCurrentUserId();
+    if (!currentUser || currentUser !== '1') throw new Error("Unauthorized");
 
-export async function manageUser(formData: FormData): Promise<{success: boolean, message: string}> {
-  const { db } = getFirebaseServices();
-  const currentUserId = await getCurrentUserId();
-  if (!currentUserId) return { success: false, message: 'User not authenticated.' };
+    if(!password) throw new Error("Password cannot be empty.");
 
-  // This is a simplified user management. In a real app, use Firebase Auth.
-  const id = formData.get('id') as string | null;
-  const name = formData.get('name') as string;
-  const email = formData.get('email') as string;
-  const role = formData.get('role') as string;
-  const password = formData.get('password') as string;
-
-  if (!name || !email || !role) {
-    return { success: false, message: 'Name, email, and role are required.' };
-  }
-
-  try {
-    if (id) { // Edit existing user
-      const userRef = doc(db, 'users', id);
-      const updateData: any = { name, email, role };
-      if (password) {
-        updateData.password = password; // In a real app, hash this
-      }
-      await updateDoc(userRef, updateData);
-    } else { // Add new user
-      if (!password) return { success: false, message: 'Password is required for new users.' };
-      await addDoc(collection(db, 'users'), {
-        name,
-        email,
-        role,
-        password, // In a real app, hash this
-        createdBy: currentUserId
-      });
-    }
-    revalidatePath('/dashboard/account');
-    return { success: true, message: `User ${id ? 'updated' : 'created'} successfully.` };
-  } catch (error) {
-    console.error("User management error:", error);
-    return { success: false, message: "Failed to manage user." };
-  }
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, { password });
 }
+
 
 export async function fetchAllUsers(): Promise<UserProfile[]> {
     noStore();
     const { db } = getFirebaseServices();
-    const currentUserId = await getCurrentUserId();
-    if (!currentUserId) return [];
+    const currentUser = await getUser();
+    if (!currentUser) return [];
 
     try {
-        const usersSnapshot = await getDocs(query(collection(db, 'users'), where('createdBy', '==', currentUserId)));
+        const usersSnapshot = await getDocs(query(collection(db, 'users')));
         return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
     } catch(error) {
         console.error("Fetch all users error:", error);

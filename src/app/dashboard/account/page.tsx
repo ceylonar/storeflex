@@ -6,6 +6,7 @@ import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { UserManagement } from "@/components/account/user-management";
 import { Separator } from "@/components/ui/separator";
+import { PasswordManagement } from "@/components/account/password-management";
 
 
 export default async function AccountPage() {
@@ -33,7 +34,7 @@ export default async function AccountPage() {
 
       <Separator />
 
-      <UserManagement initialUsers={allUsers} />
+      <PasswordManagement users={allUsers} />
     </div>
   );
 }
