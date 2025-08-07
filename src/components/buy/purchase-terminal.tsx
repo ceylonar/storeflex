@@ -63,6 +63,7 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
   const [serviceCharge, setServiceCharge] = React.useState(0);
   const [lastCompletedPurchase, setLastCompletedPurchase] = React.useState<Purchase | null>(null);
   const [isAddProductOpen, setIsAddProductOpen] = React.useState(false);
+  const [lastAddedItemId, setLastAddedItemId] = React.useState<string | null>(null);
   const addProductFormRef = React.useRef<HTMLFormElement>(null);
 
 
@@ -71,6 +72,17 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
   const [checkNumber, setCheckNumber] = React.useState('');
 
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    if (lastAddedItemId) {
+      const input = document.getElementById(`quantity-${lastAddedItemId}`);
+      if (input) {
+        (input as HTMLInputElement).focus();
+        (input as HTMLInputElement).select();
+      }
+      setLastAddedItemId(null); 
+    }
+  }, [lastAddedItemId]);
 
   const handleSupplierCreated = (newSupplier: Supplier) => {
     setSuppliers(prev => [newSupplier, ...prev]);
@@ -84,17 +96,23 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
   );
 
   const addToCart = (product: ProductSelect) => {
-    setCart((prevCart) => [
-      ...prevCart,
-      {
-        id: product.id,
-        name: product.name,
-        image: product.image,
-        quantity: 1,
-        cost_price: product.cost_price || 0,
-        total_cost: product.cost_price || 0,
-      },
-    ]);
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+      updateCartItem(product.id, 'quantity', existingItem.quantity + 1);
+    } else {
+        setCart((prevCart) => [
+          ...prevCart,
+          {
+            id: product.id,
+            name: product.name,
+            image: product.image,
+            quantity: 1,
+            cost_price: product.cost_price || 0,
+            total_cost: product.cost_price || 0,
+          },
+        ]);
+        setLastAddedItemId(product.id);
+    }
   };
 
   const updateCartItem = (productId: string, field: 'quantity' | 'cost_price', value: number) => {
@@ -102,11 +120,14 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
       prevCart.map((item) => {
         if (item.id === productId) {
           const updatedItem = { ...item, [field]: value };
+          if (field === 'quantity' && value < 1) {
+            return null; // Mark for removal
+          }
           updatedItem.total_cost = updatedItem.quantity * updatedItem.cost_price;
           return updatedItem;
         }
         return item;
-      })
+      }).filter(Boolean) as PurchaseItem[] // Remove null items
     );
   };
   
@@ -406,8 +427,10 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
                                   id={`quantity-${item.id}`}
                                   type="number"
                                   value={item.quantity}
-                                  onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                  onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
+                                  onFocus={(e) => e.target.select()}
                                   className="h-8"
+                                  min="1"
                               />
                           </div>
                           <div className="space-y-1">
@@ -723,5 +746,7 @@ export function PurchaseTerminal({ products: initialProducts, initialSuppliers }
     
 
       
+
+    
 
     
