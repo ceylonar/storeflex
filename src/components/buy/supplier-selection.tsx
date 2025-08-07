@@ -98,15 +98,7 @@ export function SupplierSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command onValueChange={handleSelect} filter={(value, search) => {
-                const supplier = suppliers.find(c => c.id === value);
-                const name = supplier?.name || '';
-                const phone = supplier?.phone || '';
-                if (name.toLowerCase().includes(search.toLowerCase()) || phone.includes(search)) {
-                    return 1;
-                }
-                return 0;
-             }}>
+             <Command onValueChange={handleSelect}>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList className="max-h-[300px]">
                    <CommandEmpty>No supplier found.</CommandEmpty>
@@ -117,10 +109,7 @@ export function SupplierSelection({
                         value={supplier.id}
                       >
                          <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0")} />
-                        <span>
-                          {supplier.name}
-                          <span className="ml-2 text-xs text-muted-foreground">{supplier.phone}</span>
-                        </span>
+                        {supplier.name} - {supplier.phone}
                       </CommandItem>
                     ))}
                   </CommandGroup>
