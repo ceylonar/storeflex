@@ -65,6 +65,7 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
   const [isAddProductOpen, setIsAddProductOpen] = React.useState(false);
   const [lastAddedItemId, setLastAddedItemId] = React.useState<string | null>(null);
   const addProductFormRef = React.useRef<HTMLFormElement>(null);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
 
   const [paymentMethod, setPaymentMethod] = React.useState<'cash' | 'credit' | 'check'>('cash');
@@ -247,6 +248,13 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
     onPurchaseComplete();
   }
 
+  const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+  };
+
   return (
     <>
       <Dialog open={!!lastCompletedPurchase} onOpenChange={(isOpen) => !isOpen && handleStartNewPurchase()}>
@@ -341,6 +349,7 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
+                  ref={searchInputRef}
                   placeholder="Search for products..."
                   className="w-full pl-8 sm:w-80"
                   value={searchTerm}
@@ -429,6 +438,7 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
                                   value={item.quantity}
                                   onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
                                   onFocus={(e) => e.target.select()}
+                                  onKeyDown={handleQuantityKeyDown}
                                   className="h-8"
                                   min="1"
                               />

@@ -333,6 +333,13 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
     onSaleComplete();
   }
 
+  const handleQuantityKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+  };
+
   return (
     <>
       <Dialog open={!!lastCompletedSale} onOpenChange={(isOpen) => !isOpen && handleStartNewSale()}>
@@ -477,6 +484,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                                             value={item.quantity}
                                             onChange={(e) => updateCartItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
                                             onFocus={(e) => e.target.select()}
+                                            onKeyDown={handleQuantityKeyDown}
                                             className="h-8 w-14 text-center"
                                             min="0"
                                         />
@@ -754,12 +762,25 @@ function ReturnsTerminal() {
 
 
 export function PointOfSaleTerminal({ products: initialProducts, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
-  // This function will be called to refresh all data after a sale is complete.
+  const [isMounted, setIsMounted] = React.useState(false);
+  
   const handleSaleComplete = async () => {
     // This is a placeholder for a more robust state management solution
     // For now, we'll just log that a re-fetch would happen here.
     console.log("A sale was completed. Data would be re-fetched here.");
   };
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+        <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+    );
+  }
 
   return (
     <Tabs defaultValue="sale" className="w-full">
@@ -784,3 +805,4 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     
 
     
+
