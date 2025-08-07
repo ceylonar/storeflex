@@ -2003,10 +2003,10 @@ export async function fetchExpenses(): Promise<Expense[]> {
 
   const { db } = getFirebaseServices();
   const expensesCollection = collection(db, 'expenses');
-  const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
+  const q = query(expensesCollection, where('userId', '==', userId));
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map(doc => {
+  const expenses = snapshot.docs.map(doc => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -2014,6 +2014,10 @@ export async function fetchExpenses(): Promise<Expense[]> {
       date: (data.date as Timestamp).toDate().toISOString(),
     } as Expense;
   });
+
+  expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  return expenses;
 }
 
 export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<ExpenseData[]> {
