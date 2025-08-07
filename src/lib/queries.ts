@@ -662,7 +662,11 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
     const { db } = getFirebaseServices();
     try {
         const salesCollection = collection(db, 'sales');
-        const q = query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
+        
+        const q = customerId === 'walk-in'
+            ? query(salesCollection, where('userId', '==', userId), where('customer_id', '==', null))
+            : query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
+
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
             const data = doc.data();

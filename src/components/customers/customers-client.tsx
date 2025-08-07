@@ -11,9 +11,14 @@ interface CustomersClientProps {
     initialCustomers: Customer[];
 }
 
+export type SelectableCustomer = Customer | {
+    id: 'walk-in';
+    name: string;
+}
+
 export function CustomersClient({ initialCustomers }: CustomersClientProps) {
     const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
-    const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = React.useState<SelectableCustomer | null>(null);
 
     const refreshCustomers = async () => {
         const updatedCustomers = await fetchCustomers();

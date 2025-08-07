@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, PlusCircle, Trash2, Pencil, History } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Trash2, Pencil, History, User } from 'lucide-react';
 import type { Customer } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Label } from '../ui/label';
@@ -48,6 +48,8 @@ import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { createCustomer, updateCustomer, deleteCustomer } from '@/lib/queries';
 import { cn } from '@/lib/utils';
+import type { SelectableCustomer } from './customers-client';
+
 
 type FormState = 'add' | 'edit';
 
@@ -59,7 +61,7 @@ const initialCustomerState: Partial<Customer> = {
 
 interface CustomersTableProps {
     customers: Customer[];
-    onViewHistory: (customer: Customer) => void;
+    onViewHistory: (customer: SelectableCustomer) => void;
     onCustomerCreated: (customer: Customer) => void;
     onCustomerUpdated: (customer: Customer) => void;
     onCustomerDeleted: (id: string) => void;
@@ -130,10 +132,16 @@ export function CustomersTable({ customers, onViewHistory, onCustomerCreated, on
                 <CardTitle>All Customers</CardTitle>
                 <CardDescription>A list of all customers in your records.</CardDescription>
             </div>
-            <Button size="sm" className="gap-1 w-full sm:w-auto" onClick={() => handleOpenDialog('add')}>
-              <PlusCircle className="h-4 w-4" />
-              Add Customer
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                 <Button size="sm" variant="outline" className="gap-1 w-full" onClick={() => onViewHistory({id: 'walk-in', name: 'Walk-in Customer'})}>
+                    <User className="h-4 w-4" />
+                    View Walk-in History
+                </Button>
+                <Button size="sm" className="gap-1 w-full" onClick={() => handleOpenDialog('add')}>
+                    <PlusCircle className="h-4 w-4" />
+                    Add Customer
+                </Button>
+            </div>
         </div>
       </CardHeader>
       <CardContent>

@@ -30,10 +30,11 @@ import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { FormattedDate } from '../ui/formatted-date';
+import type { SelectableCustomer } from './customers-client';
 
 
 interface SalesHistoryProps {
-    selectedCustomer: Customer | null;
+    selectedCustomer: SelectableCustomer | null;
 }
 
 export function SalesHistory({ selectedCustomer }: SalesHistoryProps) {
