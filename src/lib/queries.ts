@@ -26,7 +26,7 @@ import {
   collectionGroup,
   or,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem, Expense, ExpenseData } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -1957,4 +1957,139 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/inventory');
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
+}
+
+// --- EXPENSE QUERIES ---
+
+const ExpenseSchema = z.object({
+  type: z.string().min(1, 'Expense type is required'),
+  description: z.string().min(1, 'Description is required'),
+  amount: z.coerce.number().positive('Amount must be a positive number'),
+  date: z.string().refine((val) => !isNaN(Date.parse(val)), { message: "Invalid date" }),
+});
+
+export async function createExpense(formData: FormData): Promise<Expense> {
+  const { db } = getFirebaseServices();
+  const userId = await getCurrentUserId();
+  if (!userId) throw new Error("User not authenticated");
+
+  const validatedFields = ExpenseSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!validatedFields.success) {
+    throw new Error('Invalid expense data.');
+  }
+
+  const { date, ...expenseData } = validatedFields.data;
+
+  const docRef = await addDoc(collection(db, 'expenses'), {
+    ...expenseData,
+    date: Timestamp.fromDate(new Date(date)),
+    userId,
+  });
+  
+  revalidatePath('/dashboard/expenses');
+  
+  return {
+    ...validatedFields.data,
+    id: docRef.id,
+    userId,
+  };
+}
+
+
+export async function fetchExpenses(): Promise<Expense[]> {
+  noStore();
+  const userId = await getCurrentUserId();
+  if (!userId) return [];
+
+  const { db } = getFirebaseServices();
+  const expensesCollection = collection(db, 'expenses');
+  const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      date: (data.date as Timestamp).toDate().toISOString(),
+    } as Expense;
+  });
+}
+
+export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<ExpenseData[]> {
+    noStore();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const { db } = getFirebaseServices();
+    const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
+    const expensesSnapshot = await getDocs(expensesQuery);
+    const allExpenses = expensesSnapshot.docs.map(doc => doc.data() as Expense);
+
+    let aggregatedData: { [key: string]: number } = {};
+    const now = new Date();
+
+    if (filter === 'daily') {
+        const last7Days = Array.from({ length: 7 }, (_, i) => subDays(now, i)).reverse();
+        last7Days.forEach(date => aggregatedData[format(date, 'yyyy-MM-dd')] = 0);
+        
+        allExpenses.forEach(expense => {
+            const expenseDate = new Date(expense.date);
+            if (isWithinInterval(expenseDate, { start: last7Days[0], end: now })) {
+                const dayKey = format(expenseDate, 'yyyy-MM-dd');
+                aggregatedData[dayKey] = (aggregatedData[dayKey] || 0) + expense.amount;
+            }
+        });
+
+        return last7Days.map(date => ({
+            label: format(date, 'EEE'),
+            amount: aggregatedData[format(date, 'yyyy-MM-dd')] || 0,
+        }));
+
+    } else if (filter === 'weekly') {
+        const last4Weeks = Array.from({ length: 4 }, (_, i) => startOfWeek(subDays(now, i * 7))).reverse();
+        last4Weeks.forEach(date => aggregatedData[format(date, 'yyyy-ww')] = 0);
+        
+        allExpenses.forEach(expense => {
+            const expenseDate = new Date(expense.date);
+            if (isWithinInterval(expenseDate, { start: last4Weeks[0], end: now })) {
+                const weekKey = format(startOfWeek(expenseDate), 'yyyy-ww');
+                aggregatedData[weekKey] = (aggregatedData[weekKey] || 0) + expense.amount;
+            }
+        });
+
+         return last4Weeks.map(date => ({
+            label: `W${format(date, 'w')}`,
+            amount: aggregatedData[format(date, 'yyyy-ww')] || 0,
+        }));
+
+    } else if (filter === 'yearly') {
+        const dateLabels = Array.from({ length: 12 }, (_, i) => format(new Date(now.getFullYear(), i), 'MMM'));
+        dateLabels.forEach(label => aggregatedData[label] = 0);
+
+        allExpenses.forEach(expense => {
+            const expenseDate = new Date(expense.date);
+            if (isWithinInterval(expenseDate, { start: startOfYear(now), end: endOfYear(now) })) {
+                const monthKey = format(expenseDate, 'MMM');
+                aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + expense.amount;
+            }
+        });
+         return dateLabels.map(label => ({ label: label, amount: aggregatedData[label] || 0 }));
+    } else { // monthly (default)
+        const last6Months = Array.from({ length: 6 }, (_, i) => subMonths(now, i)).reverse();
+        last6Months.forEach(date => aggregatedData[format(date, 'yyyy-MM')] = 0);
+        
+        allExpenses.forEach(expense => {
+            const expenseDate = new Date(expense.date);
+            if (isWithinInterval(expenseDate, { start: last6Months[0], end: now })) {
+                const monthKey = format(expenseDate, 'yyyy-MM');
+                aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + expense.amount;
+            }
+        });
+        
+        return last6Months.map(date => ({
+            label: format(date, 'MMM'),
+            amount: aggregatedData[format(date, 'yyyy-MM')] || 0,
+        }));
+    }
 }

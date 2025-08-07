@@ -230,3 +230,17 @@ export type PurchaseReturn = {
     total_credit_amount: number;
     return_date?: string;
 }
+
+export type Expense = {
+  id: string;
+  userId: string;
+  type: string;
+  description: string;
+  amount: number;
+  date: string; // ISO String
+};
+
+export type ExpenseData = {
+  label: string;
+  amount: number;
+}

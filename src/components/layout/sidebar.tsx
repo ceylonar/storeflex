@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 import type { User } from '@/lib/auth';
@@ -16,6 +17,7 @@ const navigationLinks = [
   { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
   { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },
+  { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt, roles: ['admin'] },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
   { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
@@ -30,6 +32,7 @@ const icons: { [key: string]: React.ElementType } = {
   'Customers': Users,
   'Suppliers': Users,
   'Moneyflow': Landmark,
+  'Expenses': Receipt,
   'Reports': FileText,
   'Price Optimizer': Lightbulb,
   'About': HelpCircle,
