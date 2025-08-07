@@ -765,7 +765,7 @@ function ReturnsTerminal() {
 }
 
 
-export function PointOfSaleTerminal({ initialProducts, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
+export function PointOfSaleTerminal({ products, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
   const [isMounted, setIsMounted] = React.useState(false);
   
   const handleSaleComplete = async () => {
@@ -794,7 +794,7 @@ export function PointOfSaleTerminal({ initialProducts, initialCustomers }: { pro
         </TabsList>
         <TabsContent value="sale">
             <SaleTerminalInternal 
-                initialProducts={initialProducts} 
+                initialProducts={products} 
                 initialCustomers={initialCustomers} 
                 onSaleComplete={handleSaleComplete}
             />
