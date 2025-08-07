@@ -32,7 +32,12 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ClipboardList, PlusCircle, Trash2, Loader2, Package, ShoppingCart } from 'lucide-react';
+import { ClipboardList, PlusCircle, Trash2, Loader2, Package, ShoppingCart, Calendar as CalendarIcon } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format, isBefore, startOfToday, isToday } from 'date-fns';
+
 
 import { useToast } from '@/hooks/use-toast';
 import type { ProductSelect, Customer, Supplier, SalesOrder, PurchaseOrder, OrderItem } from '@/lib/types';
@@ -49,6 +54,7 @@ function CreateSalesOrder({ products, customers, onOrderCreated }: { products: P
     const [cart, setCart] = React.useState<OrderItem[]>([]);
     const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
     const [allCustomers, setAllCustomers] = React.useState(customers);
+    const [dueDate, setDueDate] = React.useState<Date | undefined>();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const { toast } = useToast();
 
@@ -105,6 +111,7 @@ function CreateSalesOrder({ products, customers, onOrderCreated }: { products: P
                 customer_name: selectedCustomer.name,
                 subtotal: subtotal,
                 total_amount: subtotal, // simplified for now
+                dueDate: dueDate?.toISOString()
             };
             const newOrder = await createSalesOrder(orderData);
             if(newOrder) {
@@ -112,6 +119,7 @@ function CreateSalesOrder({ products, customers, onOrderCreated }: { products: P
                 onOrderCreated(newOrder);
                 setCart([]);
                 setSelectedCustomer(null);
+                setDueDate(undefined);
             }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
@@ -146,6 +154,31 @@ function CreateSalesOrder({ products, customers, onOrderCreated }: { products: P
                 <CardHeader><CardTitle>New Sales Order</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <CustomerSelection customers={allCustomers} selectedCustomer={selectedCustomer} onSelectCustomer={setSelectedCustomer} onCustomerCreated={handleCustomerCreated} />
+                     <div className="space-y-2">
+                        <Label>Due Date (Optional)</Label>
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !dueDate && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={dueDate}
+                                onSelect={setDueDate}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                     <ScrollArea className="h-[40vh] border-y py-2">
                         {cart.length > 0 ? cart.map(item => (
                             <div key={item.id} className="flex items-center gap-2 py-2 border-b">
@@ -174,6 +207,7 @@ function CreatePurchaseOrder({ products, suppliers, onOrderCreated }: { products
     const [cart, setCart] = React.useState<OrderItem[]>([]);
     const [selectedSupplier, setSelectedSupplier] = React.useState<Supplier | null>(null);
     const [allSuppliers, setAllSuppliers] = React.useState(suppliers);
+    const [dueDate, setDueDate] = React.useState<Date | undefined>();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const { toast } = useToast();
     
@@ -226,6 +260,7 @@ function CreatePurchaseOrder({ products, suppliers, onOrderCreated }: { products
                 supplier_name: selectedSupplier.name,
                 subtotal,
                 total_amount: subtotal,
+                dueDate: dueDate?.toISOString()
             };
             const newOrder = await createPurchaseOrder(orderData);
             if(newOrder) {
@@ -233,6 +268,7 @@ function CreatePurchaseOrder({ products, suppliers, onOrderCreated }: { products
                 onOrderCreated(newOrder);
                 setCart([]);
                 setSelectedSupplier(null);
+                setDueDate(undefined);
             }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
@@ -267,6 +303,31 @@ function CreatePurchaseOrder({ products, suppliers, onOrderCreated }: { products
                 <CardHeader><CardTitle>New Purchase Order</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                     <SupplierSelection suppliers={allSuppliers} selectedSupplier={selectedSupplier} onSelectSupplier={setSelectedSupplier} onSupplierCreated={handleSupplierCreated} />
+                     <div className="space-y-2">
+                        <Label>Due Date (Optional)</Label>
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant={"outline"}
+                                className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !dueDate && "text-muted-foreground"
+                                )}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dueDate ? format(dueDate, "PPP") : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar
+                                mode="single"
+                                selected={dueDate}
+                                onSelect={setDueDate}
+                                initialFocus
+                            />
+                        </PopoverContent>
+                        </Popover>
+                    </div>
                     <ScrollArea className="h-[40vh] border-y py-2">
                         {cart.length > 0 ? cart.map(item => (
                              <div key={item.id} className="flex items-center gap-2 py-2 border-b">
@@ -310,6 +371,20 @@ function PendingOrders({ initialOrders, onOrderProcessed }: { initialOrders: Com
             setProcessingId(null);
         }
     }
+
+    const getDueDateBadgeClass = (dueDate: string | undefined): string => {
+        if (!dueDate) return '';
+        const today = startOfToday();
+        const date = new Date(dueDate);
+
+        if (isBefore(date, today)) {
+            return 'bg-destructive/20 text-destructive border-destructive/50';
+        }
+        if (isToday(date)) {
+            return 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/50';
+        }
+        return '';
+    }
     
     return (
         <Card>
@@ -336,6 +411,11 @@ function PendingOrders({ initialOrders, onOrderProcessed }: { initialOrders: Com
                                             <p className="font-bold">LKR {order.total_amount.toFixed(2)}</p>
                                             <p className="text-sm text-muted-foreground"><FormattedDate timestamp={order.order_date} /></p>
                                         </div>
+                                         {order.dueDate && (
+                                            <Badge variant="outline" className={cn("ml-4", getDueDateBadgeClass(order.dueDate))}>
+                                                Due: <FormattedDate timestamp={order.dueDate} formatString="MMM dd" />
+                                            </Badge>
+                                        )}
                                     </div>
                                 </AccordionTrigger>
                                 <AccordionContent className="p-4 bg-muted/50">

@@ -274,6 +274,7 @@ export type SalesOrder = {
   service_charge: number;
   total_amount: number;
   order_date: string; // ISO String
+  dueDate?: string; // ISO String
   status: 'pending' | 'completed' | 'cancelled';
 };
 
@@ -291,5 +292,6 @@ export type PurchaseOrder = {
   service_charge: number;
   total_amount: number;
   order_date: string; // ISO String
+  dueDate?: string; // ISO String
   status: 'pending' | 'completed' | 'cancelled';
 };

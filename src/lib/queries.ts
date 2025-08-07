@@ -143,6 +143,7 @@ const SalesOrderSchema = z.object({
   customer_name: z.string(),
   subtotal: z.number(),
   total_amount: z.number(),
+  dueDate: z.string().optional(),
 });
 
 const PurchaseOrderSchema = z.object({
@@ -151,6 +152,7 @@ const PurchaseOrderSchema = z.object({
   supplier_name: z.string(),
   subtotal: z.number(),
   total_amount: z.number(),
+  dueDate: z.string().optional(),
 });
 
 
@@ -1863,7 +1865,19 @@ export async function updateUserCredentials(userId: string, password: string):Pr
     if(!password) throw new Error("Password cannot be empty.");
 
     const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, { password });
+    const plainData: any = {};
+    const docSnap = await getDoc(userRef)
+    if (docSnap.exists()) {
+        const data = docSnap.data()
+        for (const key in data) {
+            if (data[key] instanceof Timestamp) {
+                plainData[key] = data[key].toDate().toISOString();
+            } else {
+                plainData[key] = data[key];
+            }
+        }
+    }
+    await updateDoc(userRef, { ...plainData, password });
 }
 
 
