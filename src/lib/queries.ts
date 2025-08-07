@@ -1080,6 +1080,7 @@ export async function fetchDashboardData() {
     const defaultData = {
         inventoryValue: 0,
         productCount: 0,
+        serviceCount: 0,
         salesToday: 0,
         totalSales: 0,
         totalReceivables: 0,
@@ -1107,11 +1108,18 @@ export async function fetchDashboardData() {
         ]);
         
         let inventoryValue = 0;
+        let productCount = 0;
+        let serviceCount = 0;
         const allProducts: Product[] = [];
 
         productsSnapshot.forEach(doc => {
             const product = { id: doc.id, ...doc.data() } as Omit<Product, 'created_at' | 'updated_at'> & { created_at: Timestamp, updated_at: Timestamp };
-            inventoryValue += (product.stock || 0) * (product.cost_price || 0);
+            if (product.type === 'product') {
+                inventoryValue += (product.stock || 0) * (product.cost_price || 0);
+                productCount++;
+            } else {
+                serviceCount++;
+            }
             allProducts.push({
                 ...product,
                 created_at: product.created_at?.toDate().toISOString() || new Date().toISOString(),
@@ -1119,9 +1127,8 @@ export async function fetchDashboardData() {
             });
         });
 
-        const productCount = productsSnapshot.size;
         const lowStockProducts = allProducts
-            .filter(p => p.stock < p.low_stock_threshold)
+            .filter(p => p.type === 'product' && p.stock < p.low_stock_threshold)
             .sort((a, b) => a.stock - b.stock)
             .slice(0, 5)
             .map(p => ({
@@ -1181,6 +1188,7 @@ export async function fetchDashboardData() {
         return {
             inventoryValue,
             productCount,
+            serviceCount,
             salesToday,
             totalSales,
             totalReceivables,
@@ -1950,5 +1958,3 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
-
-    

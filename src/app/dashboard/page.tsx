@@ -20,7 +20,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <StatCard 
           title="Inventory Value" 
           value={`LKR ${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
@@ -31,7 +31,13 @@ export default async function DashboardPage() {
           title="Total Products" 
           value={dashboardData.productCount.toString()} 
           iconName="Package" 
-          description="Across all categories" 
+          description="Count of physical products" 
+        />
+        <StatCard 
+          title="Total Services" 
+          value={dashboardData.serviceCount.toString()} 
+          iconName="Briefcase" 
+          description="Count of offered services" 
         />
         <StatCard 
           title="Sales (Today)" 
