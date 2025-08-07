@@ -1159,12 +1159,21 @@ export async function fetchDashboardData() {
 
         let recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
-          return {
+          const activity: RecentActivity = {
             ...data,
             id: doc.id,
             timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+          } as RecentActivity;
+
+          if (activity.type === 'loss' && activity.transaction) {
+              const tx = activity.transaction as Expense;
+              activity.transaction = {
+                  ...tx,
+                  date: (tx.date as any as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+              }
           }
-        }) as RecentActivity[];
+          return activity;
+        });
         
         recentActivities = recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         const limitedActivities = recentActivities.slice(0, 5);
