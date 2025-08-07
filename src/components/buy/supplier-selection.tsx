@@ -100,7 +100,7 @@ export function SupplierSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command 
+             <Command
                 value={comboboxValue}
                 onValueChange={handleSelect}
              >
