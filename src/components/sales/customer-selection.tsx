@@ -102,7 +102,15 @@ export function CustomerSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command onValueChange={handleSelect}>
+             <Command onValueChange={handleSelect} filter={(value, search) => {
+                const customer = customers.find(c => c.id === value);
+                const name = customer?.name || '';
+                const phone = customer?.phone || '';
+                if (name.toLowerCase().includes(search.toLowerCase()) || phone.includes(search)) {
+                    return 1;
+                }
+                return 0;
+             }}>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList className="max-h-[300px]">
                 <CommandEmpty>No customer found.</CommandEmpty>
@@ -119,10 +127,10 @@ export function CustomerSelection({
                       value={customer.id}
                     >
                       <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === customer.id ? "opacity-100" : "opacity-0")} />
-                      <div>
-                        <p>{customer.name}</p>
-                        <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                      </div>
+                      <span>
+                        {customer.name}
+                        <span className="ml-2 text-xs text-muted-foreground">{customer.phone}</span>
+                      </span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
