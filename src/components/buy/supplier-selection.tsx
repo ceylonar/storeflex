@@ -49,6 +49,7 @@ export function SupplierSelection({
 }: SupplierSelectionProps) {
   const [isSelectOpen, setIsSelectOpen] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [comboboxValue, setComboboxValue] = React.useState('');
   const addSupplierFormRef = React.useRef<HTMLFormElement>(null);
   const { toast } = useToast();
 
@@ -72,6 +73,7 @@ export function SupplierSelection({
   };
   
   const handleSelect = (value: string) => {
+    setComboboxValue(value);
     const supplier = suppliers.find(s => s.id.toLowerCase() === value.toLowerCase());
     onSelectSupplier(supplier || null);
     setIsSelectOpen(false);
@@ -98,9 +100,12 @@ export function SupplierSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command onValueChange={handleSelect}>
+             <Command 
+                value={comboboxValue}
+                onValueChange={handleSelect}
+             >
               <CommandInput placeholder="Search by name or phone..." />
-              <CommandList className="max-h-[300px]">
+              <CommandList>
                    <CommandEmpty>No supplier found.</CommandEmpty>
                    <CommandGroup>
                     {suppliers.map((supplier) => (

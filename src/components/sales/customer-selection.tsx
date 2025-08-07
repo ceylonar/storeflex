@@ -49,6 +49,7 @@ export function CustomerSelection({
 }: CustomerSelectionProps) {
   const [isSelectOpen, setIsSelectOpen] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [comboboxValue, setComboboxValue] = React.useState('');
   const addCustomerFormRef = React.useRef<HTMLFormElement>(null);
   const { toast } = useToast();
 
@@ -72,6 +73,7 @@ export function CustomerSelection({
   };
   
   const handleSelect = (value: string) => {
+    setComboboxValue(value);
     if (value === 'walk-in') {
         onSelectCustomer(null);
     } else {
@@ -102,9 +104,12 @@ export function CustomerSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command onValueChange={handleSelect}>
+             <Command
+                value={comboboxValue}
+                onValueChange={handleSelect}
+              >
               <CommandInput placeholder="Search by name or phone..." />
-              <CommandList className="max-h-[300px]">
+              <CommandList>
                 <CommandEmpty>No customer found.</CommandEmpty>
                 <CommandGroup>
                   <CommandItem
