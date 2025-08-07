@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -30,7 +31,8 @@ import { Label } from '@/components/ui/label';
 import { createSupplier } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Supplier } from '@/lib/types';
-import { UserPlus, ChevronsUpDown } from 'lucide-react';
+import { UserPlus, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface SupplierSelectionProps {
   suppliers: Supplier[];
@@ -68,6 +70,12 @@ export function SupplierSelection({
       });
     }
   };
+  
+  const handleSelect = (value: string) => {
+    const supplier = suppliers.find(s => s.id.toLowerCase() === value.toLowerCase());
+    onSelectSupplier(supplier || null);
+    setIsSelectOpen(false);
+  }
 
   return (
     <div className="space-y-2">
@@ -90,7 +98,7 @@ export function SupplierSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command>
+             <Command onValueChange={handleSelect}>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList className="max-h-[300px]">
                    <CommandEmpty>No supplier found.</CommandEmpty>
@@ -98,12 +106,9 @@ export function SupplierSelection({
                     {suppliers.map((supplier) => (
                       <CommandItem
                         key={supplier.id}
-                        value={`${supplier.name} ${supplier.phone}`}
-                        onSelect={() => {
-                          onSelectSupplier(supplier);
-                          setIsSelectOpen(false);
-                        }}
+                        value={supplier.id}
                       >
+                         <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0")} />
                         <div>
                           <p>{supplier.name}</p>
                           <p className="text-xs text-muted-foreground">{supplier.phone}</p>

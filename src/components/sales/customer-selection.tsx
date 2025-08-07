@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -30,7 +31,8 @@ import { Label } from '@/components/ui/label';
 import { createCustomer } from '@/lib/queries';
 import { useToast } from '@/hooks/use-toast';
 import type { Customer } from '@/lib/types';
-import { UserPlus, ChevronsUpDown } from 'lucide-react';
+import { UserPlus, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface CustomerSelectionProps {
   customers: Customer[];
@@ -68,6 +70,16 @@ export function CustomerSelection({
       });
     }
   };
+  
+  const handleSelect = (value: string) => {
+    if (value === 'walk-in') {
+        onSelectCustomer(null);
+    } else {
+        const customer = customers.find(c => c.id.toLowerCase() === value.toLowerCase());
+        onSelectCustomer(customer || null);
+    }
+    setIsSelectOpen(false);
+  }
 
   return (
     <div className="space-y-2">
@@ -90,29 +102,23 @@ export function CustomerSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command>
+             <Command onValueChange={handleSelect}>
               <CommandInput placeholder="Search by name or phone..." />
               <CommandList className="max-h-[300px]">
                 <CommandEmpty>No customer found.</CommandEmpty>
                 <CommandGroup>
                   <CommandItem
                       value="walk-in"
-                      onSelect={() => {
-                        onSelectCustomer(null);
-                        setIsSelectOpen(false);
-                      }}
                     >
+                     <Check className={cn("mr-2 h-4 w-4", !selectedCustomer ? "opacity-100" : "opacity-0")} />
                      Walk-in Customer
                     </CommandItem>
                   {customers.map((customer) => (
                     <CommandItem
                       key={customer.id}
-                      value={`${customer.name} ${customer.phone}`}
-                      onSelect={() => {
-                        onSelectCustomer(customer);
-                        setIsSelectOpen(false);
-                      }}
+                      value={customer.id}
                     >
+                      <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === customer.id ? "opacity-100" : "opacity-0")} />
                       <div>
                         <p>{customer.name}</p>
                         <p className="text-xs text-muted-foreground">{customer.phone}</p>
