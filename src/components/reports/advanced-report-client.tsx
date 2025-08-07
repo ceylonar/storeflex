@@ -25,6 +25,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -37,7 +45,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight } from 'lucide-react';
+import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight, ChevronsUpDown, Check } from 'lucide-react';
 import type { ProductSelect, DetailedRecord, Customer, Supplier } from '@/lib/types';
 import { fetchInventoryRecords } from '@/lib/queries';
 import { format } from 'date-fns';
@@ -97,8 +105,11 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(true);
   const { toast } = useToast();
+  
+  const [productSearchOpen, setProductSearchOpen] = useState(false);
+  const [partySearchOpen, setPartySearchOpen] = useState(false);
 
   const handleGenerateReport = () => {
     startTransition(async () => {
@@ -142,14 +153,14 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
             const commonData = [
-                rec.id, // Use the human-readable ID
+                rec.id, 
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 `"${rec.type.replace(/_/g, ' ')}"`,
                 `"${rec.partyName || 'N/A'}"`,
             ];
 
             const trans = rec.transaction as any;
-            if (rec.items && rec.items.length > 0) {
+             if (rec.items && rec.items.length > 0) {
                 return rec.items.map(item => {
                     const paymentMethod = trans?.paymentMethod || (rec.type.includes('return') ? (trans?.refund_method || 'credit_balance') : 'N/A');
                     const amountPaid = trans?.amountPaid?.toFixed(2) || '0.00';
@@ -167,7 +178,6 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 });
             }
 
-            // Handle non-item activities like product creation or credit settlements
             const details = trans?.details || rec.details || '';
             const amountPaid = trans?.amountPaid?.toFixed(2) || (trans?.total_amount ? trans.total_amount.toFixed(2) : 'N/A');
             const balanceChange = trans?.creditAmount?.toFixed(2) || '0.00';
@@ -251,14 +261,75 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                             <SelectItem value="check_rejected">Check Rejected</SelectItem>
                         </SelectContent>
                         </Select>
-                        <Select value={productId} onValueChange={setProductId}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Product" /></SelectTrigger>
-                        <SelectContent>{products.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent>
-                        </Select>
-                        <Select value={partyId} onValueChange={setPartyId}>
-                        <SelectTrigger><SelectValue placeholder="Filter by Customer/Supplier" /></SelectTrigger>
-                        <SelectContent>{allParties.map(p => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}</SelectContent>
-                        </Select>
+                        
+                        <Popover open={productSearchOpen} onOpenChange={setProductSearchOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" aria-expanded={productSearchOpen} className="w-full justify-between">
+                                    <span className="truncate">
+                                        {productId ? products.find(p => p.id === productId)?.name : "Filter by Product"}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search product..." />
+                                    <CommandList>
+                                        <CommandEmpty>No product found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {products.map(p => (
+                                                <CommandItem
+                                                    key={p.id}
+                                                    value={p.id}
+                                                    onSelect={(currentValue) => {
+                                                        setProductId(currentValue === productId ? '' : currentValue);
+                                                        setProductSearchOpen(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", productId === p.id ? "opacity-100" : "opacity-0")} />
+                                                    {p.name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+
+                        <Popover open={partySearchOpen} onOpenChange={setPartySearchOpen}>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" role="combobox" aria-expanded={partySearchOpen} className="w-full justify-between">
+                                    <span className="truncate">
+                                        {partyId ? allParties.find(p => p.value === partyId)?.label : "Filter by Customer/Supplier"}
+                                    </span>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                <Command>
+                                    <CommandInput placeholder="Search party..." />
+                                    <CommandList>
+                                        <CommandEmpty>No party found.</CommandEmpty>
+                                        <CommandGroup>
+                                            {allParties.map(p => (
+                                                <CommandItem
+                                                    key={p.value}
+                                                    value={p.value}
+                                                    onSelect={(currentValue) => {
+                                                        setPartyId(currentValue === partyId ? '' : currentValue);
+                                                        setPartySearchOpen(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", partyId === p.value ? "opacity-100" : "opacity-0")} />
+                                                    {p.label}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+
                         <div className="flex gap-2">
                         <Button onClick={handleGenerateReport} disabled={isPending} className="w-full">
                             {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />} Apply
