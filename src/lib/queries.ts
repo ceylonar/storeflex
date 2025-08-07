@@ -89,7 +89,7 @@ const SaleItemSchema = z.object({
     quantity: z.number().int().positive(),
     price_per_unit: z.number().positive(),
     total_amount: z.number().positive(),
-    stock: z.number().int().nonnegative(),
+    stock: z.number().int().nonnegative().optional(),
     sub_category: z.string().optional(),
 });
 
@@ -1622,7 +1622,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number): Promise<{success: boolean, message: string}> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
-    if (!userId) return { success: false, message: 'User ID not found.' };
+    if (!userId) return { success: false, message: 'User not authenticated.' };
     const settlementAmount = amount ?? transaction.amount;
 
     if (settlementAmount <= 0) return { success: false, message: 'Settlement amount must be positive.' };
