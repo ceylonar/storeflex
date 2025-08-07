@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -49,7 +48,6 @@ export function CustomerSelection({
 }: CustomerSelectionProps) {
   const [isSelectOpen, setIsSelectOpen] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
-  const [comboboxValue, setComboboxValue] = React.useState('');
   const addCustomerFormRef = React.useRef<HTMLFormElement>(null);
   const { toast } = useToast();
 
@@ -72,12 +70,12 @@ export function CustomerSelection({
     }
   };
   
-  const handleSelect = (value: string) => {
-    setComboboxValue(value);
+  const handleSelect = (currentValue: string) => {
+    const value = currentValue.toLowerCase();
     if (value === 'walk-in') {
         onSelectCustomer(null);
     } else {
-        const customer = customers.find(c => c.id.toLowerCase() === value.toLowerCase());
+        const customer = customers.find(c => c.id.toLowerCase() === value);
         onSelectCustomer(customer || null);
     }
     setIsSelectOpen(false);
@@ -104,17 +102,15 @@ export function CustomerSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command
-                value={comboboxValue}
-                onValueChange={handleSelect}
-              >
+             <Command>
               <CommandInput placeholder="Search by name or phone..." />
-              <CommandList>
+              <CommandList className="max-h-[300px]">
                 <CommandEmpty>No customer found.</CommandEmpty>
                 <CommandGroup>
                   <CommandItem
                       key="walk-in"
                       value="walk-in"
+                      onSelect={handleSelect}
                     >
                      <Check className={cn("mr-2 h-4 w-4", !selectedCustomer ? "opacity-100" : "opacity-0")} />
                      Walk-in Customer
@@ -123,6 +119,7 @@ export function CustomerSelection({
                     <CommandItem
                       key={customer.id}
                       value={customer.id}
+                      onSelect={handleSelect}
                     >
                       <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === customer.id ? "opacity-100" : "opacity-0")} />
                       {customer.name} - {customer.phone}

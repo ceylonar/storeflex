@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -49,7 +48,6 @@ export function SupplierSelection({
 }: SupplierSelectionProps) {
   const [isSelectOpen, setIsSelectOpen] = React.useState(false);
   const [isCreateOpen, setIsCreateOpen] = React.useState(false);
-  const [comboboxValue, setComboboxValue] = React.useState('');
   const addSupplierFormRef = React.useRef<HTMLFormElement>(null);
   const { toast } = useToast();
 
@@ -72,9 +70,9 @@ export function SupplierSelection({
     }
   };
   
-  const handleSelect = (value: string) => {
-    setComboboxValue(value);
-    const supplier = suppliers.find(s => s.id.toLowerCase() === value.toLowerCase());
+  const handleSelect = (currentValue: string) => {
+    const value = currentValue.toLowerCase();
+    const supplier = suppliers.find(s => s.id.toLowerCase() === value);
     onSelectSupplier(supplier || null);
     setIsSelectOpen(false);
   }
@@ -100,18 +98,16 @@ export function SupplierSelection({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-             <Command
-                value={comboboxValue}
-                onValueChange={handleSelect}
-             >
+             <Command>
               <CommandInput placeholder="Search by name or phone..." />
-              <CommandList>
+              <CommandList className="max-h-[300px]">
                    <CommandEmpty>No supplier found.</CommandEmpty>
                    <CommandGroup>
                     {suppliers.map((supplier) => (
                       <CommandItem
                         key={supplier.id}
                         value={supplier.id}
+                        onSelect={handleSelect}
                       >
                          <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0")} />
                         {supplier.name} - {supplier.phone}
