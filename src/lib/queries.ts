@@ -1102,8 +1102,8 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersSnapshot),
-            getDocs(suppliersSnapshot),
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1950,3 +1950,5 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
+
+    
