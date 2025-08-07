@@ -51,7 +51,7 @@ type GroupedProducts = {
   };
 };
 
-function SaleTerminal({ initialProducts, initialCustomers, onSaleComplete }: { initialProducts: ProductSelect[], initialCustomers: Customer[], onSaleComplete: () => void }) {
+function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplete }: { initialProducts: ProductSelect[], initialCustomers: Customer[], onSaleComplete: () => void }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [cart, setCart] = React.useState<SaleItem[]>([]);
   const [customers, setCustomers] = React.useState<Customer[]>(initialCustomers);
@@ -754,26 +754,12 @@ function ReturnsTerminal() {
 
 
 export function PointOfSaleTerminal({ products: initialProducts, initialCustomers }: { products: ProductSelect[]; initialCustomers: Customer[] }) {
-  const [isMounted, setIsMounted] = React.useState(false);
-  
   // This function will be called to refresh all data after a sale is complete.
   const handleSaleComplete = async () => {
     // This is a placeholder for a more robust state management solution
     // For now, we'll just log that a re-fetch would happen here.
     console.log("A sale was completed. Data would be re-fetched here.");
   };
-
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  if (!isMounted) {
-    return (
-        <div className="flex items-center justify-center p-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-    );
-  }
 
   return (
     <Tabs defaultValue="sale" className="w-full">
@@ -782,7 +768,7 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
             <TabsTrigger value="return">Returns</TabsTrigger>
         </TabsList>
         <TabsContent value="sale">
-            <SaleTerminal 
+            <SaleTerminalInternal 
                 initialProducts={initialProducts} 
                 initialCustomers={initialCustomers} 
                 onSaleComplete={handleSaleComplete}
