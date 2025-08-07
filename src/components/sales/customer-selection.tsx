@@ -92,7 +92,7 @@ export function CustomerSelection({
           <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
              <Command>
               <CommandInput placeholder="Search by name or phone..." />
-              <CommandList>
+              <CommandList className="max-h-[300px]">
                 <CommandEmpty>No customer found.</CommandEmpty>
                 <CommandGroup>
                   <CommandItem
