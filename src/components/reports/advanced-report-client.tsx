@@ -167,10 +167,16 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 });
             }
 
-            // Handle non-item activities
+            // Handle non-item activities like product creation or credit settlements
+            const details = trans?.details || rec.details || '';
+            const amountPaid = trans?.amountPaid?.toFixed(2) || (trans?.total_amount ? trans.total_amount.toFixed(2) : 'N/A');
+            const balanceChange = trans?.creditAmount?.toFixed(2) || '0.00';
+            const paymentMethod = trans?.paymentMethod || 'N/A';
+            const productName = rec.product_name || 'N/A';
+
             return [[
                 ...commonData,
-                `"${rec.product_name || 'N/A'}"`, 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A', `"${rec.details || ''}"`
+                `"${productName}"`, 'N/A', 'N/A', 'N/A', 'N/A', paymentMethod, amountPaid, balanceChange, `"${details}"`
             ].join(',')];
         });
 
