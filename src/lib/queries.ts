@@ -26,7 +26,7 @@ import {
   collectionGroup,
   or,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem, Expense, ExpenseData } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem, Expense, ExpenseData, SalesOrder, PurchaseOrder } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear, startOfMonth } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -123,6 +123,34 @@ const POSPurchaseSchema = z.object({
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional().default(''),
+});
+
+const OrderItemSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    image: z.string().optional(),
+    type: z.enum(['product', 'service']),
+    quantity: z.number().int().positive(),
+    price_per_unit: z.number().nonnegative(),
+    cost_price: z.number().nonnegative(),
+    total_amount: z.number().nonnegative(),
+    sku: z.string().optional(),
+});
+
+const SalesOrderSchema = z.object({
+  items: z.array(OrderItemSchema).min(1),
+  customer_id: z.string().nullable(),
+  customer_name: z.string(),
+  subtotal: z.number(),
+  total_amount: z.number(),
+});
+
+const PurchaseOrderSchema = z.object({
+  items: z.array(OrderItemSchema).min(1),
+  supplier_id: z.string(),
+  supplier_name: z.string(),
+  subtotal: z.number(),
+  total_amount: z.number(),
 });
 
 
@@ -2076,18 +2104,34 @@ export async function fetchExpenses(): Promise<Expense[]> {
   const { db } = getFirebaseServices();
   const expensesCollection = collection(db, 'expenses');
   const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
-  const snapshot = await getDocs(q);
-
-  const expenses = snapshot.docs.map(doc => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      ...data,
-      date: (data.date as Timestamp).toDate().toISOString(),
-    } as Expense;
-  });
   
-  return expenses;
+  try {
+    const snapshot = await getDocs(q);
+    const expenses = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        date: (data.date as Timestamp).toDate().toISOString(),
+      } as Expense;
+    });
+    return expenses;
+  } catch (e) {
+      console.error("Firebase query failed, sorting in-memory as a fallback", e)
+      const expensesCollection = collection(db, 'expenses');
+      const q = query(expensesCollection, where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      const expenses = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: (data.date as Timestamp).toDate().toISOString(),
+        } as Expense;
+      });
+      expenses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return expenses
+  }
 }
 
 export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<ExpenseData[]> {
@@ -2172,4 +2216,197 @@ export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthl
             amount: aggregatedData[format(date, 'yyyy-MM')] || 0,
         }));
     }
+}
+
+
+// --- ORDER QUERIES ---
+
+export async function createSalesOrder(orderData: z.infer<typeof SalesOrderSchema>): Promise<SalesOrder | null> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    const validatedData = SalesOrderSchema.safeParse(orderData);
+    if (!validatedData.success) {
+        throw new Error('Invalid sales order data.');
+    }
+
+    const newOrder = await runTransaction(db, async (transaction) => {
+        const counterRef = doc(db, 'counters', `sales_orders_${userId}`);
+        const counterDoc = await transaction.get(counterRef);
+        const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
+        const formattedId = `so${String(nextId).padStart(6, '0')}`;
+        const newOrderRef = doc(db, 'salesOrders', formattedId);
+
+        const orderToSave = {
+            ...validatedData.data,
+            id: formattedId,
+            userId,
+            order_date: serverTimestamp(),
+            status: 'pending',
+            item_ids: validatedData.data.items.map(i => i.id)
+        };
+        transaction.set(newOrderRef, orderToSave);
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
+        return {
+            ...orderToSave,
+            order_date: new Date().toISOString()
+        } as SalesOrder;
+    });
+
+    revalidatePath('/dashboard/orders');
+    return newOrder;
+}
+
+export async function createPurchaseOrder(orderData: z.infer<typeof PurchaseOrderSchema>): Promise<PurchaseOrder | null> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    const validatedData = PurchaseOrderSchema.safeParse(orderData);
+    if (!validatedData.success) {
+        throw new Error('Invalid purchase order data.');
+    }
+
+    const newOrder = await runTransaction(db, async (transaction) => {
+        const counterRef = doc(db, 'counters', `purchase_orders_${userId}`);
+        const counterDoc = await transaction.get(counterRef);
+        const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
+        const formattedId = `po${String(nextId).padStart(6, '0')}`;
+        const newOrderRef = doc(db, 'purchaseOrders', formattedId);
+
+        const orderToSave = {
+            ...validatedData.data,
+            id: formattedId,
+            userId,
+            order_date: serverTimestamp(),
+            status: 'pending',
+            item_ids: validatedData.data.items.map(i => i.id)
+        };
+        transaction.set(newOrderRef, orderToSave);
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
+        return {
+            ...orderToSave,
+            order_date: new Date().toISOString()
+        } as PurchaseOrder;
+    });
+    
+    revalidatePath('/dashboard/orders');
+    return newOrder;
+}
+
+export async function processSalesOrder(orderId: string): Promise<void> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    const orderRef = doc(db, 'salesOrders', orderId);
+    const orderDoc = await getDoc(orderRef);
+    if (!orderDoc.exists() || orderDoc.data().userId !== userId) {
+        throw new Error("Sales order not found or access denied.");
+    }
+    const order = orderDoc.data() as SalesOrder;
+    if (order.status !== 'pending') {
+        throw new Error("Order has already been processed or cancelled.");
+    }
+    
+    // Simplified: converting order to a cash sale with full amount paid
+    const saleData = {
+        items: order.items.map(i => ({...i, price_per_unit: i.price_per_unit})),
+        customer_id: order.customer_id,
+        customer_name: order.customer_name,
+        subtotal: order.subtotal,
+        tax_amount: 0,
+        tax_percentage: 0,
+        discount_amount: 0,
+        service_charge: 0,
+        total_amount: order.total_amount,
+        paymentMethod: 'cash' as const,
+        amountPaid: order.total_amount,
+        previousBalance: 0, // Assume no previous balance for simplicity
+        checkNumber: '',
+    };
+    
+    await createSale(saleData);
+    await updateDoc(orderRef, { status: 'completed' });
+
+    revalidatePath('/dashboard/orders');
+}
+
+export async function processPurchaseOrder(orderId: string): Promise<void> {
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error("User not authenticated");
+
+    const orderRef = doc(db, 'purchaseOrders', orderId);
+    const orderDoc = await getDoc(orderRef);
+    if (!orderDoc.exists() || orderDoc.data().userId !== userId) {
+        throw new Error("Purchase order not found or access denied.");
+    }
+    const order = orderDoc.data() as PurchaseOrder;
+    if (order.status !== 'pending') {
+        throw new Error("Order has already been processed or cancelled.");
+    }
+    
+    // Simplified: converting order to a cash purchase with full amount paid
+    const purchaseData = {
+        items: order.items.map(i => ({...i, total_cost: i.total_amount})),
+        supplier_id: order.supplier_id,
+        supplier_name: order.supplier_name,
+        subtotal: order.subtotal,
+        tax_amount: 0,
+        tax_percentage: 0,
+        discount_amount: 0,
+        service_charge: 0,
+        total_amount: order.total_amount,
+        paymentMethod: 'cash' as const,
+        amountPaid: order.total_amount,
+    };
+    
+    await createPurchase(purchaseData);
+    await updateDoc(orderRef, { status: 'completed' });
+    
+    revalidatePath('/dashboard/orders');
+}
+
+export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'}) | (PurchaseOrder & {type: 'purchase'}))[]> {
+    noStore();
+    const { db } = getFirebaseServices();
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
+    const salesOrdersQuery = query(collection(db, 'salesOrders'), where('userId', '==', userId), where('status', '==', 'pending'));
+    const purchaseOrdersQuery = query(collection(db, 'purchaseOrders'), where('userId', '==', userId), where('status', '==', 'pending'));
+    
+    const [salesOrdersSnapshot, purchaseOrdersSnapshot] = await Promise.all([
+        getDocs(salesOrdersQuery),
+        getDocs(purchaseOrdersQuery),
+    ]);
+
+    const salesOrders = salesOrdersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            ...data,
+            id: doc.id,
+            type: 'sale',
+            order_date: (data.order_date as Timestamp).toDate().toISOString()
+        } as SalesOrder & {type: 'sale'};
+    });
+    
+    const purchaseOrders = purchaseOrdersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            ...data,
+            id: doc.id,
+            type: 'purchase',
+            order_date: (data.order_date as Timestamp).toDate().toISOString()
+        } as PurchaseOrder & {type: 'purchase'};
+    });
+
+    const combined = [...salesOrders, ...purchaseOrders];
+    combined.sort((a,b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime());
+
+    return combined;
 }
