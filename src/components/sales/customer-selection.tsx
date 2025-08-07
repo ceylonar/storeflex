@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -71,11 +72,11 @@ export function CustomerSelection({
   };
   
   const handleSelect = (currentValue: string) => {
-    const value = currentValue.toLowerCase();
-    if (value === 'walk-in') {
+    if (currentValue.toLowerCase() === 'walk-in') {
         onSelectCustomer(null);
     } else {
-        const customer = customers.find(c => c.id.toLowerCase() === value);
+        const customerId = currentValue.split('|')[0];
+        const customer = customers.find(c => c.id.toLowerCase() === customerId.toLowerCase());
         onSelectCustomer(customer || null);
     }
     setIsSelectOpen(false);
@@ -118,11 +119,12 @@ export function CustomerSelection({
                   {customers.map((customer) => (
                     <CommandItem
                       key={customer.id}
-                      value={customer.id}
+                      value={`${customer.id}|${customer.name}|${customer.phone}`}
                       onSelect={handleSelect}
                     >
                       <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === customer.id ? "opacity-100" : "opacity-0")} />
-                      {customer.name} - {customer.phone}
+                      <span>{customer.name}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">{customer.phone}</span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

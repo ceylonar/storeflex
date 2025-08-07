@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -71,8 +72,8 @@ export function SupplierSelection({
   };
   
   const handleSelect = (currentValue: string) => {
-    const value = currentValue.toLowerCase();
-    const supplier = suppliers.find(s => s.id.toLowerCase() === value);
+    const supplierId = currentValue.split('|')[0];
+    const supplier = suppliers.find(s => s.id.toLowerCase() === supplierId.toLowerCase());
     onSelectSupplier(supplier || null);
     setIsSelectOpen(false);
   }
@@ -106,11 +107,12 @@ export function SupplierSelection({
                     {suppliers.map((supplier) => (
                       <CommandItem
                         key={supplier.id}
-                        value={supplier.id}
+                        value={`${supplier.id}|${supplier.name}|${supplier.phone}`}
                         onSelect={handleSelect}
                       >
                          <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0")} />
-                        {supplier.name} - {supplier.phone}
+                         <span>{supplier.name}</span>
+                         <span className="ml-auto text-xs text-muted-foreground">{supplier.phone}</span>
                       </CommandItem>
                     ))}
                   </CommandGroup>
