@@ -39,6 +39,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,6 +74,7 @@ type FormState = 'add' | 'edit';
 
 const initialProductState: Partial<Product> = {
   id: '',
+  type: 'product',
   name: '',
   sku: '',
   barcode: '',
@@ -273,11 +281,11 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
       if (formState === 'add') {
         await createProduct(formData);
         onProductCreated();
-        toast({ title: 'Success', description: 'Product added.' });
+        toast({ title: 'Success', description: 'Item added.' });
       } else if (selectedProduct.id) {
         await updateProduct(selectedProduct.id, formData);
         onProductUpdated();
-        toast({ title: 'Success', description: 'Product updated.' });
+        toast({ title: 'Success', description: 'Item updated.' });
       }
       setIsDialogOpen(false);
     } catch (error) {
@@ -294,13 +302,13 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
       <CardHeader>
         <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
             <div>
-                <CardTitle>Products</CardTitle>
-                <CardDescription>A list of all products in your inventory.</CardDescription>
+                <CardTitle>Inventory Items</CardTitle>
+                <CardDescription>A list of all products and services in your inventory.</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button size="sm" className="gap-1 w-full" onClick={() => handleOpenDialog('add')}>
                   <PlusCircle className="h-4 w-4" />
-                  Add Product
+                  Add Item
                 </Button>
             </div>
         </div>
@@ -314,7 +322,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
               </TableHead>
               <TableHead>ID</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead className="hidden lg:table-cell">Brand</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead className="hidden md:table-cell">Category</TableHead>
               <TableHead>Stock</TableHead>
               <TableHead>Selling Price</TableHead>
@@ -334,11 +342,13 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 </TableCell>
                 <TableCell className="font-mono text-xs">{product.id}</TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell className="hidden lg:table-cell">{product.brand}</TableCell>
+                <TableCell className="capitalize">
+                    <Badge variant={product.type === 'service' ? 'secondary' : 'outline'}>{product.type}</Badge>
+                </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <Badge variant="outline">{product.category}</Badge>
                 </TableCell>
-                <TableCell>{product.stock}</TableCell>
+                <TableCell>{product.type === 'product' ? product.stock : 'N/A'}</TableCell>
                 <TableCell>LKR {Number(product.selling_price).toFixed(2)}</TableCell>
                 <TableCell>
                  <div className="flex justify-end gap-2">
@@ -369,7 +379,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete the product.
+                                  This action cannot be undone. This will permanently delete this item.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
@@ -390,9 +400,9 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>{formState === 'add' ? 'Add New Product' : 'Edit Product'}</DialogTitle>
+              <DialogTitle>{formState === 'add' ? 'Add New Item' : 'Edit Item'}</DialogTitle>
               <DialogDescription>
-                Fill in the details for the product.
+                Fill in the details for the inventory item.
               </DialogDescription>
             </DialogHeader>
             <ScrollArea className="max-h-[70vh] -mx-6 px-6">
@@ -416,79 +426,100 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                                 </AlertDescription>
                             </Alert>
                         )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="type">Item Type</Label>
+                            <Select name="type" defaultValue={selectedProduct.type} onValueChange={(value: 'product' | 'service') => setSelectedProduct(prev => ({...prev, type: value}))}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select an item type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="product">Product</SelectItem>
+                                    <SelectItem value="service">Service</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        
                         <div className="space-y-2">
                             <Label htmlFor="name">Name</Label>
                             <Input id="name" name="name" defaultValue={selectedProduct.name} onChange={(e) => setSelectedProduct(prev => ({...prev, name: e.target.value}))}/>
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="sku">SKU (optional)</Label>
-                                <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="barcode">Barcode</Label>
-                                <div className="flex gap-2">
-                                  <Input id="barcode" name="barcode" value={selectedProduct.barcode || ''} onChange={(e) => setSelectedProduct(prev => ({...prev, barcode: e.target.value}))}/>
-                                  <Button type="button" variant="outline" size="icon" onClick={handleGenerateBarcode}><Barcode className="h-4 w-4"/></Button>
-                                </div>
-                            </div>
-                        </div>
+
                          <div className="space-y-2">
-                            <Label htmlFor="brand">Brand</Label>
-                            <Input id="brand" name="brand" defaultValue={selectedProduct.brand} />
+                            <Label htmlFor="category">Category</Label>
+                             <Input id="category" name="category" defaultValue={selectedProduct.category} />
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="category">Category</Label>
-                                <Input id="category" name="category" defaultValue={selectedProduct.category} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="sub_category">Sub Category</Label>
-                                <Input id="sub_category" name="sub_category" defaultValue={selectedProduct.sub_category} />
-                            </div>
-                        </div>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                            <Label htmlFor="stock">Stock (optional)</Label>
-                            <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} />
-                            </div>
-                            <div className="space-y-2">
-                            <Label htmlFor="low_stock_threshold">Low Stock Level</Label>
-                            <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} />
-                            </div>
-                        </div>
-                        <div className="grid sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                            <Label htmlFor="cost_price">Cost Price (LKR)</Label>
-                            <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} />
-                            </div>
-                            <div className="space-y-2">
+                        
+                        <div className="space-y-2">
                             <Label htmlFor="selling_price">Selling Price (LKR)</Label>
                             <Input id="selling_price" name="selling_price" type="number" step="0.01" defaultValue={selectedProduct.selling_price} />
-                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="image">Image URL</Label>
-                            <Input id="image" name="image" defaultValue={selectedProduct.image} />
-                        </div>
-                        {selectedProduct.barcode && (
-                            <div className='pt-4'>
-                                <ReactBarcode value={selectedProduct.barcode} width={1} height={50} fontSize={12} />
-                            </div>
+                        
+                        {selectedProduct.type === 'product' && (
+                             <>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="sku">SKU (optional)</Label>
+                                        <Input id="sku" name="sku" defaultValue={selectedProduct.sku} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="barcode">Barcode</Label>
+                                        <div className="flex gap-2">
+                                          <Input id="barcode" name="barcode" value={selectedProduct.barcode || ''} onChange={(e) => setSelectedProduct(prev => ({...prev, barcode: e.target.value}))}/>
+                                          <Button type="button" variant="outline" size="icon" onClick={handleGenerateBarcode}><Barcode className="h-4 w-4"/></Button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="brand">Brand</Label>
+                                    <Input id="brand" name="brand" defaultValue={selectedProduct.brand} />
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="sub_category">Sub Category</Label>
+                                        <Input id="sub_category" name="sub_category" defaultValue={selectedProduct.sub_category} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="cost_price">Cost Price (LKR)</Label>
+                                        <Input id="cost_price" name="cost_price" type="number" step="0.01" defaultValue={selectedProduct.cost_price} />
+                                    </div>
+                                </div>
+                                <div className="grid sm:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                    <Label htmlFor="stock">Stock</Label>
+                                    <Input id="stock" name="stock" type="number" defaultValue={selectedProduct.stock} />
+                                    </div>
+                                    <div className="space-y-2">
+                                    <Label htmlFor="low_stock_threshold">Low Stock Level</Label>
+                                    <Input id="low_stock_threshold" name="low_stock_threshold" type="number" defaultValue={selectedProduct.low_stock_threshold} />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="image">Image URL</Label>
+                                    <Input id="image" name="image" defaultValue={selectedProduct.image} />
+                                </div>
+                                {selectedProduct.barcode && (
+                                    <div className='pt-4'>
+                                        <ReactBarcode value={selectedProduct.barcode} width={1} height={50} fontSize={12} />
+                                    </div>
+                                )}
+                             </>
                         )}
                     </form>
                 )}
             </ScrollArea>
             <DialogFooter className="pt-4 justify-between">
-                <Button type="button" variant="outline" onClick={handlePrintBarcode} disabled={!selectedProduct.barcode}>
-                  <Printer className="mr-2 h-4 w-4"/>
-                  Print Barcode
-                </Button>
+                {selectedProduct.type === 'product' ? (
+                     <Button type="button" variant="outline" onClick={handlePrintBarcode} disabled={!selectedProduct.barcode}>
+                        <Printer className="mr-2 h-4 w-4"/>
+                        Print Barcode
+                    </Button>
+                ) : <div />}
                 <div className="flex gap-2">
                     <DialogClose asChild>
                         <Button type="button" variant="secondary">Cancel</Button>
                     </DialogClose>
-                    <Button type="submit" onClick={() => formRef.current?.requestSubmit()} disabled={isFetchingBarcode}>Save Product</Button>
+                    <Button type="submit" onClick={() => formRef.current?.requestSubmit()} disabled={isFetchingBarcode}>Save Item</Button>
                 </div>
             </DialogFooter>
           </DialogContent>

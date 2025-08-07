@@ -42,6 +42,7 @@ export async function getCurrentUserId() {
 // Form validation schemas
 const ProductSchema = z.object({
   id: z.string().optional(),
+  type: z.enum(['product', 'service']),
   sku: z.string().optional(),
   barcode: z.string().optional(),
   name: z.string().min(1, 'Product name is required'),
@@ -49,10 +50,10 @@ const ProductSchema = z.object({
   sub_category: z.string().optional(),
   brand: z.string().optional(),
   stock: z.coerce.number().int().nonnegative('Stock must be a non-negative number').optional().default(0),
-  cost_price: z.coerce.number().positive('Cost price must be positive'),
+  cost_price: z.coerce.number().optional().default(0),
   selling_price: z.coerce.number().positive('Selling price must be positive'),
   image: z.string().url('Must be a valid image URL').optional().or(z.literal('')),
-  low_stock_threshold: z.coerce.number().int().nonnegative('Low stock threshold must be a non-negative number'),
+  low_stock_threshold: z.coerce.number().int().nonnegative('Low stock threshold must be a non-negative number').optional().default(0),
 });
 
 const CustomerSchema = z.object({
@@ -84,6 +85,7 @@ const SaleItemSchema = z.object({
     id: z.string(),
     name: z.string(),
     image: z.string().optional(),
+    type: z.enum(['product', 'service']),
     quantity: z.number().int().positive(),
     price_per_unit: z.number().positive(),
     total_amount: z.number().positive(),
@@ -133,9 +135,10 @@ export async function createProduct(formData: FormData): Promise<Product | null>
   if (!userId) throw new Error("User ID not found.");
 
   const parsedData = Object.fromEntries(formData.entries());
-  if (!parsedData.stock) {
-    parsedData.stock = '0';
-  }
+  if (!parsedData.stock) parsedData.stock = '0';
+  if (!parsedData.cost_price) parsedData.cost_price = '0';
+  if (!parsedData.low_stock_threshold) parsedData.low_stock_threshold = '0';
+
 
   const validatedFields = ProductSchema.omit({id: true}).safeParse(parsedData);
 
@@ -174,7 +177,7 @@ export async function createProduct(formData: FormData): Promise<Product | null>
           product_id: newProductRef.id,
           product_name: name,
           product_image: image || '',
-          details: 'New product added to inventory',
+          details: `New ${productData.type} added to inventory`,
           userId,
           timestamp: serverTimestamp(),
           id: newActivityRef.id,
@@ -234,9 +237,9 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
   if (!userId) throw new Error("User ID not found.");
   
   const parsedData = Object.fromEntries(formData.entries());
-  if (!parsedData.stock) {
-    parsedData.stock = '0';
-  }
+  if (!parsedData.stock) parsedData.stock = '0';
+  if (!parsedData.cost_price) parsedData.cost_price = '0';
+  if (!parsedData.low_stock_threshold) parsedData.low_stock_threshold = '0';
 
   const validatedFields = ProductSchema.omit({id: true}).safeParse(parsedData);
 
@@ -273,7 +276,7 @@ export async function updateProduct(id: string, formData: FormData): Promise<Pro
         product_id: id,
         product_name: name,
         product_image: image || '',
-        details: 'Product details updated',
+        details: `${productData.type} details updated`,
         userId,
         timestamp: serverTimestamp(),
         id: newActivityRef.id,
@@ -323,7 +326,7 @@ export async function deleteProduct(id: string) {
         product_id: id,
         product_name: name,
         product_image: image || '',
-        details: 'Product removed from inventory',
+        details: 'Item removed from inventory',
         userId,
         timestamp: serverTimestamp(),
         id: newActivityRef.id,
@@ -527,10 +530,11 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             const item = items.find(i => i.id === productDoc.id)!;
             if (!productDoc.exists() || productDoc.data().userId !== userId) throw new Error(`Product "${item.name}" not found or access denied.`);
             
-            const currentStock = productDoc.data().stock || 0;
-            if (currentStock < item.quantity) throw new Error(`Not enough stock for ${item.name}. Only ${currentStock} available.`);
-            
-            transaction.update(productRef, { stock: increment(-item.quantity) });
+            if (item.type === 'product') {
+                const currentStock = productDoc.data().stock || 0;
+                if (currentStock < item.quantity) throw new Error(`Not enough stock for ${item.name}. Only ${currentStock} available.`);
+                transaction.update(productRef, { stock: increment(-item.quantity) });
+            }
         }
         
         const totalDue = total_amount - previousBalance;
@@ -632,6 +636,7 @@ export async function fetchProductsForSelect(): Promise<ProductSelect[]> {
       return {
         id: doc.id,
         name: data.name as string,
+        type: data.type as 'product' | 'service',
         selling_price: data.selling_price as number,
         cost_price: data.cost_price as number,
         stock: data.stock as number,

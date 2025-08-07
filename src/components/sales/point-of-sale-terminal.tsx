@@ -99,7 +99,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
            const itemInCart = cart.find(item => item.id === productId);
            if (!itemInCart) return item;
 
-           if (field === 'quantity' && value > itemInCart.stock) {
+           if (field === 'quantity' && value > itemInCart.stock && itemInCart.type === 'product') {
              setTimeout(() => toast({
                variant: 'destructive',
                title: 'Stock Limit Exceeded',
@@ -126,7 +126,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
 
 
   const addToCart = React.useCallback((product: ProductSelect) => {
-    if (product.stock <= 0) {
+    if (product.type === 'product' && product.stock <= 0) {
       toast({
         variant: 'destructive',
         title: 'Out of Stock',
@@ -138,7 +138,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
     const existingItem = cart.find(item => item.id === product.id);
     if (existingItem) {
         const newQuantity = existingItem.quantity + 1;
-        if(newQuantity > existingItem.stock) {
+        if(existingItem.type === 'product' && newQuantity > existingItem.stock) {
             toast({
                 variant: 'destructive',
                 title: 'Stock Limit Exceeded',
@@ -154,6 +154,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
             id: product.id,
             name: product.name,
             image: product.image,
+            type: product.type,
             sub_category: product.sub_category,
             quantity: 1,
             price_per_unit: product.selling_price,
@@ -355,7 +356,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5 lg:gap-8">
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Products</CardTitle>
+            <CardTitle>Products & Services</CardTitle>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -402,14 +403,18 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                                                 <TableCell className="font-medium">{product.name}</TableCell>
                                                 <TableCell>LKR {product.selling_price.toFixed(2)}</TableCell>
                                                 <TableCell>
-                                                  {product.stock > 0 ? (
-                                                    <span>{product.stock}</span>
+                                                  {product.type === 'product' ? (
+                                                    product.stock > 0 ? (
+                                                        <span>{product.stock}</span>
+                                                    ) : (
+                                                        <Badge variant="destructive">Out</Badge>
+                                                    )
                                                   ) : (
-                                                    <Badge variant="destructive">Out</Badge>
+                                                    <Badge variant="secondary">Service</Badge>
                                                   )}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                  <Button size="sm" onClick={() => addToCart(product)} disabled={product.stock <= 0}>Add</Button>
+                                                  <Button size="sm" onClick={() => addToCart(product)} disabled={product.type === 'product' && product.stock <= 0}>Add</Button>
                                                 </TableCell>
                                               </TableRow>
                                             ))}
@@ -425,7 +430,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                 </Accordion>
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
-                  <p>No products match your search.</p>
+                  <p>No items match your search.</p>
                 </div>
               )}
             </ScrollArea>
@@ -801,8 +806,3 @@ export function PointOfSaleTerminal({ products: initialProducts, initialCustomer
     </Tabs>
   );
 }
-
-    
-
-    
-

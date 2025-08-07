@@ -21,6 +21,7 @@ export type UserProfile = {
 export type Product = {
   id: string;
   userId: string;
+  type: 'product' | 'service';
   sku: string;
   barcode?: string;
   name: string;
@@ -39,6 +40,7 @@ export type Product = {
 export type ProductSelect = {
   id: string;
   name: string;
+  type: 'product' | 'service';
   selling_price: number;
   cost_price: number;
   image?: string;
@@ -92,6 +94,7 @@ export type SaleItem = {
     id: string;
     name: string;
     image?: string;
+    type: 'product' | 'service';
     quantity: number;
     price_per_unit: number;
     total_amount: number;
@@ -185,7 +188,7 @@ export type ProductTransaction = {
 
 export type MoneyflowTransaction = {
     id: string; // A unique identifier for the list key
-    transactionId: string; // The readable ID (e.g., cus0001, sale00001)
+    transactionId: string; // The readable ID (e.g., cus0001, sale000001)
     type: 'receivable' | 'payable';
     partyName: string; // Customer or Supplier Name
     partyId: string;
