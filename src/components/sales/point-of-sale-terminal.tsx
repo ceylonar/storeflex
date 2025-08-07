@@ -60,7 +60,6 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [taxPercentage, setTaxPercentage] = React.useState(0);
   const [discountAmount, setDiscountAmount] = React.useState(0);
-  const [serviceCharge, setServiceCharge] = React.useState(0);
   const [lastCompletedSale, setLastCompletedSale] = React.useState<Sale | null>(null);
   const [lastAddedItemId, setLastAddedItemId] = React.useState<string | null>(null);
 
@@ -256,7 +255,20 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
     setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
   };
   
-  const subtotal = cart.reduce((acc, item) => acc + item.total_amount, 0);
+  const { subtotal, serviceCharge } = React.useMemo(() => {
+    return cart.reduce(
+        (acc, item) => {
+            if (item.type === 'service') {
+                acc.serviceCharge += item.total_amount;
+            } else {
+                acc.subtotal += item.total_amount;
+            }
+            return acc;
+        },
+        { subtotal: 0, serviceCharge: 0 }
+    );
+  }, [cart]);
+
   const tax = subtotal * (taxPercentage / 100);
   const total = Math.max(0, subtotal + tax + serviceCharge - discountAmount);
   
@@ -326,7 +338,6 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
     setSelectedCustomer(null);
     setTaxPercentage(0);
     setDiscountAmount(0);
-    setServiceCharge(0);
     setPaymentMethod('cash');
     setAmountPaid(0);
     setCheckNumber('');
@@ -522,7 +533,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
               {cart.length > 0 && (
                   <div className="space-y-2 text-sm">
                       <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>LKR {subtotal.toFixed(2)}</span></div>
-                      <div className="grid grid-cols-2 gap-2"><Label htmlFor="service_charge" className="text-muted-foreground my-auto">Service Charge (LKR)</Label><Input id="service_charge" type="number" value={serviceCharge} onChange={(e) => setServiceCharge(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0.00" /></div>
+                      <div className="grid grid-cols-2 gap-2"><Label htmlFor="service_charge" className="text-muted-foreground my-auto">Service Charge (LKR)</Label><Input id="service_charge" type="number" value={serviceCharge.toFixed(2)} readOnly className="h-8 w-full text-right" placeholder="0.00" /></div>
                       <div className="grid grid-cols-2 gap-2"><Label htmlFor="tax" className="text-muted-foreground my-auto">Tax (%)</Label><Input id="tax" type="number" value={taxPercentage} onChange={(e) => setTaxPercentage(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0" /></div>
                       <div className="flex justify-between"><span className="text-muted-foreground">Calculated Tax</span><span>LKR {tax.toFixed(2)}</span></div>
                       <div className="grid grid-cols-2 gap-2"><Label htmlFor="discount" className="text-muted-foreground my-auto">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0.00" /></div>
@@ -807,4 +818,8 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
 }
 
     
+    
+
+    
+
     
