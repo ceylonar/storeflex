@@ -37,17 +37,20 @@ export function ExpensesClient({ initialExpenses, initialChartData, products }: 
     setIsMounted(true);
   }, []);
 
-  const refreshExpenses = async () => {
-    const updatedExpenses = await fetchExpenses();
+  const refreshData = async () => {
+    const [updatedExpenses, updatedChartData] = await Promise.all([
+        fetchExpenses(),
+        fetchExpenseChartData('monthly') // Or whatever the default is
+    ]);
     setExpenses(updatedExpenses);
-    // You might want to refresh chart data as well if it's derived from expenses
+    setChartData(updatedChartData);
   };
   
   const handleAddExpense = async (formData: FormData) => {
     try {
       await createExpense(formData);
       toast({ title: "Success", description: "Expense added successfully." });
-      refreshExpenses();
+      await refreshData();
       setIsDialogOpen(false);
       return true;
     } catch (error) {

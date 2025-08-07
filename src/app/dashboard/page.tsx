@@ -20,7 +20,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         <StatCard 
           title="Inventory Value" 
           value={`LKR ${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
@@ -28,22 +28,22 @@ export default async function DashboardPage() {
           description="Total cost of current stock" 
         />
         <StatCard 
-          title="Total Products" 
-          value={dashboardData.productCount.toString()} 
+          title="Products & Services" 
+          value={`${dashboardData.productCount} / ${dashboardData.serviceCount}`} 
           iconName="Package" 
-          description="Count of physical products" 
-        />
-        <StatCard 
-          title="Total Services" 
-          value={dashboardData.serviceCount.toString()} 
-          iconName="Briefcase" 
-          description="Count of offered services" 
+          description="Physical products / Services" 
         />
         <StatCard 
           title="Sales (Today)" 
           value={`LKR ${dashboardData.salesToday.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
           iconName="ShoppingCart" 
           description="Total sales for today" 
+        />
+        <StatCard 
+          title="Expenses (Month)" 
+          value={`LKR ${dashboardData.expensesThisMonth.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="Receipt"
+          description="Expenses this calendar month"
         />
         <StatCard 
           title="Total Sales" 

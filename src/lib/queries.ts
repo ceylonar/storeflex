@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem, Expense, ExpenseData } from './types';
 import { z } from 'zod';
-import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear } from 'date-fns';
+import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear, startOfMonth } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { getUser } from './auth';
 
@@ -1085,6 +1085,7 @@ export async function fetchDashboardData() {
         totalSales: 0,
         totalReceivables: 0,
         totalPayables: 0,
+        expensesThisMonth: 0,
         recentActivities: [],
         lowStockProducts: [],
     };
@@ -1097,14 +1098,16 @@ export async function fetchDashboardData() {
         const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
+        const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
 
 
-        const [productsSnapshot, salesSnapshot, activitySnapshot, customersSnapshot, suppliersSnapshot] = await Promise.all([
+        const [productsSnapshot, salesSnapshot, activitySnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
             getDocs(customersQuery),
             getDocs(suppliersQuery),
+            getDocs(expensesQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1185,6 +1188,17 @@ export async function fetchDashboardData() {
             }
         });
 
+        let expensesThisMonth = 0;
+        const monthStart = startOfMonth(new Date());
+        const monthEnd = endOfDay(new Date());
+        expensesSnapshot.forEach(doc => {
+            const expense = doc.data() as Expense;
+            const expenseDate = new Date(expense.date);
+            if(isWithinInterval(expenseDate, {start: monthStart, end: monthEnd})) {
+                expensesThisMonth += expense.amount;
+            }
+        });
+
         return {
             inventoryValue,
             productCount,
@@ -1193,6 +1207,7 @@ export async function fetchDashboardData() {
             totalSales,
             totalReceivables,
             totalPayables,
+            expensesThisMonth,
             recentActivities: limitedActivities.map(act => ({
                 ...act,
                 timestamp: act.timestamp || new Date().toISOString(),

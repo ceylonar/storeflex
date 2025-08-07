@@ -23,7 +23,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGri
 import type { Product, RecentActivity, SalesData, TopSellingProduct } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2, CheckCircle, XCircle, HandCoins, ArrowDownLeft, Briefcase } from 'lucide-react';
+import { ArrowUpRight, DollarSign, Package, ShoppingCart, Users, CreditCard, Loader2, CheckCircle, XCircle, HandCoins, ArrowDownLeft, Briefcase, Receipt } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useEffect, useState, useTransition } from 'react';
 import { fetchSalesData } from '@/lib/queries';
@@ -58,6 +58,7 @@ const icons = {
   ArrowDownLeft,
   ArrowUpRight,
   Briefcase,
+  Receipt,
 };
 
 const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
