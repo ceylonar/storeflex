@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import type { Product, ProductTransaction } from '@/lib/types';
-import { fetchProductHistory } from '@/lib/actions';
+import { fetchProductHistory } from '@/lib/queries';
 import { Loader2 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
@@ -101,7 +101,7 @@ export function ProductHistory({ selectedProduct }: ProductHistoryProps) {
                             <TableHead>Type</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Quantity</TableHead>
-                            <TableHead>Unit Price</TableHead>
+                            <TableHead>Unit Price/Cost</TableHead>
                             <TableHead>Details</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -112,17 +112,18 @@ export function ProductHistory({ selectedProduct }: ProductHistoryProps) {
                                     <Badge
                                         variant="outline"
                                         className={cn(
-                                        'font-semibold',
+                                        'font-semibold capitalize',
                                         tx.type === 'sale' && 'border-accent text-accent-foreground',
-                                        tx.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500'
+                                        tx.type === 'purchase' && 'border-green-500 text-green-600 dark:text-green-500',
+                                        tx.type === 'loss' && 'border-destructive text-destructive'
                                         )}
                                     >
                                         {tx.type}
                                     </Badge>
                                 </TableCell>
                                 <TableCell><FormattedDate timestamp={tx.date} /></TableCell>
-                                <TableCell className={cn(tx.type === 'sale' ? 'text-destructive' : 'text-green-600 dark:text-green-500')}>
-                                    {tx.type === 'sale' ? '-' : '+'}{tx.quantity}
+                                <TableCell className={cn(tx.type === 'sale' || tx.type === 'loss' ? 'text-destructive' : 'text-green-600 dark:text-green-500')}>
+                                    {tx.type === 'sale' || tx.type === 'loss' ? '-' : '+'}{tx.quantity}
                                 </TableCell>
                                 <TableCell>LKR {tx.price.toFixed(2)}</TableCell>
                                 <TableCell>{tx.source_or_destination}</TableCell>

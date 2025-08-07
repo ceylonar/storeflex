@@ -54,7 +54,7 @@ export type ProductSelect = {
 export type RecentActivity = {
   id: string;
   userId: string;
-  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return';
+  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return' | 'loss';
   product_id?: string;
   product_name?: string;
   product_image?: string;
@@ -63,12 +63,13 @@ export type RecentActivity = {
   item_ids?: string[];
   customer_id?: string;
   supplier_id?: string;
+  transaction?: unknown;
 };
 
 export type DetailedRecord = {
     id: string;
     userId: string;
-    type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return';
+    type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return' | 'loss';
     timestamp: string;
     details: string;
     product_id?: string;
@@ -179,7 +180,7 @@ export type Purchase = {
 }
 
 export type ProductTransaction = {
-    type: 'sale' | 'purchase';
+    type: 'sale' | 'purchase' | 'loss';
     date: string; // ISO String
     quantity: number;
     price: number; // cost_price for purchase, selling_price for sale

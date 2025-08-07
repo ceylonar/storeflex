@@ -1485,24 +1485,27 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
 
     const salesCollection = collection(db, 'sales');
     const purchasesCollection = collection(db, 'purchases');
+    const activityCollection = collection(db, 'recent_activity');
 
     const salesQuery = query(salesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
     const purchasesQuery = query(purchasesCollection, where('userId', '==', userId), where('item_ids', 'array-contains', productId));
+    const lossQuery = query(activityCollection, where('userId', '==', userId), where('product_id', '==', productId), where('type', '==', 'loss'));
     
-    const [salesSnapshot, purchasesSnapshot] = await Promise.all([
+    const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
-        getDocs(purchasesQuery)
+        getDocs(purchasesQuery),
+        getDocs(lossQuery)
     ]);
     
     const transactions: ProductTransaction[] = [];
 
     salesSnapshot.forEach(doc => {
-        const sale = doc.data();
+        const sale = doc.data() as Sale;
         const item = sale.items.find((i: any) => i.id === productId);
         if (item) {
             transactions.push({
                 type: 'sale',
-                date: (sale.sale_date as Timestamp).toDate().toISOString(),
+                date: (sale.sale_date as any as Timestamp).toDate().toISOString(),
                 quantity: item.quantity,
                 price: item.price_per_unit,
                 source_or_destination: `Sale to ${sale.customer_name}`,
@@ -1511,15 +1514,29 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     });
 
     purchasesSnapshot.forEach(doc => {
-        const purchase = doc.data();
+        const purchase = doc.data() as Purchase;
         const item = purchase.items.find((i: any) => i.id === productId);
         if (item) {
             transactions.push({
                 type: 'purchase',
-                date: (purchase.purchase_date as Timestamp).toDate().toISOString(),
+                date: (purchase.purchase_date as any as Timestamp).toDate().toISOString(),
                 quantity: item.quantity,
                 price: item.cost_price,
                 source_or_destination: `Purchase from ${purchase.supplier_name}`,
+            });
+        }
+    });
+    
+    lossSnapshot.forEach(doc => {
+        const activity = doc.data() as RecentActivity;
+        const expense = activity.transaction as Expense | undefined; // Assuming expense data is stored in transaction
+        if (expense) {
+             transactions.push({
+                type: 'loss',
+                date: (activity.timestamp as any as Timestamp).toDate().toISOString(),
+                quantity: expense.quantity || 0,
+                price: (expense.amount / (expense.quantity || 1)), // Calculate unit cost from total loss
+                source_or_destination: activity.details,
             });
         }
     });
@@ -1716,7 +1733,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
 
     const { db } = getFirebaseServices();
     try {
-        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return'];
+        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         
         const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
         
@@ -2018,23 +2035,27 @@ export async function createExpense(formData: FormData): Promise<Expense> {
 
         // 2. Create expense record
         const expenseRef = doc(collection(db, 'expenses'));
-        transaction.set(expenseRef, {
+        const expenseWithUser = {
             ...expenseData,
             date: Timestamp.fromDate(new Date(date)),
             userId,
-        });
+            productId,
+            quantity,
+        };
+        transaction.set(expenseRef, expenseWithUser);
 
         // 3. Create activity log
         const activityRef = doc(collection(db, 'recent_activity'));
         transaction.set(activityRef, {
-            type: 'delete', // Or a new type like 'write-off'
+            type: 'loss',
             product_id: productId,
             product_name: product.name,
             product_image: product.image || '',
             details: `Wrote off ${quantity} unit(s) as lost/damaged.`,
             timestamp: serverTimestamp(),
             userId,
-            id: activityRef.id
+            id: activityRef.id,
+            transaction: expenseWithUser, // Embed the expense data for history
         });
     });
   } else {
