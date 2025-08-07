@@ -255,7 +255,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
   const removeFromCart = (productId: string) => {
     setCart((prevCart) => prevCart.filter((item) => item.id !== productId));
   };
-
+  
   const subtotal = cart.reduce((acc, item) => acc + item.total_amount, 0);
   const tax = subtotal * (taxPercentage / 100);
   const total = Math.max(0, subtotal + tax + serviceCharge - discountAmount);
@@ -806,4 +806,5 @@ export function PointOfSaleTerminal({ initialProducts, initialCustomers }: { pro
   );
 }
 
+    
     
