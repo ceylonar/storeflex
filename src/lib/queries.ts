@@ -1829,8 +1829,8 @@ export async function updateUserProfile(data: z.infer<typeof UserProfileSchema>)
 
 export async function updateUserCredentials(userId: string, password: string):Promise<void> {
     const { db } = getFirebaseServices();
-    const currentUser = await getCurrentUserId();
-    if (!currentUser || currentUser !== '1') throw new Error("Unauthorized");
+    const currentUser = await getUser();
+    if (!currentUser || currentUser.role !== 'admin') throw new Error("Unauthorized");
 
     if(!password) throw new Error("Password cannot be empty.");
 
@@ -1847,7 +1847,18 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
 
     try {
         const usersSnapshot = await getDocs(query(collection(db, 'users')));
-        return usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+        return usersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const plainData: any = {};
+            for (const key in data) {
+                if (data[key] instanceof Timestamp) {
+                    plainData[key] = data[key].toDate().toISOString();
+                } else {
+                    plainData[key] = data[key];
+                }
+            }
+            return { id: doc.id, ...plainData } as UserProfile
+        });
     } catch(error) {
         console.error("Fetch all users error:", error);
         return [];
@@ -2064,7 +2075,7 @@ export async function fetchExpenses(): Promise<Expense[]> {
 
   const { db } = getFirebaseServices();
   const expensesCollection = collection(db, 'expenses');
-  const q = query(expensesCollection, where('userId', '==', userId));
+  const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
   const snapshot = await getDocs(q);
 
   const expenses = snapshot.docs.map(doc => {
@@ -2075,9 +2086,6 @@ export async function fetchExpenses(): Promise<Expense[]> {
       date: (data.date as Timestamp).toDate().toISOString(),
     } as Expense;
   });
-
-  // Sort in code to avoid composite index error
-  expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   return expenses;
 }
