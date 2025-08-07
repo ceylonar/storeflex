@@ -766,8 +766,8 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
         return newSupplier;
 
     } catch (error) {
-        console.error("Database Error:", error);
-        throw new Error("Failed to create supplier.");
+        console.error('Database Error:', error);
+        throw new Error('Failed to create supplier.');
     }
 }
 
@@ -1102,8 +1102,8 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersQuery),
-            getDocs(suppliersQuery),
+            getDocs(customersSnapshot),
+            getDocs(suppliersSnapshot),
         ]);
         
         let inventoryValue = 0;
@@ -1401,7 +1401,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             const timestamp = plainDoc.timestamp || plainDoc.sale_date || plainDoc.purchase_date || plainDoc.return_date || new Date(0).toISOString();
             
             const baseRecord: Partial<DetailedRecord> = {
-                id: `${plainDoc.type}_${plainDoc.id}`, // Create a truly unique key
+                id: plainDoc.id,
                 userId: plainDoc.userId,
                 type: plainDoc.type,
                 timestamp: timestamp,
@@ -1846,8 +1846,10 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
     await runTransaction(db, async (transaction) => {
         // 1. Update stock for each returned item
         for (const item of returnData.items) {
-            const productRef = doc(db, 'products', item.id);
-            transaction.update(productRef, { stock: increment(item.return_quantity) });
+             if (item.type === 'product') {
+                const productRef = doc(db, 'products', item.id);
+                transaction.update(productRef, { stock: increment(item.return_quantity) });
+            }
         }
 
         // 2. Update customer credit balance.
@@ -1855,17 +1857,22 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             const customerRef = doc(db, 'customers', returnData.customer_id);
             transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
         }
+        
+        // 3. Create a new sale return document with a readable ID
+        const counterRef = doc(db, 'counters', `sale_returns_${userId}`);
+        const counterDoc = await transaction.get(counterRef);
+        const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
+        const formattedId = `ret${String(nextId).padStart(6, '0')}`;
+        const returnRef = doc(db, 'sales_returns', formattedId);
 
-        // 3. Create a new sale return document
-        const returnRef = doc(collection(db, 'sales_returns'));
-        const returnId = returnRef.id;
         transaction.set(returnRef, {
             ...returnData,
-            id: returnId,
+            id: formattedId,
             userId,
             return_date: serverTimestamp(),
             item_ids: returnData.items.map(i => i.id),
         });
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
         
         // 4. Create an activity log
         const activityRef = doc(collection(db, 'recent_activity'));
@@ -1874,7 +1881,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
             details: `Return from ${returnData.customer_name} for LKR ${returnData.total_refund_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
-            id: returnId,
+            id: formattedId,
             item_ids: returnData.items.map(i => i.id),
             customer_id: returnData.customer_id,
             product_id: 'multiple'
@@ -1908,17 +1915,22 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
         const supplierRef = doc(db, 'suppliers', returnData.supplier_id);
         transaction.update(supplierRef, { credit_balance: increment(-returnData.total_credit_amount) });
 
-        // 3. Create a new purchase return document
-        const returnRef = doc(collection(db, 'purchase_returns'));
-        const returnId = returnRef.id;
+        // 3. Create a new purchase return document with a readable ID
+        const counterRef = doc(db, 'counters', `purchase_returns_${userId}`);
+        const counterDoc = await transaction.get(counterRef);
+        const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
+        const formattedId = `pret${String(nextId).padStart(6, '0')}`;
+        const returnRef = doc(db, 'purchase_returns', formattedId);
+
         transaction.set(returnRef, {
             ...returnData,
-            id: returnId,
+            id: formattedId,
             userId,
             return_date: serverTimestamp(),
             item_ids: returnData.items.map(i => i.id),
         });
-        
+        transaction.set(counterRef, { lastId: nextId }, { merge: true });
+
         // 4. Create an activity log
         const activityRef = doc(collection(db, 'recent_activity'));
         transaction.set(activityRef, {
@@ -1926,7 +1938,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
             details: `Return to ${returnData.supplier_name} for LKR ${returnData.total_credit_amount.toFixed(2)} credited`,
             timestamp: serverTimestamp(),
             userId,
-            id: returnId,
+            id: formattedId,
             item_ids: returnData.items.map(i => i.id),
             supplier_id: returnData.supplier_id,
             product_id: 'multiple'

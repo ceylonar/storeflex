@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -59,8 +60,8 @@ interface AdvancedReportClientProps {
 
 const getRecordTitle = (record: DetailedRecord) => {
     switch (record.type) {
-      case 'sale': return `Sale: ${record.partyName}`;
-      case 'purchase': return `Purchase: ${record.partyName}`;
+      case 'sale': return `Sale to ${record.partyName}`;
+      case 'purchase': return `Purchase from ${record.partyName}`;
       case 'sale_return': return `Return from ${record.partyName}`;
       case 'purchase_return': return `Return to ${record.partyName}`;
       case 'credit_settled': return `Credit Settlement`;
@@ -141,7 +142,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
         
         const csvRows = detailedRecords.flatMap((rec: DetailedRecord) => {
             const commonData = [
-                rec.transaction?.id || rec.id,
+                rec.id, // Use the human-readable ID
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 `"${rec.type.replace(/_/g, ' ')}"`,
                 `"${rec.partyName || 'N/A'}"`,
@@ -285,7 +286,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                         </TableHeader>
                         
                         {records.map(record => (
-                            <Collapsible asChild key={record.id} className="group">
+                            <Collapsible asChild key={`${record.type}-${record.id}`} className="group">
                                 <TableBody>
                                     <TableRow>
                                         <TableCell>
@@ -297,7 +298,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                         </TableCell>
                                         <TableCell>
                                             <div className="font-medium">{getRecordTitle(record)}</div>
-                                            <div className="text-sm text-muted-foreground font-mono">{record.transaction?.id}</div>
+                                            <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
                                         </TableCell>
                                         <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
                                         <TableCell>{record.partyName || 'N/A'}</TableCell>
