@@ -4,7 +4,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon, Receipt, ClipboardList } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon, Receipt, ClipboardList, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 import type { User } from '@/lib/auth';
@@ -21,6 +21,7 @@ const navigationLinks = [
   { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt, roles: ['admin'] },
   { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
   { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
+  { name: 'AI Assistant', href: '/dashboard/ai-assistant', icon: Bot, roles: ['admin'] },
   { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
   { name: 'Account', href: '/dashboard/account', icon: AccountIcon, roles: ['admin'] },
 ];
@@ -37,6 +38,7 @@ const icons: { [key: string]: React.ElementType } = {
   'Expenses': Receipt,
   'Reports': FileText,
   'Price Optimizer': Lightbulb,
+  'AI Assistant': Bot,
   'About': HelpCircle,
   'Account': AccountIcon,
 };

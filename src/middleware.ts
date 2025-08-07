@@ -29,6 +29,7 @@ export async function middleware(request: NextRequest) {
       '/dashboard/expenses',
       '/dashboard/reports',
       '/dashboard/price-optimizer',
+      '/dashboard/ai-assistant',
       '/dashboard/account'
     ];
     
