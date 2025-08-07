@@ -417,7 +417,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
                 id: doc.id,
                 ...data,
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-                updated_at: (data.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
             } as Customer
         });
         
@@ -787,7 +787,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 id: doc.id,
                 ...data,
                 created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-                updated_at: (data.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
             } as Supplier
         });
         
@@ -1202,7 +1202,7 @@ export async function fetchDashboardData() {
         const monthEnd = endOfDay(new Date());
         expensesSnapshot.forEach(doc => {
             const expense = doc.data() as Expense;
-            const expenseDate = new Date(expense.date);
+            const expenseDate = (expense.date as unknown as Timestamp).toDate();
             if(isWithinInterval(expenseDate, {start: monthStart, end: monthEnd})) {
                 expensesThisMonth += expense.amount;
             }
@@ -2078,6 +2078,7 @@ export async function createExpense(formData: FormData): Promise<Expense> {
   
   revalidatePath('/dashboard/expenses');
   revalidatePath('/dashboard/inventory'); // Revalidate if stock changes
+  revalidatePath('/dashboard');
   
   return {
     ...validatedFields.data,
@@ -2120,7 +2121,13 @@ export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthl
     const { db } = getFirebaseServices();
     const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
     const expensesSnapshot = await getDocs(expensesQuery);
-    const allExpenses = expensesSnapshot.docs.map(doc => doc.data() as Expense);
+    const allExpenses = expensesSnapshot.docs.map(doc => {
+        const data = doc.data()
+        return {
+            ...data,
+            date: (data.date as Timestamp).toDate()
+        }
+    }) as (Omit<Expense, 'date'> & { date: Date })[];
 
     let aggregatedData: { [key: string]: number } = {};
     const now = new Date();
@@ -2130,7 +2137,7 @@ export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthl
         last7Days.forEach(date => aggregatedData[format(date, 'yyyy-MM-dd')] = 0);
         
         allExpenses.forEach(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = expense.date;
             if (isWithinInterval(expenseDate, { start: last7Days[0], end: now })) {
                 const dayKey = format(expenseDate, 'yyyy-MM-dd');
                 aggregatedData[dayKey] = (aggregatedData[dayKey] || 0) + expense.amount;
@@ -2147,7 +2154,7 @@ export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthl
         last4Weeks.forEach(date => aggregatedData[format(date, 'yyyy-ww')] = 0);
         
         allExpenses.forEach(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = expense.date;
             if (isWithinInterval(expenseDate, { start: last4Weeks[0], end: now })) {
                 const weekKey = format(startOfWeek(expenseDate), 'yyyy-ww');
                 aggregatedData[weekKey] = (aggregatedData[weekKey] || 0) + expense.amount;
@@ -2164,7 +2171,7 @@ export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthl
         dateLabels.forEach(label => aggregatedData[label] = 0);
 
         allExpenses.forEach(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = expense.date;
             if (isWithinInterval(expenseDate, { start: startOfYear(now), end: endOfYear(now) })) {
                 const monthKey = format(expenseDate, 'MMM');
                 aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + expense.amount;
@@ -2176,7 +2183,7 @@ export async function fetchExpenseChartData(filter: 'daily' | 'weekly' | 'monthl
         last6Months.forEach(date => aggregatedData[format(date, 'yyyy-MM')] = 0);
         
         allExpenses.forEach(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = expense.date;
             if (isWithinInterval(expenseDate, { start: last6Months[0], end: now })) {
                 const monthKey = format(expenseDate, 'yyyy-MM');
                 aggregatedData[monthKey] = (aggregatedData[monthKey] || 0) + expense.amount;
