@@ -23,6 +23,7 @@ export async function middleware(request: NextRequest) {
     const adminOnlyPaths = [
       '/dashboard/inventory',
       '/dashboard/buy',
+      '/dashboard/orders',
       '/dashboard/suppliers',
       '/dashboard/moneyflow',
       '/dashboard/expenses',

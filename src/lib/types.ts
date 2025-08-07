@@ -54,7 +54,7 @@ export type ProductSelect = {
 export type RecentActivity = {
   id: string;
   userId: string;
-  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return' | 'loss';
+  type: 'sale' | 'update' | 'new' | 'delete' | 'purchase' | 'credit_settled' | 'check_cleared' | 'check_rejected' | 'sale_return' | 'purchase_return' | 'loss' | 'order_created';
   product_id?: string;
   product_name?: string;
   product_image?: string;
@@ -247,3 +247,49 @@ export type ExpenseData = {
   label: string;
   amount: number;
 }
+
+export type OrderItem = {
+    id: string;
+    name: string;
+    image?: string;
+    type: 'product' | 'service';
+    quantity: number;
+    price_per_unit: number; // For sales orders
+    cost_price: number; // For purchase orders
+    total_amount: number;
+    sku?: string;
+};
+
+export type SalesOrder = {
+  id: string;
+  userId: string;
+  items: Omit<OrderItem, 'cost_price'>[];
+  item_ids: string[];
+  customer_id: string | null;
+  customer_name: string;
+  subtotal: number;
+  tax_percentage: number;
+  tax_amount: number;
+  discount_amount: number;
+  service_charge: number;
+  total_amount: number;
+  order_date: string; // ISO String
+  status: 'pending' | 'completed' | 'cancelled';
+};
+
+export type PurchaseOrder = {
+  id: string;
+  userId: string;
+  items: Omit<OrderItem, 'price_per_unit'>[];
+  item_ids: string[];
+  supplier_id: string;
+  supplier_name: string;
+  subtotal: number;
+  tax_percentage: number;
+  tax_amount: number;
+  discount_amount: number;
+  service_charge: number;
+  total_amount: number;
+  order_date: string; // ISO String
+  status: 'pending' | 'completed' | 'cancelled';
+};

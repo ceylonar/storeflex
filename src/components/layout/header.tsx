@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User, LogOut, Receipt } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, Menu, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User, LogOut, Receipt, ClipboardList } from 'lucide-react';
 import type { Store as StoreType } from '@/lib/types';
 import type { User as AuthUser } from '@/lib/auth';
 import { useEffect, useState } from 'react';
@@ -27,6 +27,7 @@ const allNavLinks = [
   { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin'] },
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'sales'] },
   { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin'] },
+  { name: 'Orders', href: '/dashboard/orders', icon: ClipboardList, roles: ['admin'] },
   { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
   { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },

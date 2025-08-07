@@ -4,7 +4,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon, Receipt } from 'lucide-react';
+import { Boxes, LayoutDashboard, Lightbulb, ShoppingCart as SalesIcon, FileText, Users, Truck, Landmark, HelpCircle, User as AccountIcon, Receipt, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Logo } from '../icons/logo';
 import type { User } from '@/lib/auth';
@@ -14,6 +14,7 @@ const navigationLinks = [
   { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin'] },
   { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'sales'] },
   { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin'] },
+  { name: 'Orders', href: '/dashboard/orders', icon: ClipboardList, roles: ['admin'] },
   { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
   { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },
@@ -29,6 +30,7 @@ const icons: { [key: string]: React.ElementType } = {
   'Inventory': Boxes,
   'Sales': SalesIcon,
   'Buy': Truck,
+  'Orders': ClipboardList,
   'Customers': Users,
   'Suppliers': Users,
   'Moneyflow': Landmark,
