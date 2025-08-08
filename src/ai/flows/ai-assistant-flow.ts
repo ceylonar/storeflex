@@ -9,8 +9,8 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
-import { fetchInventoryRecords } from '@/lib/queries';
+import { z } from 'zod';
+import { fetchInventoryRecords, fetchDashboardData } from '@/lib/queries';
 
 const AiAssistantOutputSchema = z.object({
   answer: z.string().describe('The answer to the user\'s question.'),
@@ -18,8 +18,11 @@ const AiAssistantOutputSchema = z.object({
 export type AiAssistantOutput = z.infer<typeof AiAssistantOutputSchema>;
 
 export async function askAiAssistant(query: string): Promise<AiAssistantOutput> {
-  // Fetch latest transaction data to provide context to the AI
-  const allTransactions = await fetchInventoryRecords({});
+  // Fetch latest transaction data and financial stats to provide context to the AI
+  const [allTransactions, dashboardData] = await Promise.all([
+    fetchInventoryRecords({}),
+    fetchDashboardData()
+  ]);
   
   // Format transactions into a simplified string for the prompt
   const transactionContext = allTransactions.map(t => {
@@ -30,9 +33,22 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
       return details;
   }).join('\n');
 
+  // Format key financial data
+  const financialContext = `
+- Total Inventory Value: LKR ${dashboardData.inventoryValue.toFixed(2)}
+- Total Sales: LKR ${dashboardData.totalSales.toFixed(2)}
+- Total Expenses: LKR ${dashboardData.totalExpenses.toFixed(2)}
+- Total Receivables (Money owed to you): LKR ${dashboardData.totalReceivables.toFixed(2)}
+- Total Payables (Money you owe): LKR ${dashboardData.totalPayables.toFixed(2)}
+- Profit Today: LKR ${dashboardData.profitToday.toFixed(2)}
+- Profit This Month: LKR ${dashboardData.profitThisMonth.toFixed(2)}
+- Profit This Year: LKR ${dashboardData.profitThisYear.toFixed(2)}
+  `;
+
   const input = {
       query,
       transactionContext,
+      financialContext,
   };
   
   return aiAssistantFlow(input);
@@ -44,28 +60,32 @@ const prompt = ai.definePrompt({
     schema: z.object({
       query: z.string(),
       transactionContext: z.string(),
+      financialContext: z.string(),
     }),
   },
   output: { schema: AiAssistantOutputSchema },
   prompt: `You are an AI assistant for an inventory management system called "StoreFlex Lite".
-  Your role is to answer questions about the application's features and analyze its transaction data.
+  Your role is to answer questions about the application's features and analyze its transaction and financial data.
   
   **IMPORTANT**: You must detect the language of the user's question and respond in the same language.
 
   Here is a summary of the application's features:
-  - Dashboard: Overview of key metrics like inventory value, sales, and low-stock items.
-  - Inventory: Manage products and services. You can add, edit, delete, and view the transaction history for each item. Barcode scanning with AI is supported to pre-fill product details.
-  - Sales (POS): A point-of-sale terminal to conduct sales. Supports cash, credit, and check payments, and handles customer credit balances. It also has a section for processing customer returns.
-  - Buy: A terminal for recording purchases from suppliers, which automatically updates stock and weighted-average cost prices. It also has a section for processing returns to suppliers.
-  - Orders: A section to create and manage pending Sales Orders (for customers) and Purchase Orders (for suppliers). These orders can be processed later to become actual sales or purchases.
-  - Customers & Suppliers: Manage contact information and view transaction histories.
-  - Moneyflow: Track receivables (money owed to you) and payables (money you owe). You can settle credit balances and clear check payments here.
-  - Expenses: Log business expenses like bills, rent, or supplies. You can also record lost or damaged products, which deducts them from inventory.
-  - Reports: Generate detailed financial ledgers with filtering and CSV export capabilities.
-  - Price Optimizer: An AI tool to suggest optimal product prices based on cost, competitor pricing, and sales data.
-  - Account: Manage store details, branding, and user passwords.
+  - Dashboard: Overview of key metrics.
+  - Inventory: Manage products and services.
+  - Sales (POS): Point-of-sale terminal.
+  - Buy: Record purchases from suppliers.
+  - Orders: Manage sales and purchase orders.
+  - Customers & Suppliers: Manage contacts.
+  - Moneyflow: Track receivables and payables.
+  - Expenses: Log business expenses.
+  - Reports: Generate detailed financial ledgers.
+  - Price Optimizer: AI tool for pricing suggestions.
+  - Account: Manage store and user settings.
 
-  Based on the user's question and the following recent transaction data, provide a concise and helpful answer in the user's language.
+  Based on the user's question, the following recent transaction data, and the real-time financial snapshot, provide a concise and helpful answer in the user's language. If the user asks about a financial figure like "payables", "receivables", "profit", or "sales", use the data from the Financial Snapshot to give a specific answer.
+
+  Financial Snapshot:
+  {{{financialContext}}}
 
   Transaction History:
   {{{transactionContext}}}
@@ -81,6 +101,7 @@ const aiAssistantFlow = ai.defineFlow(
     inputSchema: z.object({
         query: z.string(),
         transactionContext: z.string(),
+        financialContext: z.string(),
     }),
     outputSchema: AiAssistantOutputSchema,
   },
