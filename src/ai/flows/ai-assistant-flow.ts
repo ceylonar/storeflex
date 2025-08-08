@@ -41,6 +41,19 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
       return details;
   }).join('\n');
 
+  // Create a detailed breakdown of payables and receivables
+  const payables = suppliers.filter(s => s.credit_balance > 0);
+  const receivables = customers.filter(c => c.credit_balance < 0);
+  
+  const balanceContext = `
+**Detailed Payables (Money you owe):**
+${payables.length > 0 ? payables.map(s => `- Owed to ${s.name}: LKR ${s.credit_balance.toFixed(2)}`).join('\n') : "No outstanding payables."}
+
+**Detailed Receivables (Money owed to you):**
+${receivables.length > 0 ? receivables.map(c => `- Owed by ${c.name}: LKR ${Math.abs(c.credit_balance).toFixed(2)}`).join('\n') : "No outstanding receivables."}
+  `;
+
+
   // Format key financial and operational data
   const dataContext = `
 **Financial Snapshot:**
@@ -65,6 +78,7 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
       query,
       transactionContext,
       dataContext,
+      balanceContext,
   };
   
   return aiAssistantFlow(input);
@@ -77,6 +91,7 @@ const prompt = ai.definePrompt({
       query: z.string(),
       transactionContext: z.string(),
       dataContext: z.string(),
+      balanceContext: z.string(),
     }),
   },
   output: { schema: AiAssistantOutputSchema },
@@ -98,7 +113,13 @@ const prompt = ai.definePrompt({
   - Price Optimizer: AI tool for pricing suggestions.
   - Account: Manage store and user settings.
 
-  Based on the user's question, the following real-time data snapshot, and recent transaction history, provide a concise and helpful answer in the user's language. Use the data from the snapshot and transaction history to give specific, accurate answers, especially for questions about past records and settlements involving specific people.
+  Based on the user's question, use the following real-time data to provide a concise and helpful answer in the user's language.
+  - For questions about current balances (receivables/payables), use the "Detailed Financial Balances" as the primary source of truth.
+  - For questions about past events, settlements, or specific transactions, use the "Detailed Transaction History".
+  - For general stats, use the "Real-time Data Snapshot".
+
+  **Detailed Financial Balances:**
+  {{{balanceContext}}}
 
   **Real-time Data Snapshot:**
   {{{dataContext}}}
@@ -118,6 +139,7 @@ const aiAssistantFlow = ai.defineFlow(
         query: z.string(),
         transactionContext: z.string(),
         dataContext: z.string(),
+        balanceContext: z.string(),
     }),
     outputSchema: AiAssistantOutputSchema,
   },
