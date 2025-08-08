@@ -5,6 +5,7 @@ import { StatCard, LowStockCard, RecentActivityCard } from '@/components/dashboa
 import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/lib/queries';
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
+import { ProfitCard } from '@/components/dashboard/profit-card';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -39,23 +40,10 @@ export default async function DashboardPage() {
           iconName="ShoppingCart" 
           description="Total sales for today" 
         />
-        <StatCard 
-          title="Profit (Today)" 
-          value={`LKR ${dashboardData.profitToday.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-          iconName="HandCoins"
-          description="Revenue - COGS - Expenses"
-        />
-        <StatCard 
-          title="Profit (Month)" 
-          value={`LKR ${dashboardData.profitThisMonth.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-          iconName="HandCoins"
-          description="Revenue - COGS - Expenses"
-        />
-        <StatCard 
-          title="Profit (Year)" 
-          value={`LKR ${dashboardData.profitThisYear.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-          iconName="HandCoins"
-          description="Revenue - COGS - Expenses"
+        <ProfitCard 
+          profitToday={dashboardData.profitToday}
+          profitThisMonth={dashboardData.profitThisMonth}
+          profitThisYear={dashboardData.profitThisYear}
         />
         <StatCard 
           title="Total Receivables" 
