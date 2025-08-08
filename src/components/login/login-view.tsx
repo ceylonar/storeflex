@@ -11,16 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Logo } from '@/components/icons/logo';
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useFormStatus } from 'react-dom';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 
 function LoginButton() {
   const { pending } = useFormStatus();
@@ -50,32 +40,7 @@ function LoginForm() {
         />
       </div>
       <div className="space-y-2">
-        <div className="flex items-center">
-            <Label htmlFor="password">Password</Label>
-             <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <button type="button" className="ml-auto inline-block text-sm underline">
-                        Forgot your password?
-                    </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                    <AlertDialogTitle>Default Credentials</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        If you have forgotten your password, you can use these default credentials to log in. 
-                        You can then change the password for each account on the 'Account' page inside the application.
-                        <ul className="list-disc pl-5 mt-4 space-y-2">
-                            <li><strong>Admin Username:</strong> superadmin <br/> <strong>Password:</strong> storeflexadmin</li>
-                            <li><strong>Sales Username:</strong> sales <br/> <strong>Password:</strong> storeflexsales</li>
-                        </ul>
-                    </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogAction>Got it</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div>
+        <Label htmlFor="password">Password</Label>
         <Input
           id="password"
           name="password"
