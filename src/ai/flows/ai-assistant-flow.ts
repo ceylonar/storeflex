@@ -10,7 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { fetchInventoryRecords, fetchDashboardData } from '@/lib/queries';
+import { fetchInventoryRecords, fetchDashboardData, fetchCustomers, fetchSuppliers, fetchExpenses, fetchPendingOrders } from '@/lib/queries';
 
 const AiAssistantOutputSchema = z.object({
   answer: z.string().describe('The answer to the user\'s question.'),
@@ -18,10 +18,14 @@ const AiAssistantOutputSchema = z.object({
 export type AiAssistantOutput = z.infer<typeof AiAssistantOutputSchema>;
 
 export async function askAiAssistant(query: string): Promise<AiAssistantOutput> {
-  // Fetch latest transaction data and financial stats to provide context to the AI
-  const [allTransactions, dashboardData] = await Promise.all([
+  // Fetch a comprehensive set of data to provide context to the AI
+  const [allTransactions, dashboardData, customers, suppliers, expenses, pendingOrders] = await Promise.all([
     fetchInventoryRecords({}),
-    fetchDashboardData()
+    fetchDashboardData(),
+    fetchCustomers(),
+    fetchSuppliers(),
+    fetchExpenses(),
+    fetchPendingOrders(),
   ]);
   
   // Format transactions into a simplified string for the prompt
@@ -33,8 +37,9 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
       return details;
   }).join('\n');
 
-  // Format key financial data
-  const financialContext = `
+  // Format key financial and operational data
+  const dataContext = `
+**Financial Snapshot:**
 - Total Inventory Value: LKR ${dashboardData.inventoryValue.toFixed(2)}
 - Total Sales: LKR ${dashboardData.totalSales.toFixed(2)}
 - Total Expenses: LKR ${dashboardData.totalExpenses.toFixed(2)}
@@ -43,12 +48,19 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
 - Profit Today: LKR ${dashboardData.profitToday.toFixed(2)}
 - Profit This Month: LKR ${dashboardData.profitThisMonth.toFixed(2)}
 - Profit This Year: LKR ${dashboardData.profitThisYear.toFixed(2)}
+
+**Operational Snapshot:**
+- Total Customers: ${customers.length}
+- Total Suppliers: ${suppliers.length}
+- Total Expenses Logged: ${expenses.length}
+- Pending Sales Orders: ${pendingOrders.filter(o => o.type === 'sale').length}
+- Pending Purchase Orders: ${pendingOrders.filter(o => o.type === 'purchase').length}
   `;
 
   const input = {
       query,
       transactionContext,
-      financialContext,
+      dataContext,
   };
   
   return aiAssistantFlow(input);
@@ -60,12 +72,12 @@ const prompt = ai.definePrompt({
     schema: z.object({
       query: z.string(),
       transactionContext: z.string(),
-      financialContext: z.string(),
+      dataContext: z.string(),
     }),
   },
   output: { schema: AiAssistantOutputSchema },
   prompt: `You are an AI assistant for an inventory management system called "StoreFlex Lite".
-  Your role is to answer questions about the application's features and analyze its transaction and financial data.
+  Your role is to answer questions about the application's features and analyze its operational and financial data.
   
   **IMPORTANT**: You must detect the language of the user's question and respond in the same language.
 
@@ -82,15 +94,15 @@ const prompt = ai.definePrompt({
   - Price Optimizer: AI tool for pricing suggestions.
   - Account: Manage store and user settings.
 
-  Based on the user's question, the following recent transaction data, and the real-time financial snapshot, provide a concise and helpful answer in the user's language. If the user asks about a financial figure like "payables", "receivables", "profit", or "sales", use the data from the Financial Snapshot to give a specific answer.
+  Based on the user's question, the following real-time data snapshot, and recent transaction history, provide a concise and helpful answer in the user's language. Use the data from the snapshot to give specific, accurate answers.
 
-  Financial Snapshot:
-  {{{financialContext}}}
+  **Real-time Data Snapshot:**
+  {{{dataContext}}}
 
-  Transaction History:
+  **Recent Transaction History:**
   {{{transactionContext}}}
 
-  User's Question:
+  **User's Question:**
   "{{{query}}}"
   `,
 });
@@ -101,7 +113,7 @@ const aiAssistantFlow = ai.defineFlow(
     inputSchema: z.object({
         query: z.string(),
         transactionContext: z.string(),
-        financialContext: z.string(),
+        dataContext: z.string(),
     }),
     outputSchema: AiAssistantOutputSchema,
   },
