@@ -22,7 +22,7 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
   const allTransactions = await fetchInventoryRecords({});
   
   // Format transactions into a simplified string for the prompt
-  const transactionContext = allTransactions.slice(0, 20).map(t => {
+  const transactionContext = allTransactions.map(t => {
       let details = `${t.type} on ${new Date(t.timestamp).toLocaleDateString()}: ${t.details}`;
       if (t.items && t.items.length > 0) {
           details += ` Items: ${t.items.map(i => `${i.name} (Qty: ${(i as any).quantity || (i as any).return_quantity})`).join(', ')}`;
@@ -67,7 +67,7 @@ const prompt = ai.definePrompt({
 
   Based on the user's question and the following recent transaction data, provide a concise and helpful answer in the user's language.
 
-  Recent Transactions:
+  Transaction History:
   {{{transactionContext}}}
 
   User's Question:
