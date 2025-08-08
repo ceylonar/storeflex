@@ -27,7 +27,8 @@ export default async function DashboardPage() {
           title="Inventory Value" 
           value={`LKR ${dashboardData.inventoryValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
           iconName="DollarSign" 
-          description="Total cost of current stock" 
+          description="Total cost of current stock"
+          href="/dashboard/inventory"
         />
         <StatCard 
           title="Products & Services" 

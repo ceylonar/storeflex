@@ -2,6 +2,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import {
   Card,
   CardContent,
@@ -83,22 +84,30 @@ interface StatCardProps {
   value: string;
   iconName: keyof typeof icons;
   description?: string;
+  href?: string;
 }
 
-export function StatCard({ title, value, iconName, description }: StatCardProps) {
+export function StatCard({ title, value, iconName, description, href }: StatCardProps) {
   const Icon = icons[iconName];
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      </CardContent>
-    </Card>
+  
+  const cardContent = (
+      <Card className="h-full transition-all hover:bg-secondary">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{title}</CardTitle>
+            {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+        </CardHeader>
+        <CardContent>
+            <div className="text-2xl font-bold">{value}</div>
+            {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        </CardContent>
+      </Card>
   );
+
+  if (href) {
+    return <Link href={href} className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-lg">{cardContent}</Link>;
+  }
+
+  return cardContent;
 }
 
 export function SalesChartCard({ initialData }: { initialData: SalesData[] }) {
