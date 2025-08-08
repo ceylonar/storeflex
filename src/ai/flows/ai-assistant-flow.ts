@@ -31,7 +31,11 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
   // Format transactions into a simplified string for the prompt
   const transactionContext = allTransactions.map(t => {
       let details = `${t.type} on ${new Date(t.timestamp).toLocaleDateString()}: ${t.details}`;
-      if (t.items && t.items.length > 0) {
+      // For credit settlements and similar activities, ensure the party name is included if available.
+      if ((t.type === 'credit_settled' || t.type.includes('return')) && t.partyName) {
+        details = `${t.type} on ${new Date(t.timestamp).toLocaleDateString()} involving ${t.partyName}: ${t.details}`;
+      }
+      else if (t.items && t.items.length > 0) {
           details += ` Items: ${t.items.map(i => `${i.name} (Qty: ${(i as any).quantity || (i as any).return_quantity})`).join(', ')}`;
       }
       return details;
@@ -94,12 +98,12 @@ const prompt = ai.definePrompt({
   - Price Optimizer: AI tool for pricing suggestions.
   - Account: Manage store and user settings.
 
-  Based on the user's question, the following real-time data snapshot, and recent transaction history, provide a concise and helpful answer in the user's language. Use the data from the snapshot to give specific, accurate answers.
+  Based on the user's question, the following real-time data snapshot, and recent transaction history, provide a concise and helpful answer in the user's language. Use the data from the snapshot and transaction history to give specific, accurate answers, especially for questions about past records and settlements involving specific people.
 
   **Real-time Data Snapshot:**
   {{{dataContext}}}
 
-  **Recent Transaction History:**
+  **Detailed Transaction History:**
   {{{transactionContext}}}
 
   **User's Question:**
