@@ -28,7 +28,7 @@ import {
 } from 'firebase/firestore';
 import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem, Expense, ExpenseData, SalesOrder, PurchaseOrder } from './types';
 import { z } from 'zod';
-import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear, startOfMonth } from 'date-fns';
+import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear, startOfMonth, endOfMonth } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import { getUser } from './auth';
 
@@ -88,6 +88,7 @@ const SaleItemSchema = z.object({
     type: z.enum(['product', 'service']),
     quantity: z.number().int().positive(),
     price_per_unit: z.number().positive(),
+    cost_price: z.number().nonnegative(),
     total_amount: z.number().positive(),
     stock: z.number().int().nonnegative().optional(),
     sub_category: z.string().optional(),
@@ -602,12 +603,13 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
         const newActivityRef = doc(collection(db, 'recent_activity'));
+        const saleProfit = items.reduce((profit, item) => profit + ((item.price_per_unit - item.cost_price) * item.quantity), 0);
         transaction.set(newActivityRef, {
             type: 'sale',
             product_id: 'multiple',
             product_name: `${items.length} item(s)`,
             product_image: items[0]?.image || '',
-            details: `Sale to ${saleDetails.customer_name} for LKR ${total_amount.toFixed(2)}`,
+            details: `Sale to ${saleDetails.customer_name} for LKR ${total_amount.toFixed(2)}. Profit: LKR ${saleProfit.toFixed(2)}`,
             timestamp: serverTimestamp(),
             userId,
             id: newSaleRef.id,
@@ -1112,10 +1114,12 @@ export async function fetchDashboardData() {
         productCount: 0,
         serviceCount: 0,
         salesToday: 0,
+        profitToday: 0,
+        profitThisMonth: 0,
+        profitThisYear: 0,
         totalSales: 0,
         totalReceivables: 0,
         totalPayables: 0,
-        expensesThisMonth: 0,
         recentActivities: [],
         lowStockProducts: [],
     };
@@ -1135,9 +1139,9 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersQuery),
-            getDocs(suppliersQuery),
-            getDocs(expensesQuery),
+            getDocs(customersSnapshot),
+            getDocs(suppliersSnapshot),
+            getDocs(expensesSnapshot),
         ]);
         
         let inventoryValue = 0;
@@ -1170,23 +1174,74 @@ export async function fetchDashboardData() {
                 updated_at: p.updated_at || new Date().toISOString(),
             }));
 
-        let totalSales = 0;
+        const now = new Date();
+        const todayStart = startOfDay(now);
+        const todayEnd = endOfDay(now);
+        const monthStart = startOfMonth(now);
+        const monthEnd = endOfMonth(now);
+        const yearStart = startOfYear(now);
+        const yearEnd = endOfYear(now);
+
         let salesToday = 0;
-        const todayStart = startOfDay(new Date());
-        const todayEnd = endOfDay(new Date());
-        
-        const allSales = salesSnapshot.docs.map(doc => doc.data() as Sale);
+        let cogsToday = 0;
+        let salesThisMonth = 0;
+        let cogsThisMonth = 0;
+        let salesThisYear = 0;
+        let cogsThisYear = 0;
+        let totalSales = 0;
+
+        const allSales = salesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                sale_date: (data.sale_date as Timestamp).toDate(),
+            } as Omit<Sale, 'sale_date'> & { sale_date: Date };
+        });
 
         allSales.forEach(sale => {
-            const saleDate = (sale.sale_date as unknown as Timestamp)?.toDate();
-            if (saleDate) {
-              totalSales += sale.total_amount || 0;
-              if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
-                  salesToday += sale.total_amount || 0;
-              }
+            const saleDate = sale.sale_date;
+            const saleTotal = sale.total_amount || 0;
+            const saleCogs = sale.items.reduce((acc, item) => acc + ((item.cost_price || 0) * item.quantity), 0);
+            totalSales += saleTotal;
+
+            if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
+                salesToday += saleTotal;
+                cogsToday += saleCogs;
+            }
+            if (isWithinInterval(saleDate, { start: monthStart, end: monthEnd })) {
+                salesThisMonth += saleTotal;
+                cogsThisMonth += saleCogs;
+            }
+             if (isWithinInterval(saleDate, { start: yearStart, end: yearEnd })) {
+                salesThisYear += saleTotal;
+                cogsThisYear += saleCogs;
             }
         });
 
+        let expensesToday = 0;
+        let expensesThisMonth = 0;
+        let expensesThisYear = 0;
+
+        expensesSnapshot.forEach(doc => {
+            const expense = doc.data() as Expense;
+            const expenseDate = (expense.date as unknown as Timestamp).toDate();
+            const expenseAmount = expense.amount;
+            
+            if (isWithinInterval(expenseDate, {start: todayStart, end: todayEnd})) {
+                expensesToday += expenseAmount;
+            }
+            if (isWithinInterval(expenseDate, {start: monthStart, end: monthEnd})) {
+                expensesThisMonth += expenseAmount;
+            }
+             if (isWithinInterval(expenseDate, {start: yearStart, end: yearEnd})) {
+                expensesThisYear += expenseAmount;
+            }
+        });
+
+        const profitToday = salesToday - cogsToday - expensesToday;
+        const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
+        const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
+        
         let recentActivities = activitySnapshot.docs.map(doc => {
           const data = doc.data();
           const activity: RecentActivity = {
@@ -1213,40 +1268,31 @@ export async function fetchDashboardData() {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) { // Customer has store credit, it's a payable
+            if (balance > 0) {
                 totalPayables += balance;
-            } else if (balance < 0) { // Customer owes us, it's a receivable
+            } else if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
         });
 
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) { // We owe supplier, it's a payable
+            if (balance > 0) {
                 totalPayables += balance;
             }
         });
-
-        let expensesThisMonth = 0;
-        const monthStart = startOfMonth(new Date());
-        const monthEnd = endOfDay(new Date());
-        expensesSnapshot.forEach(doc => {
-            const expense = doc.data() as Expense;
-            const expenseDate = (expense.date as unknown as Timestamp).toDate();
-            if(isWithinInterval(expenseDate, {start: monthStart, end: monthEnd})) {
-                expensesThisMonth += expense.amount;
-            }
-        });
-
+        
         return {
             inventoryValue,
             productCount,
             serviceCount,
             salesToday,
             totalSales,
+            profitToday,
+            profitThisMonth,
+            profitThisYear,
             totalReceivables,
             totalPayables,
-            expensesThisMonth,
             recentActivities: limitedActivities.map(act => ({
                 ...act,
                 timestamp: act.timestamp || new Date().toISOString(),
@@ -2328,7 +2374,7 @@ export async function processSalesOrder(orderId: string): Promise<void> {
     
     // Simplified: converting order to a cash sale with full amount paid
     const saleData = {
-        items: order.items.map(i => ({...i, price_per_unit: i.price_per_unit})),
+        items: order.items.map(i => ({...i, cost_price: i.cost_price || 0, price_per_unit: i.price_per_unit})),
         customer_id: order.customer_id,
         customer_name: order.customer_name,
         subtotal: order.subtotal,
@@ -2366,7 +2412,7 @@ export async function processPurchaseOrder(orderId: string): Promise<void> {
     
     // Simplified: converting order to a cash purchase with full amount paid
     const purchaseData = {
-        items: order.items.map(i => ({...i, total_cost: i.total_amount})),
+        items: order.items.map(i => ({...i, total_cost: i.total_amount, cost_price: i.cost_price || 0})),
         supplier_id: order.supplier_id,
         supplier_name: order.supplier_name,
         subtotal: order.subtotal,
