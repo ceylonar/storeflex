@@ -1118,6 +1118,7 @@ export async function fetchDashboardData() {
         profitThisMonth: 0,
         profitThisYear: 0,
         totalSales: 0,
+        totalExpenses: 0,
         totalReceivables: 0,
         totalPayables: 0,
         recentActivities: [],
@@ -1221,11 +1222,13 @@ export async function fetchDashboardData() {
         let expensesToday = 0;
         let expensesThisMonth = 0;
         let expensesThisYear = 0;
+        let totalExpenses = 0;
 
         expensesSnapshot.forEach(doc => {
             const expense = doc.data() as Expense;
             const expenseDate = (expense.date as unknown as Timestamp).toDate();
             const expenseAmount = expense.amount;
+            totalExpenses += expenseAmount;
             
             if (isWithinInterval(expenseDate, {start: todayStart, end: todayEnd})) {
                 expensesToday += expenseAmount;
@@ -1269,7 +1272,7 @@ export async function fetchDashboardData() {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                payablesTotal += balance;
+                totalPayables += balance;
             } else if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
@@ -1288,6 +1291,7 @@ export async function fetchDashboardData() {
             serviceCount,
             salesToday,
             totalSales,
+            totalExpenses,
             profitToday,
             profitThisMonth,
             profitThisYear,
@@ -2470,4 +2474,3 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
-

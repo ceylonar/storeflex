@@ -45,6 +45,18 @@ export default async function DashboardPage() {
           profitThisMonth={dashboardData.profitThisMonth}
           profitThisYear={dashboardData.profitThisYear}
         />
+         <StatCard 
+          title="Total Sales" 
+          value={`LKR ${dashboardData.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+          iconName="Briefcase" 
+          description="All-time gross sales revenue" 
+        />
+        <StatCard 
+          title="Total Expenses" 
+          value={`LKR ${dashboardData.totalExpenses.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="Receipt"
+          description="All-time recorded expenses"
+        />
         <StatCard 
           title="Total Receivables" 
           value={`LKR ${dashboardData.totalReceivables.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
