@@ -1123,6 +1123,8 @@ export async function fetchDashboardData() {
         totalPayables: 0,
         recentActivities: [],
         lowStockProducts: [],
+        pendingSalesOrders: [],
+        pendingPurchaseOrders: [],
     };
     if (!userId) return defaultData;
 
@@ -1272,7 +1274,7 @@ export async function fetchDashboardData() {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                totalPayables += balance;
+                payablesTotal += balance;
             } else if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
@@ -1284,6 +1286,10 @@ export async function fetchDashboardData() {
                 totalPayables += balance;
             }
         });
+
+        const allPendingOrders = await fetchPendingOrders();
+        const pendingSalesOrders = allPendingOrders.filter(o => o.type === 'sale') as (SalesOrder & { type: 'sale' })[];
+        const pendingPurchaseOrders = allPendingOrders.filter(o => o.type === 'purchase') as (PurchaseOrder & { type: 'purchase' })[];
         
         return {
             inventoryValue,
@@ -1306,6 +1312,8 @@ export async function fetchDashboardData() {
                 created_at: p.created_at || new Date().toISOString(),
                 updated_at: p.updated_at || new Date().toISOString(),
             })),
+            pendingSalesOrders: pendingSalesOrders.slice(0, 3),
+            pendingPurchaseOrders: pendingPurchaseOrders.slice(0, 3),
         };
     } catch (error) {
         console.error('Database Error:', error);
@@ -1492,7 +1500,7 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         
         const toPlainObject = (obj: any): any => {
             if (!obj) return obj;
-            const newObj: {[key: string]: any} = {};
+            const newObj: {[key:string]: any} = {};
             for (const key in obj) {
                 if (obj[key] instanceof Timestamp) {
                     newObj[key] = obj[key].toDate().toISOString();

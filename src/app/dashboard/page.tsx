@@ -6,6 +6,7 @@ import { fetchDashboardData, fetchSalesData, fetchTopSellingProducts } from '@/l
 import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
 import { ProfitCard } from '@/components/dashboard/profit-card';
+import { PendingOrdersCard } from '@/components/dashboard/pending-orders-card';
 
 export default async function DashboardPage() {
   const user = await getUser();
@@ -81,8 +82,12 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:gap-8 xl:grid-cols-3">
-         <div className="xl:col-span-2">
+         <div className="xl:col-span-2 grid gap-6">
             <LowStockCard products={dashboardData.lowStockProducts} />
+            <PendingOrdersCard 
+              salesOrders={dashboardData.pendingSalesOrders} 
+              purchaseOrders={dashboardData.pendingPurchaseOrders} 
+            />
         </div>
         <div className="xl:col-span-1">
             <RecentActivityCard activities={dashboardData.recentActivities} />

@@ -74,6 +74,8 @@ const activityIcons: Record<RecentActivity['type'], React.ElementType> = {
     check_rejected: XCircle,
     sale_return: ShoppingCart,
     purchase_return: DollarSign,
+    loss: Package,
+    order_created: Package,
 }
 
 interface StatCardProps {
