@@ -59,6 +59,7 @@ const icons = {
   ArrowUpRight,
   Briefcase,
   Receipt,
+  HandCoins,
 };
 
 const activityIcons: Record<RecentActivity['type'], React.ElementType> = {

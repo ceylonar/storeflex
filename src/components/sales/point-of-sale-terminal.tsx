@@ -156,6 +156,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
             type: product.type,
             sub_category: product.sub_category,
             quantity: 1,
+            cost_price: product.cost_price || 0,
             price_per_unit: product.selling_price,
             total_amount: product.selling_price,
             stock: product.stock,

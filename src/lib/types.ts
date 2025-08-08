@@ -97,6 +97,7 @@ export type SaleItem = {
     image?: string;
     type: 'product' | 'service';
     quantity: number;
+    cost_price: number;
     price_per_unit: number;
     total_amount: number;
     stock: number;

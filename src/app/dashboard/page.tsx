@@ -40,16 +40,22 @@ export default async function DashboardPage() {
           description="Total sales for today" 
         />
         <StatCard 
-          title="Expenses (Month)" 
-          value={`LKR ${dashboardData.expensesThisMonth.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-          iconName="Receipt"
-          description="Expenses this calendar month"
+          title="Profit (Today)" 
+          value={`LKR ${dashboardData.profitToday.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="HandCoins"
+          description="Revenue - COGS - Expenses"
         />
         <StatCard 
-          title="Total Sales" 
-          value={`LKR ${dashboardData.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-          iconName="CreditCard"
-          description="All-time total sales"
+          title="Profit (Month)" 
+          value={`LKR ${dashboardData.profitThisMonth.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="HandCoins"
+          description="Revenue - COGS - Expenses"
+        />
+        <StatCard 
+          title="Profit (Year)" 
+          value={`LKR ${dashboardData.profitThisYear.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
+          iconName="HandCoins"
+          description="Revenue - COGS - Expenses"
         />
         <StatCard 
           title="Total Receivables" 
