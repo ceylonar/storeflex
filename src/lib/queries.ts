@@ -1139,9 +1139,9 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersSnapshot),
-            getDocs(suppliersSnapshot),
-            getDocs(expensesSnapshot),
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
+            getDocs(expensesQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1269,7 +1269,7 @@ export async function fetchDashboardData() {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                totalPayables += balance;
+                payablesTotal += balance;
             } else if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
@@ -2470,3 +2470,4 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
+
