@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1133,9 +1134,9 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersQuery),
-            getDocs(suppliersQuery),
-            getDocs(expensesQuery),
+            getDocs(customersSnapshot),
+            getDocs(suppliersSnapshot),
+            getDocs(expensesSnapshot),
         ]);
         
         let inventoryValue = 0;
@@ -1261,8 +1262,8 @@ export async function fetchDashboardData() {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance < 0) {
-                totalReceivables += Math.abs(balance);
+            if (balance > 0) {
+                totalReceivables += balance;
             }
         });
 
@@ -1443,29 +1444,18 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
 
     const { db } = getFirebaseServices();
     try {
-        const allCollections = ['sales', 'purchases', 'sales_returns', 'purchase_returns', 'recent_activity'];
-        const allDocs: (any)[] = [];
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
         
-        for (const colName of allCollections) {
-            const q = query(collection(db, colName), where('userId', '==', userId));
-            const snapshot = await getDocs(q);
-            snapshot.forEach(doc => {
-                let docType: DetailedRecord['type'] = doc.data().type; // Use type from activity log if available
-                if (colName === 'sales') docType = 'sale';
-                else if (colName === 'purchases') docType = 'purchase';
-                else if (colName === 'sales_returns') docType = 'sale_return';
-                else if (colName === 'purchase_returns') docType = 'purchase_return';
-                
-                const docData = { ...doc.data(), id: doc.id, type: docType };
-                allDocs.push(docData);
-            });
-        }
-        
+        const activitySnapshot = await getDocs(activityQuery);
+        let allDocs: RecentActivity[] = activitySnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as RecentActivity);
+
         let filteredDocs = allDocs.filter(doc => {
             if (filters.type && doc.type !== filters.type) return false;
 
-            const hasProductId = (doc as any).item_ids?.includes(filters.productId) || (doc as any).product_id === filters.productId;
-            if (filters.productId && !hasProductId) return false;
+            if (filters.productId) {
+                const hasProductId = doc.item_ids?.includes(filters.productId) || doc.product_id === filters.productId;
+                if (!hasProductId) return false;
+            }
 
             if (filters.partyId) {
                 const [partyType, id] = filters.partyId.split('_');
@@ -1476,14 +1466,13 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
             if (filters.date?.from) {
                 const from = startOfDay(filters.date.from);
                 const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-                const rawTimestamp = (doc as any).timestamp || (doc as any).sale_date || (doc as any).purchase_date || (doc as any).return_date;
-                const docDate = (rawTimestamp as Timestamp)?.toDate();
+                const docDate = (doc.timestamp as any as Timestamp)?.toDate();
                 if (!docDate || !isWithinInterval(docDate, { start: from, end: to })) return false;
             }
             
             return true;
         });
-        
+
         const toPlainObject = (obj: any): any => {
             if (!obj) return obj;
             const newObj: {[key:string]: any} = {};
@@ -1504,55 +1493,38 @@ export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Pr
         
         const detailedRecordsPromises = filteredDocs.map(async (doc): Promise<DetailedRecord> => {
             const plainDoc = toPlainObject(doc);
-            const timestamp = plainDoc.timestamp || plainDoc.sale_date || plainDoc.purchase_date || plainDoc.return_date || new Date(0).toISOString();
+            const timestamp = plainDoc.timestamp || new Date(0).toISOString();
             
-            const baseRecord: Partial<DetailedRecord> = {
+            let transaction: any = null;
+            let items: any[] = [];
+            let partyName = 'N/A';
+
+            if (['sale', 'purchase', 'sale_return', 'purchase_return'].includes(plainDoc.type)) {
+                const collectionName = `${plainDoc.type}s`;
+                const transactionDoc = await getDoc(doc(db, collectionName, plainDoc.id));
+                if (transactionDoc.exists()) {
+                    transaction = toPlainObject(transactionDoc.data());
+                    items = transaction.items || [];
+                    partyName = transaction.customer_name || transaction.supplier_name;
+                }
+            }
+
+            return {
                 id: plainDoc.id,
                 userId: plainDoc.userId,
                 type: plainDoc.type,
                 timestamp: timestamp,
                 details: plainDoc.details || '',
-                transaction: plainDoc,
-            };
-
-            if (plainDoc.type === 'sale') {
-                baseRecord.partyName = plainDoc.customer_name;
-                baseRecord.partyId = plainDoc.customer_id;
-                baseRecord.items = plainDoc.items;
-            } else if (plainDoc.type === 'purchase') {
-                baseRecord.partyName = plainDoc.supplier_name;
-                baseRecord.partyId = plainDoc.supplier_id;
-                baseRecord.items = plainDoc.items;
-            } else if (plainDoc.type === 'sale_return') {
-                baseRecord.partyName = plainDoc.customer_name;
-                baseRecord.partyId = plainDoc.customer_id;
-                baseRecord.items = plainDoc.items;
-            } else if (plainDoc.type === 'purchase_return') {
-                baseRecord.partyName = plainDoc.supplier_name;
-                baseRecord.partyId = plainDoc.supplier_id;
-                baseRecord.items = plainDoc.items;
-            } else { // Activity
-                baseRecord.product_id = plainDoc.product_id;
-                baseRecord.product_name = plainDoc.product_name;
-                if(plainDoc.customer_id) {
-                     const customerDoc = await getDoc(doc(db, 'customers', plainDoc.customer_id));
-                     baseRecord.partyName = customerDoc.data()?.name || 'N/A';
-                } else if(plainDoc.supplier_id) {
-                    const supplierDoc = await getDoc(doc(db, 'suppliers', plainDoc.supplier_id));
-                    baseRecord.partyName = supplierDoc.data()?.name || 'N/A';
-                } else {
-                    baseRecord.partyName = 'N/A';
-                }
-            }
-            
-            return baseRecord as DetailedRecord;
+                product_id: plainDoc.product_id,
+                product_name: plainDoc.product_name,
+                partyId: plainDoc.customer_id || plainDoc.supplier_id,
+                partyName: partyName,
+                items: items,
+                transaction: transaction,
+            } as DetailedRecord;
         });
 
-        let resolvedRecords = await Promise.all(detailedRecordsPromises);
-        
-        resolvedRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-        return resolvedRecords;
+        return await Promise.all(detailedRecordsPromises);
 
     } catch (error) {
         console.error('Database Error:', error);
@@ -1577,7 +1549,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
         getDocs(purchasesQuery),
-        getDocs(lossQuery)
+        getDocs(lossSnapshot)
     ]);
     
     const transactions: ProductTransaction[] = [];
@@ -1677,11 +1649,11 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance < 0) {
-                receivablesTotal += Math.abs(balance);
+            if (balance > 0) {
+                receivablesTotal += balance;
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
-                    paymentMethod: 'credit', amount: Math.abs(balance),
+                    paymentMethod: 'credit', amount: balance,
                     date,
                 });
             }
@@ -1764,7 +1736,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
               }
               partyRef = doc(db, partyType, transaction.partyId);
               
-              const incrementValue = transaction.type === 'receivable' ? settlementAmount : -settlementAmount;
+              const incrementValue = transaction.type === 'receivable' ? -settlementAmount : -settlementAmount;
               t.update(partyRef, { credit_balance: increment(incrementValue) });
 
               details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
@@ -1947,7 +1919,7 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
         // 2. Update customer credit balance.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
             const customerRef = doc(db, 'customers', returnData.customer_id);
-            transaction.update(customerRef, { credit_balance: increment(returnData.total_refund_amount) });
+            transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
         }
         
         // 3. Create a new sale return document with a readable ID

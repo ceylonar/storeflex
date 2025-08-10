@@ -2,21 +2,30 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
     // Helper function to check ownership
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    // Allow authenticated users to manage their own counter documents
+    // Allow users to read and write their own documents in most collections
+    match /{collection}/{docId} {
+      allow read, write: if isOwner(resource.data.userId);
+    }
+    
+    // Specifically allow any authenticated user to read/write their own counters
     match /counters/{counterId} {
        allow read, write: if request.auth != null;
     }
-    
-    // Secure all other collections
-    match /{collection}/{docId} {
-      allow read, update, delete: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
+
+    // User profiles can be read by anyone, but only written by the owner
+    match /user_profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if isOwner(userId);
+    }
+
+     // Allow logged-in users to read their own recent_activity
+    match /recent_activity/{activityId} {
+      allow read, write: if isOwner(resource.data.userId);
     }
   }
 }
