@@ -9,7 +9,7 @@
  * - SuggestOptimalPriceOutput - The return type for the suggestOptimalPrice function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai, ensureAiIsConfigured} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const SuggestOptimalPriceInputSchema = z.object({
@@ -32,6 +32,7 @@ const SuggestOptimalPriceOutputSchema = z.object({
 export type SuggestOptimalPriceOutput = z.infer<typeof SuggestOptimalPriceOutputSchema>;
 
 export async function suggestOptimalPrice(input: SuggestOptimalPriceInput): Promise<SuggestOptimalPriceOutput> {
+  ensureAiIsConfigured();
   return suggestOptimalPriceFlow(input);
 }
 

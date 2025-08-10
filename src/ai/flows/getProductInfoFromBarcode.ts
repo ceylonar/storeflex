@@ -8,7 +8,7 @@
  * - ProductInfoOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
+import {ai, ensureAiIsConfigured} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ProductInfoOutputSchema = z.object({
@@ -19,6 +19,7 @@ const ProductInfoOutputSchema = z.object({
 export type ProductInfoOutput = z.infer<typeof ProductInfoOutputSchema>;
 
 export async function getProductInfoFromBarcode(barcode: string): Promise<ProductInfoOutput> {
+  ensureAiIsConfigured();
   return getProductInfoFlow(barcode);
 }
 

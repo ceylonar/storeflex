@@ -8,7 +8,7 @@
  * - AiAssistantOutput - The return type for the function.
  */
 
-import { ai } from '@/ai/genkit';
+import { ai, ensureAiIsConfigured } from '@/ai/genkit';
 import { z } from 'zod';
 import { fetchInventoryRecords, fetchDashboardData, fetchCustomers, fetchSuppliers, fetchExpenses, fetchPendingOrders } from '@/lib/queries';
 
@@ -18,6 +18,8 @@ const AiAssistantOutputSchema = z.object({
 export type AiAssistantOutput = z.infer<typeof AiAssistantOutputSchema>;
 
 export async function askAiAssistant(query: string): Promise<AiAssistantOutput> {
+  ensureAiIsConfigured();
+
   // Fetch a comprehensive set of data to provide context to the AI
   const [allTransactions, dashboardData, customers, suppliers, expenses, pendingOrders] = await Promise.all([
     fetchInventoryRecords({}),
