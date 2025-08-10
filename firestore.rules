@@ -1,32 +1,83 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Helper function to check ownership
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Any authenticated user can create their own documents in any collection.
-    // The `userId` field MUST be set to their own UID.
-    match /{collection}/{docId} {
-      allow read, write: if isOwner(request.resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-      allow delete: if isOwner(resource.data.userId);
-      allow update: if isOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+    // By default, deny all access
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    // User can manage their own profile
+    // Allow users to read, write, and delete their own profile
     match /user_profiles/{userId} {
-      allow read: if isOwner(userId);
-      allow create, update: if isOwner(userId);
+      allow read, update, delete: if isOwner(userId);
+      allow create: if request.auth != null && request.resource.id == request.auth.uid;
     }
     
-    // User can manage their own counters
+    // Allow users to manage their own counters
     match /counters/{counterId} {
-       allow read, write: if request.auth != null && counterId.startsWith(request.auth.uid);
+      allow read, write: if request.auth != null && counterId.split('_')[1] == request.auth.uid;
+    }
+
+    // Data collections that are owned by a user
+    match /products/{productId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /customers/{customerId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /suppliers/{supplierId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+    
+    match /sales/{saleId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /purchases/{purchaseId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+    
+    match /salesOrders/{orderId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /purchaseOrders/{orderId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /sales_returns/{returnId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /purchase_returns/{returnId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+    
+    match /expenses/{expenseId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+    }
+
+    match /recent_activity/{activityId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
     }
   }
 }
