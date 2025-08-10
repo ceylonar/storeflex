@@ -3,12 +3,12 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCSmSNmAeCTut9VRG19zjdmxKcxRJBHG8o",
-  authDomain: "storeflex-5c94c.firebaseapp.com",
-  projectId: "storeflex-5c94c",
-  storageBucket: "storeflex-5c94c.appspot.com",
-  messagingSenderId: "225594380185",
-  appId: "1:225594380185:web:3ada66fbc40a2f9990cd08"
+  apiKey: "AIzaSyDrYXgAMEzFnZF5OG58Nqyn7eDML72XbJE",
+  authDomain: "storeflex-litemgg.firebaseapp.com",
+  projectId: "storeflex-litemgg",
+  storageBucket: "storeflex-litemgg.appspot.com",
+  messagingSenderId: "611296689660",
+  appId: "1:611296689660:web:ec067ed7c279fc35ee4679"
 };
 
 // Initialize Firebase
