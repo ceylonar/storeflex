@@ -439,7 +439,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId));
+        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
         const snapshot = await getDocs(q);
         let customers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -450,8 +450,6 @@ export async function fetchCustomers(): Promise<Customer[]> {
                 updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
             } as Customer
         });
-        
-        customers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return customers;
     } catch(error) {
@@ -695,8 +693,8 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
         const salesCollection = collection(db, 'sales');
         
         const q = customerId === 'walk-in'
-            ? query(salesCollection, where('userId', '==', userId), where('customer_id', '==', null))
-            : query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
+            ? query(salesCollection, where('userId', '==', userId), where('customer_id', '==', null), orderBy('sale_date', 'desc'))
+            : query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId), orderBy('sale_date', 'desc'));
 
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
@@ -707,7 +705,6 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
                 sale_date: (data.sale_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Sale
         });
-        sales.sort((a,b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
         
         return sales;
     } catch (error) {
@@ -810,7 +807,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId));
+        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
         const snapshot = await getDocs(q);
         let suppliers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -821,9 +818,6 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
             } as Supplier
         });
-        
-        // Sort in code to avoid complex index
-        suppliers.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return suppliers;
 
@@ -1049,7 +1043,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
     const { db } = getFirebaseServices();
     try {
         const purchasesCollection = collection(db, 'purchases');
-        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId));
+        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId), orderBy('purchase_date', 'desc'));
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -1059,8 +1053,6 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
                 purchase_date: (data.purchase_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Purchase
         });
-        
-        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
         
         return purchases;
     } catch (error) {
@@ -1131,7 +1123,7 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
@@ -1264,9 +1256,6 @@ export async function fetchDashboardData() {
           return activity;
         });
         
-        recentActivities = recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        const limitedActivities = recentActivities.slice(0, 5);
-        
         let totalReceivables = 0;
         let totalPayables = 0;
 
@@ -1300,7 +1289,7 @@ export async function fetchDashboardData() {
             profitThisYear,
             totalReceivables,
             totalPayables,
-            recentActivities: limitedActivities.map(act => ({
+            recentActivities: recentActivities.map(act => ({
                 ...act,
                 timestamp: act.timestamp || new Date().toISOString(),
             })),
@@ -1822,7 +1811,7 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
     try {
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         
-        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
+        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes), orderBy('timestamp', 'desc'));
         
         const activitySnapshot = await getDocs(q);
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1833,9 +1822,6 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
                 timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             }
         }) as RecentActivity[];
-
-        // Sort in code to avoid composite index
-        allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         return allActivities;
     } catch (error) {
@@ -2152,8 +2138,7 @@ export async function fetchExpenses(): Promise<Expense[]> {
 
   const { db } = getFirebaseServices();
   const expensesCollection = collection(db, 'expenses');
-  // Simple query, then sort in code to avoid composite index
-  const q = query(expensesCollection, where('userId', '==', userId));
+  const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
   
   try {
     const snapshot = await getDocs(q);
@@ -2165,8 +2150,6 @@ export async function fetchExpenses(): Promise<Expense[]> {
         date: (data.date as Timestamp).toDate().toISOString(),
       } as Expense;
     });
-    // Sort in-memory
-    expenses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return expenses;
   } catch (e) {
       console.error("Firebase query failed for expenses.", e)
