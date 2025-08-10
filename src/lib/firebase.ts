@@ -1,5 +1,5 @@
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -12,12 +12,14 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app;
+let app: FirebaseApp;
 if (!getApps().length) {
     if (firebaseConfig.projectId) {
         app = initializeApp(firebaseConfig);
     } else {
         console.error("Firebase project ID is not set. Firebase will not be initialized.");
+        // @ts-ignore
+        app = null;
     }
 } else {
     app = getApp();
@@ -29,7 +31,7 @@ function getFirebaseServices() {
     if (!app || !db) {
         throw new Error('Firebase is not initialized. Please check your environment variables in the .env file.');
     }
-    return { db };
+    return { app, db };
 }
 
 

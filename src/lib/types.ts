@@ -1,5 +1,4 @@
 
-
 export type Store = {
   id: string;
   name: string;
@@ -14,8 +13,6 @@ export type UserProfile = {
     contactNumber?: string;
     logoUrl?: string;
     googleSheetUrl?: string;
-    role?: 'admin' | 'sales';
-    password?: string;
 };
 
 export type Product = {

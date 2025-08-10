@@ -1,19 +1,16 @@
 
-
 import { fetchUserProfile, fetchAllUsers } from "@/lib/queries";
 import { User } from "lucide-react";
 import { AccountForm } from "@/components/account/account-form";
 import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { UserManagement } from "@/components/account/user-management";
-import { Separator } from "@/components/ui/separator";
 import { PasswordManagement } from "@/components/account/password-management";
-
+import { Separator } from "@/components/ui/separator";
 
 export default async function AccountPage() {
   const user = await getUser();
-  if (!user || user.role !== 'admin') {
-      redirect('/dashboard/sales');
+  if (!user) {
+      redirect('/login');
   }
 
   const userProfile = await fetchUserProfile();

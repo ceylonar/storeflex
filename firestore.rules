@@ -3,11 +3,30 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // WARNING: These rules are permissive and are not secure for production.
-    // They are intended for initial development and debugging.
-    // This allows any client to read and write to the entire database.
-    match /{document=**} {
-      allow read, write: if true;
+    
+    // Helper function to check ownership
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Any authenticated user can create their own documents in any collection.
+    // The `userId` field MUST be set to their own UID.
+    match /{collection}/{docId} {
+      allow read, write: if isOwner(request.resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
+      allow delete: if isOwner(resource.data.userId);
+      allow update: if isOwner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+    }
+
+    // User can manage their own profile
+    match /user_profiles/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId);
+    }
+    
+    // User can manage their own counters
+    match /counters/{counterId} {
+       allow read, write: if request.auth != null && counterId.startsWith(request.auth.uid);
     }
   }
 }

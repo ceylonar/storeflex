@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1273,9 +1272,7 @@ export async function fetchDashboardData() {
 
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
-            if (balance > 0) {
-                payablesTotal += balance;
-            } else if (balance < 0) {
+            if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
         });
@@ -1691,14 +1688,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance > 0) {
-                payablesTotal += balance;
-                transactions.push({
-                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
-                    paymentMethod: 'credit', amount: balance,
-                    date,
-                });
-            } else if (balance < 0) {
+            if (balance < 0) {
                 receivablesTotal += Math.abs(balance);
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
@@ -1916,41 +1906,40 @@ export async function updateUserProfile(data: z.infer<typeof UserProfileSchema>)
 }
 
 export async function updateUserCredentials(userId: string, password: string):Promise<void> {
-    const { db } = getFirebaseServices();
+    const { app, db } = getFirebaseServices();
     const currentUser = await getUser();
-    if (!currentUser || currentUser.role !== 'admin') throw new Error("Unauthorized");
+    if (!currentUser || currentUser.id !== userId) throw new Error("Unauthorized");
 
-    if(!password) throw new Error("Password cannot be empty.");
+    if(!password || password.length < 6) throw new Error("Password must be at least 6 characters.");
 
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, { password });
+    const { getAuth, updatePassword } = await import('firebase/auth');
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+
+    if (user) {
+        try {
+            await updatePassword(user, password);
+        } catch (error: any) {
+            console.error("Firebase Auth password update error:", error.code);
+            throw new Error("Failed to update password. Please re-authenticate and try again.");
+        }
+    } else {
+        throw new Error("No authenticated user found to update password.");
+    }
 }
 
 
 export async function fetchAllUsers(): Promise<UserProfile[]> {
     noStore();
-    const { db } = getFirebaseServices();
     const currentUser = await getUser();
     if (!currentUser) return [];
 
-    try {
-        const usersSnapshot = await getDocs(query(collection(db, 'users')));
-        return usersSnapshot.docs.map(doc => {
-            const data = doc.data();
-            const plainData: any = {};
-            for (const key in data) {
-                if (data[key] instanceof Timestamp) {
-                    plainData[key] = data[key].toDate().toISOString();
-                } else {
-                    plainData[key] = data[key];
-                }
-            }
-            return { id: doc.id, ...plainData } as UserProfile
-        });
-    } catch(error) {
-        console.error("Fetch all users error:", error);
-        return [];
-    }
+    return [{
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        businessName: '',
+    }]
 }
 
 // --- RETURN QUERIES ---
@@ -2461,5 +2450,3 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
-
-    

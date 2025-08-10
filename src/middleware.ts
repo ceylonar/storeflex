@@ -1,13 +1,14 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, updateSession } from '@/lib/session'
+import type { User } from '@/lib/auth';
 
 export async function middleware(request: NextRequest) {
   const session = await getSession();
   const { pathname } = request.nextUrl
 
   // If user is trying to access login page but is already logged in, redirect to dashboard
-  if (pathname === '/login' && session) {
+  if ((pathname === '/login' || pathname === '/') && session) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
@@ -16,29 +17,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // --- Role-based access control ---
-  if (pathname.startsWith('/dashboard') && session) {
-    const userRole = session.user.role;
-    
-    const adminOnlyPaths = [
-      '/dashboard/inventory',
-      '/dashboard/buy',
-      '/dashboard/orders',
-      '/dashboard/suppliers',
-      '/dashboard/moneyflow',
-      '/dashboard/expenses',
-      '/dashboard/reports',
-      '/dashboard/price-optimizer',
-      '/dashboard/ai-assistant',
-      '/dashboard/account'
-    ];
-    
-    if (userRole === 'sales' && (adminOnlyPaths.some(path => pathname.startsWith(path)) || pathname === '/dashboard')) {
-        // If a sales user tries to access an admin-only page, redirect them to their default page
-        return NextResponse.redirect(new URL('/dashboard/sales', request.url));
-    }
-  }
-
+  // All logged-in users are admins, so no more role-based checks needed
 
   return await updateSession(request) || NextResponse.next()
 }

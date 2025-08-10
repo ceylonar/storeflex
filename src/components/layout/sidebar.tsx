@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import Link from 'next/link';
@@ -10,44 +9,26 @@ import { Logo } from '../icons/logo';
 import type { User } from '@/lib/auth';
 
 const navigationLinks = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin'] },
-  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['admin'] },
-  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon, roles: ['admin', 'sales'] },
-  { name: 'Buy', href: '/dashboard/buy', icon: Truck, roles: ['admin'] },
-  { name: 'Orders', href: '/dashboard/orders', icon: ClipboardList, roles: ['admin'] },
-  { name: 'Customers', href: '/dashboard/customers', icon: Users, roles: ['admin', 'sales'] },
-  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users, roles: ['admin'] },
-  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark, roles: ['admin'] },
-  { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt, roles: ['admin'] },
-  { name: 'Reports', href: '/dashboard/reports', icon: FileText, roles: ['admin'] },
-  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb, roles: ['admin'] },
-  { name: 'AI Assistant', href: '/dashboard/ai-assistant', icon: Bot, roles: ['admin'] },
-  { name: 'About', href: '/dashboard/about', icon: HelpCircle, roles: ['admin', 'sales'] },
-  { name: 'Account', href: '/dashboard/account', icon: AccountIcon, roles: ['admin'] },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes },
+  { name: 'Sales', href: '/dashboard/sales', icon: SalesIcon },
+  { name: 'Buy', href: '/dashboard/buy', icon: Truck },
+  { name: 'Orders', href: '/dashboard/orders', icon: ClipboardList },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users },
+  { name: 'Suppliers', href: '/dashboard/suppliers', icon: Users },
+  { name: 'Moneyflow', href: '/dashboard/moneyflow', icon: Landmark },
+  { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileText },
+  { name: 'Price Optimizer', href: '/dashboard/price-optimizer', icon: Lightbulb },
+  { name: 'AI Assistant', href: '/dashboard/ai-assistant', icon: Bot },
+  { name: 'About', href: '/dashboard/about', icon: HelpCircle },
+  { name: 'Account', href: '/dashboard/account', icon: AccountIcon },
 ];
-
-const icons: { [key: string]: React.ElementType } = {
-  'Dashboard': LayoutDashboard,
-  'Inventory': Boxes,
-  'Sales': SalesIcon,
-  'Buy': Truck,
-  'Orders': ClipboardList,
-  'Customers': Users,
-  'Suppliers': Users,
-  'Moneyflow': Landmark,
-  'Expenses': Receipt,
-  'Reports': FileText,
-  'Price Optimizer': Lightbulb,
-  'AI Assistant': Bot,
-  'About': HelpCircle,
-  'Account': AccountIcon,
-};
-
 
 export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname();
   
-  const navigation = navigationLinks.filter(link => link.roles.includes(user.role));
+  const navigation = navigationLinks;
 
   return (
     <aside className="hidden w-64 flex-col border-r bg-card sm:flex">

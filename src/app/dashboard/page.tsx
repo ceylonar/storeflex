@@ -11,10 +11,6 @@ import { PendingOrdersCard } from '@/components/dashboard/pending-orders-card';
 export default async function DashboardPage() {
   const user = await getUser();
 
-  if (user?.role === 'sales') {
-    redirect('/dashboard/sales');
-  }
-
   // Admin and other roles will see the full dashboard
   const dashboardData = await fetchDashboardData();
   const salesData = await fetchSalesData('monthly');
