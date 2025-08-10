@@ -1274,7 +1274,7 @@ export async function fetchDashboardData() {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                payablesTotal += balance;
+                totalPayables += balance;
             } else if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
@@ -1923,19 +1923,7 @@ export async function updateUserCredentials(userId: string, password: string):Pr
     if(!password) throw new Error("Password cannot be empty.");
 
     const userRef = doc(db, 'users', userId);
-    const plainData: any = {};
-    const docSnap = await getDoc(userRef)
-    if (docSnap.exists()) {
-        const data = docSnap.data()
-        for (const key in data) {
-            if (data[key] instanceof Timestamp) {
-                plainData[key] = data[key].toDate().toISOString();
-            } else {
-                plainData[key] = data[key];
-            }
-        }
-    }
-    await updateDoc(userRef, { ...plainData, password });
+    await updateDoc(userRef, { password });
 }
 
 

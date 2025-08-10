@@ -59,16 +59,8 @@ import { createProduct, updateProduct, deleteProduct } from '@/lib/queries';
 import { getProductDetailsFromBarcode } from '@/lib/actions';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { ScrollArea } from '../ui/scroll-area';
-import dynamic from 'next/dynamic';
-import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import ReactBarcode from 'react-barcode';
-
-const BarcodeScanner = dynamic(() => import('./barcode-scanner'), { 
-    ssr: false,
-    loading: () => <Skeleton className="h-48 w-full" /> 
-});
-
 
 type FormState = 'add' | 'edit';
 
