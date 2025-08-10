@@ -2,28 +2,26 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Default deny all access
+
+    // Helper function to check ownership
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Secure all collections by default
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Allow users to manage their own documents.
-    // This applies to products, sales, customers, etc.
-    match /{collection}/{docId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    // Allow users to read and write their own data in these collections
+    match /(products|sales|purchases|customers|suppliers|user_profiles|recent_activity|sales_returns|purchase_returns|expenses|salesOrders|purchaseOrders)/{docId} {
+      allow read, write, delete: if isOwner(resource.data.userId);
+      allow create: if isOwner(request.resource.data.userId);
     }
     
-    // Allow any authenticated user to read and write to the counters.
-    // This is needed for creating new documents with unique IDs.
+    // Allow any authenticated user to read from the counters
     match /counters/{counterId} {
       allow read, write: if request.auth != null;
-    }
-    
-     // Allow users to manage their own profile document
-    match /user_profiles/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }
