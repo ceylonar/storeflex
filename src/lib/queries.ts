@@ -1274,7 +1274,7 @@ export async function fetchDashboardData() {
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
-                totalPayables += balance;
+                payablesTotal += balance;
             } else if (balance < 0) {
                 totalReceivables += Math.abs(balance);
             }
@@ -2163,7 +2163,8 @@ export async function fetchExpenses(): Promise<Expense[]> {
 
   const { db } = getFirebaseServices();
   const expensesCollection = collection(db, 'expenses');
-  const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
+  // Simple query, then sort in code to avoid composite index
+  const q = query(expensesCollection, where('userId', '==', userId));
   
   try {
     const snapshot = await getDocs(q);
@@ -2175,22 +2176,12 @@ export async function fetchExpenses(): Promise<Expense[]> {
         date: (data.date as Timestamp).toDate().toISOString(),
       } as Expense;
     });
+    // Sort in-memory
+    expenses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return expenses;
   } catch (e) {
-      console.error("Firebase query failed, sorting in-memory as a fallback", e)
-      const expensesCollection = collection(db, 'expenses');
-      const q = query(expensesCollection, where('userId', '==', userId));
-      const snapshot = await getDocs(q);
-      const expenses = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          date: (data.date as Timestamp).toDate().toISOString(),
-        } as Expense;
-      });
-      expenses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return expenses
+      console.error("Firebase query failed for expenses.", e)
+      throw new Error("Failed to fetch expenses.");
   }
 }
 
@@ -2470,3 +2461,5 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
+
+    
