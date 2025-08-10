@@ -13,19 +13,21 @@ const firebaseConfig = {
 
 // Initialize Firebase
 let app;
-if (!firebaseConfig.apiKey) {
-    console.warn('Firebase API Key is not set. The app will not connect to Firebase.');
-    // We don't initialize if the key is missing.
-    // Functions trying to use db will fail.
+if (!getApps().length) {
+    if (firebaseConfig.projectId) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        console.error("Firebase project ID is not set. Firebase will not be initialized.");
+    }
 } else {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    app = getApp();
 }
 
 const db = app ? getFirestore(app) : null;
 
 function getFirebaseServices() {
     if (!app || !db) {
-        throw new Error('Firebase is not initialized. Please check your environment variables.');
+        throw new Error('Firebase is not initialized. Please check your environment variables in the .env file.');
     }
     return { db };
 }
