@@ -1,9 +1,3 @@
-# Firebase Studio
-
-This is a NextJS starter in Firebase Studio.
-
-To get started, take a look at src/app/page.tsx.
-# storeflex
 # storeflex
 
 ## Connecting Your Own Firebase and Gemini Credentials
@@ -59,4 +53,3 @@ The AI features in this app, like the Price Optimizer and barcode scanning, are 
 ### 3. Restart Your Application
 
 After you've added all the credentials to your `.env` file, you must **restart the development server** for the changes to take effect.
-# storeflex-Demo
