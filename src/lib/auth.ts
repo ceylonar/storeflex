@@ -1,15 +1,11 @@
 
 'use server'
 
-import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-import { NextRequest, NextResponse } from 'next/server'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
 import { collection, query, where, getDocs, limit, setDoc, doc } from 'firebase/firestore';
-
-const secretKey = process.env.SESSION_SECRET || 'fallback-secret-key-for-session'
-const key = new TextEncoder().encode(secretKey)
+import { encrypt, getSession } from './session';
 
 export interface User {
     id: string;
@@ -37,26 +33,6 @@ async function initializeHardcodedUsers() {
     }
 }
 
-
-export async function encrypt(payload: any) {
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('1 day from now')
-    .sign(key)
-}
-
-export async function decrypt(input: string): Promise<any> {
-  try {
-    const { payload } = await jwtVerify(input, key, {
-      algorithms: ['HS256'],
-    })
-    return payload
-  } catch (e) {
-      console.log("Decryption failed:", e);
-      return null;
-  }
-}
 
 export async function login(prevState: { error: string | undefined } | null, formData: FormData) {
   const { db } = getFirebaseServices();
@@ -99,33 +75,10 @@ export async function logout() {
   redirect('/login');
 }
 
-export async function getSession() {
-  const session = cookies().get('session')?.value
-  if (!session) return null
-  return await decrypt(session)
-}
-
 export async function getUser(): Promise<User | null> {
     const session = await getSession();
     if (session && session.user) {
         return session.user;
     }
     return null;
-}
-
-export async function updateSession(request: NextRequest) {
-  const session = request.cookies.get('session')?.value
-  if (!session) return
-
-  // Refresh the session so it doesn't expire
-  const parsed = await decrypt(session)
-  parsed.expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-  const res = NextResponse.next()
-  res.cookies.set({
-    name: 'session',
-    value: await encrypt(parsed),
-    httpOnly: true,
-    expires: parsed.expires,
-  })
-  return res
 }

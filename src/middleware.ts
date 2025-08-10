@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/auth'
+import { getSession, updateSession } from '@/lib/session'
 
 export async function middleware(request: NextRequest) {
   const session = await getSession();
@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
   }
 
 
-  return NextResponse.next()
+  return await updateSession(request) || NextResponse.next()
 }
 
 export const config = {
