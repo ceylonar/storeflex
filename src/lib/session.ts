@@ -1,3 +1,6 @@
+
+'use server'
+
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
@@ -44,7 +47,10 @@ export async function updateSession(request: NextRequest) {
     headers: new Headers(request.headers),
   });
 
-  res.headers.set('Set-Cookie', `session=${await encrypt(parsed)}; Path=/; HttpOnly; Expires=${parsed.expires.toUTCString()}`);
+  cookies().set('session', await encrypt(parsed), {
+    expires: parsed.expires,
+    httpOnly: true
+  });
 
   return res
 }
