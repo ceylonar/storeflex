@@ -1,7 +1,6 @@
-
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-import { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 const secretKey = process.env.SESSION_SECRET || 'fallback-secret-key-for-session'
 const key = new TextEncoder().encode(secretKey)
@@ -34,17 +33,18 @@ export async function getSession() {
 
 export async function updateSession(request: NextRequest) {
   const session = request.cookies.get('session')?.value
-  if (!session) return
+  if (!session) return null
 
   // Refresh the session so it doesn't expire
   const parsed = await decrypt(session)
   parsed.expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
-  const res = NextResponse.next()
-  res.cookies.set({
-    name: 'session',
-    value: await encrypt(parsed),
-    httpOnly: true,
-    expires: parsed.expires,
-  })
+  
+  const res = new Response(request.body, {
+    status: 200,
+    headers: new Headers(request.headers),
+  });
+
+  res.headers.set('Set-Cookie', `session=${await encrypt(parsed)}; Path=/; HttpOnly; Expires=${parsed.expires.toUTCString()}`);
+
   return res
 }

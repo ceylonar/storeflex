@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
 import { collection, query, where, getDocs, limit, setDoc, doc } from 'firebase/firestore';
-import { encrypt, getSession } from './session';
+import { encrypt } from './session';
 
 export interface User {
     id: string;
@@ -76,6 +76,7 @@ export async function logout() {
 }
 
 export async function getUser(): Promise<User | null> {
+    const { getSession } = await import('./session');
     const session = await getSession();
     if (session && session.user) {
         return session.user;
