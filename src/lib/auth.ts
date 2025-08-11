@@ -5,9 +5,10 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, signInWithCredential, OAuthProvider } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
+import { getFirebaseAdmin } from './firebase-admin';
 
 
 export interface User {
@@ -112,28 +113,33 @@ export async function signup(prevState: { error: string | undefined } | null, fo
   }
 }
 
-export async function loginWithGoogle(idToken: string) {
-    // This server action would typically verify the idToken with Firebase Admin SDK.
-    // However, since we are using client-side SDK for auth, we will trust the token
-    // for this demo application's context and create a session.
-    // In a production app, you MUST verify the token on the server.
+export async function loginWithGoogle() {
+    const { app } = getFirebaseServices();
+    const auth = getAuth(app);
+    auth.tenantId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || null;
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+        'auth_domain': `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseapp.com`
+    });
     
-    // For now, let's assume the client has authenticated and sent us user info.
-    // The idToken would be decoded or used to fetch user details.
-    // The client will need to send us name and email along with the token.
-    // This is a simplified example.
-    
-    // This function is now a placeholder. Google Sign-In will be handled
-    // on the client and the session will be created via a different server action
-    // if needed, or by directly using the client-side auth state persistence.
-    // For this app, we'll rely on Firebase's own session management on the client
-    // after google sign in and handle session in middleware.
-
-    // A more robust implementation would look like this:
-    // const decodedToken = await getFirebaseAdmin().auth.verifyIdToken(idToken);
-    // const user = { id: decodedToken.uid, email: decodedToken.email, ... };
-    // create session...
-    console.log("Received Google ID Token (not verified in this demo):", idToken);
+    try {
+        const userCredential = await signInWithPopup(auth, provider);
+        const user: User = { 
+            id: userCredential.user.uid, 
+            name: userCredential.user.displayName || 'Google User', 
+            email: userCredential.user.email!, 
+            role: 'admin' 
+        };
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const session = await encrypt({ user, expires });
+        cookies().set('session', session, { expires, httpOnly: true });
+        redirect('/dashboard');
+    } catch (error: any) {
+        if (error.code === 'auth/account-exists-with-different-credential') {
+            return { error: 'An account already exists with the same email address but different sign-in credentials.' };
+        }
+        return { error: 'An unexpected error occurred during Google sign-in.' };
+    }
 }
 
 export async function sendPasswordReset(email: string): Promise<{success: boolean, message: string}> {

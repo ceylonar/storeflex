@@ -9,40 +9,20 @@ import SignupForm from "./signup-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
-import { getFirebaseServices } from "@/lib/firebase";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { encrypt } from "@/lib/session";
-import { cookies } from 'next/headers';
-import type { User } from "@/lib/auth";
+import { loginWithGoogle } from "@/lib/auth";
 
 
 export default function AuthView() {
-    const router = useRouter();
     const { toast } = useToast();
 
     const handleGoogleSignIn = async () => {
-        try {
-            const { app } = getFirebaseServices();
-            const auth = getAuth(app);
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
-            // On successful sign-in, the onAuthStateChanged listener in a layout
-            // or a middleware redirect would handle navigation.
-            // For this app, we'll manually redirect after a short delay
-            // to allow Firebase to set its client-side session.
-            toast({ title: "Google Sign-In Successful", description: "Redirecting to your dashboard..."});
-            setTimeout(() => {
-                router.push('/dashboard');
-            }, 1000);
-
-        } catch (error: any) {
-            console.error("Google Sign-In Error:", error);
-            toast({
+        const result = await loginWithGoogle();
+        if (result?.error) {
+             toast({
                 variant: 'destructive',
                 title: 'Google Sign-In Failed',
-                description: error.message || 'An unexpected error occurred.'
+                description: result.error,
             });
         }
     };
