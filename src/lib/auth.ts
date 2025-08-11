@@ -5,8 +5,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { collection, query, where, getDocs, limit, setDoc, doc } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 
 export interface User {
