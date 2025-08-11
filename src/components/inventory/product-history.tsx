@@ -121,7 +121,7 @@ export function ProductHistory({ selectedProduct }: ProductHistoryProps) {
                                         {tx.type}
                                     </Badge>
                                 </TableCell>
-                                <TableCell><FormattedDate timestamp={tx.date} /></TableCell>
+                                <TableCell><FormattedDate timestamp={tx.date} formatString="PPP p" /></TableCell>
                                 <TableCell className={cn(tx.type === 'sale' || tx.type === 'loss' ? 'text-destructive' : 'text-green-600 dark:text-green-500')}>
                                     {tx.type === 'sale' || tx.type === 'loss' ? '-' : '+'}{tx.quantity}
                                 </TableCell>
