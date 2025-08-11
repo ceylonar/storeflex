@@ -52,7 +52,7 @@ const ProductSchema = z.object({
   stock: z.coerce.number().int().nonnegative('Stock must be a non-negative number').optional().default(0),
   cost_price: z.coerce.number().optional().default(0),
   selling_price: z.coerce.number().positive('Selling price must be positive'),
-  image: z.string().url('Must be a valid image URL').optional().or(z.literal('')),
+  image: z.string().url('Must be a valid URL').optional().or(z.literal('')),
   low_stock_threshold: z.coerce.number().int().nonnegative('Low stock threshold must be a non-negative number').optional().default(0),
 });
 
@@ -610,7 +610,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         const newSaleRef = doc(db, 'sales', formattedId);
         const itemsToSave = items.map(({ stock, ...rest }) => rest);
         
-        transaction.set(newSaleRef, {
+        const saleDocData = {
             userId,
             items: itemsToSave,
             item_ids: itemIds,
@@ -621,7 +621,9 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             creditAmount: finalCreditAmount,
             paymentStatus,
             sale_date: serverTimestamp(),
-        });
+        };
+
+        transaction.set(newSaleRef, saleDocData);
 
         transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
@@ -637,6 +639,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             userId,
             id: newSaleRef.id,
             customer_id: saleDetails.customer_id,
+            transaction: saleDocData,
         });
 
         return formattedId;
@@ -729,7 +732,7 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
             : query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
 
         const querySnapshot = await getDocs(q);
-        const sales = querySnapshot.docs.map(doc => {
+        let sales = querySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
                 id: doc.id,
@@ -1021,7 +1024,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
       const formattedId = `pur${String(nextId).padStart(6, '0')}`;
       const newPurchaseRef = doc(db, 'purchases', formattedId);
       
-      transaction.set(newPurchaseRef, {
+      const purchaseDocData = {
         userId,
         items,
         item_ids: itemIds,
@@ -1032,7 +1035,9 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         creditAmount: newBalance > 0 ? newBalance : 0,
         paymentStatus,
         purchase_date: serverTimestamp(),
-      });
+      };
+      
+      transaction.set(newPurchaseRef, purchaseDocData);
 
       transaction.set(counterRef, { lastId: nextId }, { merge: true });
 
@@ -1047,6 +1052,7 @@ export async function createPurchase(purchaseData: z.infer<typeof POSPurchaseSch
         userId,
         id: newPurchaseRef.id,
         supplier_id: purchaseDetails.supplier_id,
+        transaction: purchaseDocData,
       });
 
       return formattedId;
@@ -1748,7 +1754,6 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
         
-        // Sort in code instead of in the query
         allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         // Apply filters in code
@@ -2389,3 +2394,4 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
+

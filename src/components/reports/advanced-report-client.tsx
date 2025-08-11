@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -44,8 +45,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight, ChevronsUpDown, Check } from 'lucide-react';
-import type { ProductSelect, RecentActivity, Customer, Supplier, DetailedRecord } from '@/lib/types';
+import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight, ChevronsUpDown, Check, ChevronDown } from 'lucide-react';
+import type { ProductSelect, RecentActivity, Customer, Supplier, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
 import { fetchFinancialActivities } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -56,6 +57,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { Skeleton } from '../ui/skeleton';
 import { FormattedDate } from '../ui/formatted-date';
 import { Separator } from '../ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 
 interface AdvancedReportClientProps {
@@ -92,6 +94,9 @@ const getRecordAmount = (record: RecentActivity) => {
      if (transaction?.total_credit_amount) {
         return `LKR ${transaction.total_credit_amount.toFixed(2)}`;
     }
+    if(transaction?.amount) {
+        return `LKR ${transaction.amount.toFixed(2)}`;
+    }
     return 'N/A';
 };
 
@@ -109,6 +114,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [partySearchOpen, setPartySearchOpen] = useState(false);
+  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
 
   const handleGenerateReport = () => {
     startTransition(async () => {
@@ -352,6 +358,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                     <Table>
                         <TableHeader className="sticky top-0 bg-card z-10">
                             <TableRow>
+                                <TableHead className="w-12"></TableHead>
                                 <TableHead>Transaction</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Party</TableHead>
@@ -360,18 +367,71 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {records.map(record => (
-                             <TableRow key={`${record.type}-${record.id}`}>
-                                <TableCell>
-                                    <div className="font-medium">{getRecordTitle(record)}</div>
-                                    <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                </TableCell>
-                                <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                <TableCell>{(record as any).partyName || 'N/A'}</TableCell>
-                                <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
-                            </TableRow>
-                        ))}
+                        {records.map(record => {
+                          const hasItems = record.items && record.items.length > 0;
+                          return (
+                            <Collapsible key={`${record.type}-${record.id}`} asChild>
+                              <>
+                                <TableRow>
+                                  <TableCell>
+                                    {hasItems && (
+                                      <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                      <div className="font-medium">{getRecordTitle(record)}</div>
+                                      <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                  </TableCell>
+                                  <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                  <TableCell>{record.partyName || 'N/A'}</TableCell>
+                                  <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                  <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                                </TableRow>
+                                {hasItems && (
+                                  <CollapsibleContent asChild>
+                                      <tr className="bg-muted/50 hover:bg-muted/50">
+                                          <TableCell colSpan={6} className="p-0">
+                                              <div className="p-4">
+                                                  <h4 className="font-semibold mb-2">Items</h4>
+                                                  <Table>
+                                                      <TableHeader>
+                                                          <TableRow>
+                                                              <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
+                                                              <TableHead>Product</TableHead>
+                                                              <TableHead>Quantity</TableHead>
+                                                              <TableHead>Unit Price/Cost</TableHead>
+                                                              <TableHead className="text-right">Total</TableHead>
+                                                          </TableRow>
+                                                      </TableHeader>
+                                                      <TableBody>
+                                                          {(record.items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
+                                                              <TableRow key={idx}>
+                                                                  <TableCell className="hidden sm:table-cell">
+                                                                      <Avatar className="h-9 w-9">
+                                                                          <AvatarImage src={item.image || ''} alt={item.name} />
+                                                                          <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
+                                                                      </Avatar>
+                                                                  </TableCell>
+                                                                  <TableCell>{item.name}</TableCell>
+                                                                  <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
+                                                                  <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price).toFixed(2)}</TableCell>
+                                                                  <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost).toFixed(2)}</TableCell>
+                                                              </TableRow>
+                                                          ))}
+                                                      </TableBody>
+                                                  </Table>
+                                              </div>
+                                          </TableCell>
+                                      </tr>
+                                  </CollapsibleContent>
+                                )}
+                              </>
+                            </Collapsible>
+                        )})}
                         </TableBody>
                     </Table>
                 ) : (
@@ -384,3 +444,4 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     </Card>
   );
 }
+
