@@ -364,71 +364,73 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
-                         {records.map(record => {
-                          const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
-                          return (
-                            <Collapsible asChild key={`${record.type}-${record.id}`}>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell>
-                                    {hasItems && (
-                                      <CollapsibleTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 data-[state=open]:rotate-180">
-                                            <ChevronDown className="h-4 w-4 transition-transform" />
-                                        </Button>
-                                      </CollapsibleTrigger>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                      <div className="font-medium">{getRecordTitle(record)}</div>
-                                      <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                  </TableCell>
-                                  <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                  <TableCell>{(record as any).partyName || 'N/A'}</TableCell>
-                                  <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                  <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
-                                </TableRow>
-                                {hasItems && (
-                                    <CollapsibleContent asChild>
-                                        <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                            <TableCell colSpan={6} className="p-0">
-                                              <div className="p-4">
-                                                  <h4 className="font-semibold mb-2">Items</h4>
-                                                  <Table>
-                                                      <TableHeader>
-                                                          <TableRow>
-                                                              <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
-                                                              <TableHead>Product</TableHead>
-                                                              <TableHead>Quantity</TableHead>
-                                                              <TableHead>Unit Price/Cost</TableHead>
-                                                              <TableHead className="text-right">Total</TableHead>
-                                                          </TableRow>
-                                                      </TableHeader>
-                                                      <TableBody>
-                                                          {((record.transaction as any).items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
-                                                              <TableRow key={idx}>
-                                                                  <TableCell className="hidden sm:table-cell">
-                                                                      <Avatar className="h-9 w-9">
-                                                                          <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
-                                                                          <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
-                                                                      </Avatar>
-                                                                  </TableCell>
-                                                                  <TableCell>{item.name}</TableCell>
-                                                                  <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
-                                                                  <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
-                                                                  <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
-                                                              </TableRow>
-                                                          ))}
-                                                      </TableBody>
-                                                  </Table>
-                                              </div>
-                                          </TableCell>
+                         <TableBody>
+                            {records.map(record => {
+                                const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
+                                return (
+                                <Collapsible asChild key={`${record.type}-${record.id}`}>
+                                    <React.Fragment>
+                                        <TableRow>
+                                            <TableCell>
+                                                {hasItems && (
+                                                <CollapsibleTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 data-[state=open]:rotate-180">
+                                                        <ChevronDown className="h-4 w-4 transition-transform" />
+                                                    </Button>
+                                                </CollapsibleTrigger>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{getRecordTitle(record)}</div>
+                                                <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                            </TableCell>
+                                            <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                            <TableCell>{(record as any).partyName || 'N/A'}</TableCell>
+                                            <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                            <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
                                         </TableRow>
-                                    </CollapsibleContent>
-                                )}
-                              </TableBody>
-                            </Collapsible>
-                        )})}
+                                        {hasItems && (
+                                            <CollapsibleContent asChild>
+                                                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                    <TableCell colSpan={6} className="p-0">
+                                                    <div className="p-4">
+                                                        <h4 className="font-semibold mb-2">Items</h4>
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow>
+                                                                    <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
+                                                                    <TableHead>Product</TableHead>
+                                                                    <TableHead>Quantity</TableHead>
+                                                                    <TableHead>Unit Price/Cost</TableHead>
+                                                                    <TableHead className="text-right">Total</TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {((record.transaction as any).items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
+                                                                    <TableRow key={idx}>
+                                                                        <TableCell className="hidden sm:table-cell">
+                                                                            <Avatar className="h-9 w-9">
+                                                                                <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
+                                                                                <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
+                                                                            </Avatar>
+                                                                        </TableCell>
+                                                                        <TableCell>{item.name}</TableCell>
+                                                                        <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
+                                                                        <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
+                                                                        <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            </CollapsibleContent>
+                                        )}
+                                    </React.Fragment>
+                                </Collapsible>
+                            )})}
+                        </TableBody>
                     </Table>
                 ) : (
                     <div className="h-48 text-center flex items-center justify-center text-muted-foreground">
@@ -440,4 +442,3 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     </Card>
   );
 }
-

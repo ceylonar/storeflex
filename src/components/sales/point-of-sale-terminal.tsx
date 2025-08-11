@@ -164,6 +164,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
     }
     
     setSearchTerm('');
+    searchInputRef.current?.focus();
     
   }, [cart, toast]);
 
@@ -175,7 +176,6 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                 title: 'Product Added',
                 description: `${product.name} has been added to the bill.`,
             });
-             setSearchTerm('');
         } else {
             toast({
                 variant: 'destructive',
@@ -183,12 +183,18 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                 description: `No product found with barcode: ${barcode}`,
             });
         }
+        setSearchTerm('');
+        searchInputRef.current?.focus();
     }, [products, addToCart, toast]);
 
     React.useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const activeElement = document.activeElement;
             if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+              if (activeElement === searchInputRef.current && e.key === 'Enter') {
+                e.preventDefault();
+                handleBarcodeScan(searchTerm);
+              }
               return;
             }
       
@@ -214,7 +220,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [handleBarcodeScan]);
+    }, [handleBarcodeScan, searchTerm]);
 
 
   const filteredAndGroupedProducts = React.useMemo(() => {
@@ -787,5 +793,3 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     </Tabs>
   );
 }
-
-    

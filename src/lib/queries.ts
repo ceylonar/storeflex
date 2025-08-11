@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1473,6 +1472,7 @@ interface FinancialActivitiesFilter {
     productId?: string;
     partyId?: string;
     limit?: number;
+    full?: boolean;
 }
 
 
@@ -1532,7 +1532,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
         if (expense) {
              transactions.push({
                 type: 'loss',
-                date: (activity.timestamp as any as Timestamp).toDate().toISOString(),
+                date: (expense.date as any as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
                 quantity: expense.quantity || 0,
                 price: (expense.amount / (expense.quantity || 1)), // Calculate unit cost from total loss
                 source_or_destination: activity.details,
@@ -1733,6 +1733,25 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
     }
 }
 
+// Helper to convert Firestore Timestamps in nested objects to ISO strings
+function serializeTimestamps(obj: any): any {
+    if (obj instanceof Timestamp) {
+        return obj.toDate().toISOString();
+    }
+    if (Array.isArray(obj)) {
+        return obj.map(serializeTimestamps);
+    }
+    if (obj !== null && typeof obj === 'object') {
+        const newObj: { [key: string]: any } = {};
+        for (const key in obj) {
+            newObj[key] = serializeTimestamps(obj[key]);
+        }
+        return newObj;
+    }
+    return obj;
+}
+
+
 export async function fetchFinancialActivities(filters: FinancialActivitiesFilter = {}): Promise<RecentActivity[]> {
     noStore();
     const userId = await getCurrentUserId();
@@ -1746,10 +1765,11 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
 
         let allActivities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
+            const serializedData = serializeTimestamps(data); // Recursively serialize all timestamps
+
             return {
+                ...serializedData,
                 id: doc.id,
-                ...data,
-                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
@@ -2394,4 +2414,3 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
-
