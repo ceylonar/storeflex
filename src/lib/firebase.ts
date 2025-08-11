@@ -1,5 +1,4 @@
 
-import 'dotenv/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
@@ -23,7 +22,7 @@ function initializeFirebase() {
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
         } else {
-            console.error("Firebase project ID is not set. Firebase will not be initialized.");
+            console.warn("Firebase project ID is not set. Firebase will not be initialized.");
             // @ts-ignore
             app = null;
             // @ts-ignore

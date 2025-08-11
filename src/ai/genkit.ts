@@ -13,7 +13,6 @@ if (!geminiApiKey) {
 // If the API key is missing, the googleAI plugin will not be loaded.
 export const ai = genkit({
   plugins: geminiApiKey ? [googleAI({apiKey: geminiApiKey})] : [],
-  model: 'googleai/gemini-2.0-flash',
 });
 
 // A helper function to check if AI is configured before running a flow.
