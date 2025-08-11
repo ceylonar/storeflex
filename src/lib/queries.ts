@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1657,9 +1658,10 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     try {
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
-        if (filters.limit && !filters.date && !filters.type && !filters.productId && !filters.partyId) {
-            q = query(q, orderBy('timestamp', 'desc'), limit(filters.limit));
-        }
+        // This query was causing index issues. Remove orderBy from the query itself.
+        // if (filters.limit && !filters.date && !filters.type && !filters.productId && !filters.partyId) {
+        //     q = query(q, orderBy('timestamp', 'desc'), limit(filters.limit));
+        // }
         
         const activitySnapshot = await getDocs(q);
 
@@ -1673,6 +1675,7 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
         
+        // Sort in code instead of in the query
         allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
         // Apply filters in code
