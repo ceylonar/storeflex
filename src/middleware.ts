@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession, updateSession } from '@/lib/session'
+import { getSession } from '@/lib/session'
 
 export async function middleware(request: NextRequest) {
   const session = await getSession();
@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // For all other cases, just continue
   return NextResponse.next();
 }
 
