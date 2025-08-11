@@ -68,11 +68,12 @@ interface AdvancedReportClientProps {
 }
 
 const getRecordTitle = (record: RecentActivity) => {
+    const transaction = record.transaction as any;
     switch (record.type) {
-      case 'sale': return `Sale to ${record.partyName}`;
-      case 'purchase': return `Purchase from ${record.partyName}`;
-      case 'sale_return': return `Return from ${record.partyName}`;
-      case 'purchase_return': return `Return to ${record.partyName}`;
+      case 'sale': return `Sale to ${transaction?.customer_name || 'N/A'}`;
+      case 'purchase': return `Purchase from ${transaction?.supplier_name || 'N/A'}`;
+      case 'sale_return': return `Return from ${transaction?.customer_name || 'N/A'}`;
+      case 'purchase_return': return `Return to ${transaction?.supplier_name || 'N/A'}`;
       case 'credit_settled': return `Credit Settlement`;
       case 'check_cleared': return `Check Cleared`;
       case 'check_rejected': return `Check Rejected`;
@@ -151,7 +152,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     toast({ title: 'Preparing Download', description: 'Generating detailed report for export...' });
 
     try {
-        const detailedRecords = await fetchFinancialActivities({ date, type, productId, partyId });
+        const detailedRecords = await fetchFinancialActivities({ date, type, productId, partyId, full: true });
         const headers = [
           'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Item Total (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
         ];
@@ -161,12 +162,12 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 rec.id, 
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 `"${rec.type.replace(/_/g, ' ')}"`,
-                `"${rec.partyName || 'N/A'}"`,
+                `"${(rec.transaction as any)?.customer_name || (rec.transaction as any)?.supplier_name || 'N/A'}"`,
             ];
 
             const trans = rec.transaction as any;
-             if (rec.items && rec.items.length > 0) {
-                return rec.items.map(item => {
+             if (trans.items && trans.items.length > 0) {
+                return trans.items.map((item: any) => {
                     const paymentMethod = trans?.paymentMethod || (rec.type.includes('return') ? (trans?.refund_method || 'credit_balance') : 'N/A');
                     const amountPaid = trans?.amountPaid?.toFixed(2) || '0.00';
                     const balanceChange = trans?.creditAmount?.toFixed(2) || '0.00';
@@ -368,10 +369,10 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                         </TableHeader>
                         <TableBody>
                         {records.map(record => {
-                          const hasItems = record.items && record.items.length > 0;
+                          const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
                           return (
                             <Collapsible key={`${record.type}-${record.id}`} asChild>
-                              <>
+                              <React.Fragment>
                                 <TableRow>
                                   <TableCell>
                                     {hasItems && (
@@ -387,7 +388,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                       <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
                                   </TableCell>
                                   <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                  <TableCell>{record.partyName || 'N/A'}</TableCell>
+                                  <TableCell>{(record.transaction as any)?.customer_name || (record.transaction as any)?.supplier_name || 'N/A'}</TableCell>
                                   <TableCell className="max-w-xs truncate">{record.details}</TableCell>
                                   <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
                                 </TableRow>
@@ -408,7 +409,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                                           </TableRow>
                                                       </TableHeader>
                                                       <TableBody>
-                                                          {(record.items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
+                                                          {((record.transaction as any).items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
                                                               <TableRow key={idx}>
                                                                   <TableCell className="hidden sm:table-cell">
                                                                       <Avatar className="h-9 w-9">
@@ -418,8 +419,8 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                                                   </TableCell>
                                                                   <TableCell>{item.name}</TableCell>
                                                                   <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
-                                                                  <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price).toFixed(2)}</TableCell>
-                                                                  <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost).toFixed(2)}</TableCell>
+                                                                  <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
+                                                                  <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
                                                               </TableRow>
                                                           ))}
                                                       </TableBody>
@@ -429,7 +430,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                       </tr>
                                   </CollapsibleContent>
                                 )}
-                              </>
+                              </React.Fragment>
                             </Collapsible>
                         )})}
                         </TableBody>
@@ -444,4 +445,3 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     </Card>
   );
 }
-
