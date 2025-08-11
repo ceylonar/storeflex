@@ -42,6 +42,7 @@
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^10.12.3",
+    "firebase-admin": "^12.2.0",
     "genkit": "^1.13.0",
     "html5-qrcode": "^2.3.8",
     "jose": "^5.4.1",

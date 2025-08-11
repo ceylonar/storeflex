@@ -11,42 +11,23 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-
-// Initialize Firebase
-let app: FirebaseApp;
-let db: any;
-
-function initializeFirebase() {
+function getFirebaseServices() {
+    let app: FirebaseApp;
     if (!getApps().length) {
         if (firebaseConfig.projectId) {
             app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
         } else {
-            console.warn("Firebase project ID is not set. Firebase will not be initialized.");
-            // @ts-ignore
-            app = null;
-            // @ts-ignore
-            db = null;
+            console.warn("Firebase project ID is not set. Client-side Firebase will not be initialized.");
+            throw new Error('Firebase project ID is not configured for the client.');
         }
     } else {
         app = getApp();
-        db = getFirestore(app);
     }
-}
+    
+    const db = getFirestore(app);
 
-// Ensure Firebase is initialized on first load
-initializeFirebase();
-
-function getFirebaseServices() {
-    if (!app || !db) {
-        // This will attempt to re-initialize if it failed on first load.
-        initializeFirebase();
-        if (!app || !db) {
-            throw new Error('Firebase is not initialized. Please check your environment variables in the .env file.');
-        }
-    }
     return { app, db };
 }
 
 
-export { db, getFirebaseServices };
+export { getFirebaseServices };
