@@ -3,7 +3,6 @@
 
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-import type { NextRequest, NextResponse } from 'next/server'
 
 const secretKey = process.env.SESSION_SECRET || 'fallback-secret-key-for-session'
 const key = new TextEncoder().encode(secretKey)

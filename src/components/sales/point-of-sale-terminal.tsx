@@ -46,9 +46,7 @@ import { FormattedDate } from '../ui/formatted-date';
 
 
 type GroupedProducts = {
-  [category: string]: {
-    [brand: string]: ProductSelect[];
-  };
+  [category: string]: ProductSelect[];
 };
 
 function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplete }: { initialProducts: ProductSelect[], initialCustomers: Customer[], onSaleComplete: () => void }) {
@@ -236,11 +234,10 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
 
     return filtered.reduce((acc, product) => {
       const category = product.category || 'Uncategorized';
-      const brand = product.brand || 'No Brand';
-
-      if (!acc[category]) acc[category] = {};
-      if (!acc[category][brand]) acc[category][brand] = [];
-      acc[category][brand].push(product);
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(product);
       return acc;
     }, {} as GroupedProducts);
   }, [products, searchTerm, cart]);
@@ -376,63 +373,39 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
           <CardContent>
              <ScrollArea className="h-[60vh]">
               {Object.keys(filteredAndGroupedProducts).length > 0 ? (
-                <Accordion type="multiple" defaultValue={Object.keys(filteredAndGroupedProducts)} className="w-full">
-                  {Object.entries(filteredAndGroupedProducts).map(([category, brands]) => (
-                    <AccordionItem value={category} key={category}>
-                      <AccordionTrigger className="text-base font-semibold">{category}</AccordionTrigger>
-                      <AccordionContent>
-                        <Accordion type="multiple" defaultValue={Object.keys(brands)} className="w-full space-y-2 pl-4">
-                            {Object.entries(brands).map(([brand, items]) => (
-                                <AccordionItem value={brand} key={brand}>
-                                    <AccordionTrigger className="text-sm py-2">{brand}</AccordionTrigger>
-                                    <AccordionContent className="p-0">
-                                        <Table>
-                                          <TableHeader>
-                                            <TableRow>
-                                              <TableHead className="w-auto sm:w-[80px]">Image</TableHead>
-                                              <TableHead>Name</TableHead>
-                                              <TableHead>Price</TableHead>
-                                              <TableHead>Stock</TableHead>
-                                              <TableHead className="w-auto sm:w-[100px] text-right">Action</TableHead>
-                                            </TableRow>
-                                          </TableHeader>
-                                          <TableBody>
-                                            {items.map((product) => (
-                                              <TableRow key={product.id}>
-                                                <TableCell>
-                                                  <Avatar className="h-12 w-12 rounded-md">
-                                                    <AvatarImage src={product.image || 'https://placehold.co/64x64.png'} alt={product.name} data-ai-hint="product image" />
-                                                    <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
-                                                  </Avatar>
-                                                </TableCell>
-                                                <TableCell className="font-medium">{product.name}</TableCell>
-                                                <TableCell>LKR {product.selling_price.toFixed(2)}</TableCell>
-                                                <TableCell>
-                                                  {product.type === 'product' ? (
-                                                    product.stock > 0 ? (
-                                                        <span>{product.stock}</span>
-                                                    ) : (
-                                                        <Badge variant="destructive">Out</Badge>
-                                                    )
-                                                  ) : (
-                                                    <Badge variant="secondary">Service</Badge>
-                                                  )}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                  <Button size="sm" onClick={() => addToCart(product)} disabled={product.type === 'product' && product.stock <= 0}>Add</Button>
-                                                </TableCell>
-                                              </TableRow>
-                                            ))}
-                                          </TableBody>
-                                        </Table>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
+                Object.entries(filteredAndGroupedProducts).map(([category, items]) => (
+                  <div key={category} className="mb-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground px-1 mb-2 sticky top-0 bg-card/95 backdrop-blur-sm z-10 py-1">{category}</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {items.map((product) => (
+                        <Card key={product.id} className="overflow-hidden cursor-pointer hover:border-primary transition-colors" onClick={() => addToCart(product)}>
+                           <CardHeader className="p-0">
+                                <Avatar className="h-24 w-full rounded-b-none">
+                                    <AvatarImage src={product.image || 'https://placehold.co/200x100.png'} alt={product.name} data-ai-hint="product image" className="aspect-video object-cover" />
+                                    <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                           </CardHeader>
+                           <CardContent className="p-3">
+                              <h4 className="font-semibold text-sm truncate">{product.name}</h4>
+                              <p className="text-xs text-muted-foreground">{product.brand || 'No Brand'}</p>
+                              <div className="flex justify-between items-center mt-2">
+                                <p className="font-bold text-sm">LKR {product.selling_price.toFixed(2)}</p>
+                                {product.type === 'product' ? (
+                                    product.stock > 0 ? (
+                                        <Badge variant="outline">{product.stock} left</Badge>
+                                    ) : (
+                                        <Badge variant="destructive">Out</Badge>
+                                    )
+                                ) : (
+                                    <Badge variant="secondary">Service</Badge>
+                                )}
+                              </div>
+                           </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                ))
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
                   <p>No items match your search.</p>
