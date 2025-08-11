@@ -95,16 +95,16 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
     setCart(prevCart =>
       prevCart.map(item => {
         if (item.id === productId) {
-           const itemInCart = cart.find(item => item.id === productId);
-           if (!itemInCart) return item;
+           const productInfo = products.find(p => p.id === productId);
+           const stockLimit = productInfo?.stock ?? 0;
 
-           if (field === 'quantity' && value > itemInCart.stock && itemInCart.type === 'product') {
+           if (field === 'quantity' && value > stockLimit && productInfo?.type === 'product') {
              setTimeout(() => toast({
                variant: 'destructive',
                title: 'Stock Limit Exceeded',
-               description: `Only ${itemInCart.stock} units of ${itemInCart.name} available.`,
+               description: `Only ${stockLimit} units of ${item.name} available.`,
              }), 0);
-             return item; 
+             return { ...item, quantity: stockLimit };
            }
 
           const updatedItem = { ...item, [field]: value };
@@ -220,35 +220,29 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
 
   const filteredAndGroupedProducts = React.useMemo(() => {
     const lowercasedTerm = searchTerm.toLowerCase();
+    const inCartIds = new Set(cart.map((item) => item.id));
+
     const filtered = products.filter((product) => {
-        const inCart = cart.some((item) => item.id === product.id);
-        if (inCart) return false;
-
-        if (searchTerm === '') return true;
-
-        return (
-            product.name.toLowerCase().includes(lowercasedTerm) ||
-            (product.brand && product.brand.toLowerCase().includes(lowercasedTerm)) ||
-            (product.category && product.category.toLowerCase().includes(lowercasedTerm)) ||
-            (product.sub_category && product.sub_category.toLowerCase().includes(lowercasedTerm)) ||
-            (product.barcode && product.barcode.toLowerCase().includes(lowercasedTerm))
-        );
+      if (inCartIds.has(product.id)) return false;
+      if (searchTerm === '') return true;
+      return (
+        product.name.toLowerCase().includes(lowercasedTerm) ||
+        (product.brand && product.brand.toLowerCase().includes(lowercasedTerm)) ||
+        (product.category && product.category.toLowerCase().includes(lowercasedTerm)) ||
+        (product.sub_category && product.sub_category.toLowerCase().includes(lowercasedTerm)) ||
+        (product.barcode && product.barcode.toLowerCase().includes(lowercasedTerm))
+      );
     });
 
     return filtered.reduce((acc, product) => {
-        const category = product.category || 'Uncategorized';
-        const brand = product.brand || 'No Brand';
+      const category = product.category || 'Uncategorized';
+      const brand = product.brand || 'No Brand';
 
-        if (!acc[category]) {
-            acc[category] = {};
-        }
-        if (!acc[category][brand]) {
-            acc[category][brand] = [];
-        }
-        acc[category][brand].push(product);
-        return acc;
+      if (!acc[category]) acc[category] = {};
+      if (!acc[category][brand]) acc[category][brand] = [];
+      acc[category][brand].push(product);
+      return acc;
     }, {} as GroupedProducts);
-
   }, [products, searchTerm, cart]);
 
   
@@ -817,10 +811,5 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     </Tabs>
   );
 }
-
-    
-    
-
-    
 
     
