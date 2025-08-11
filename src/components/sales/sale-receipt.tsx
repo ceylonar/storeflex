@@ -36,7 +36,7 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
     window.print();
   };
 
-  const totalDue = sale.total_amount - (sale.previousBalance || 0);
+  const totalDue = sale.total_amount + (sale.previousBalance || 0);
   const change = Math.max(0, sale.amountPaid - totalDue);
 
   return (
@@ -117,10 +117,10 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
           <span>LKR {sale.total_amount.toFixed(2)}</span>
         </div>
         
-        {(sale.previousBalance || 0) > 0 && (
+        {(sale.previousBalance || 0) !== 0 && (
             <div className="flex justify-between text-xs">
                 <span>Prev. Balance</span>
-                <span>- {sale.previousBalance.toFixed(2)}</span>
+                <span>{sale.previousBalance.toFixed(2)}</span>
             </div>
         )}
         
@@ -161,3 +161,5 @@ export function SaleReceipt({ sale, onNewSale }: SaleReceiptProps) {
     </div>
   );
 }
+
+    

@@ -588,9 +588,9 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             }
         }
         
-        const totalDue = total_amount - finalPreviousBalance;
+        const totalDue = total_amount + finalPreviousBalance;
         const finalCreditAmount = totalDue > amountPaid ? totalDue - amountPaid : 0;
-        const newCreditBalanceForCustomer = finalPreviousBalance - (amountPaid - total_amount);
+        const newCreditBalanceForCustomer = finalPreviousBalance + (total_amount - amountPaid);
 
 
         if (customerRef) {
@@ -651,7 +651,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/moneyflow');
     
     // Re-calculate for accurate return object
-    const totalDue = total_amount - previousBalance;
+    const totalDue = total_amount + previousBalance;
     const finalCreditAmount = totalDue > amountPaid ? totalDue - amountPaid : 0;
 
     let paymentStatus: Sale['paymentStatus'] = 'paid';
@@ -1493,7 +1493,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
         getDocs(purchasesQuery),
-        getDocs(lossSnapshot)
+        getDocs(lossQuery)
     ]);
     
     const transactions: ProductTransaction[] = [];
@@ -1529,12 +1529,12 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     lossSnapshot.forEach(doc => {
         const activity = doc.data() as RecentActivity;
         const expense = activity.transaction as Expense | undefined; // Assuming expense data is stored in transaction
-        if (expense) {
+        if (expense && expense.quantity) {
              transactions.push({
                 type: 'loss',
                 date: (expense.date as any as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-                quantity: expense.quantity || 0,
-                price: (expense.amount / (expense.quantity || 1)), // Calculate unit cost from total loss
+                quantity: expense.quantity,
+                price: (expense.amount / expense.quantity), // Calculate unit cost from total loss
                 source_or_destination: activity.details,
             });
         }
@@ -2414,3 +2414,6 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
+
+
+    

@@ -169,6 +169,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
   }, [cart, toast]);
 
     const handleBarcodeScan = React.useCallback((barcode: string) => {
+        if (!barcode.trim()) return;
         const product = products.find(p => p.barcode?.toLowerCase() === barcode.toLowerCase());
         if (product) {
             addToCart(product);
@@ -272,7 +273,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
   const total = Math.max(0, subtotal + tax + serviceCharge - discountAmount);
   
   const previousBalance = selectedCustomer?.credit_balance || 0;
-  const totalDue = total - previousBalance;
+  const totalDue = total + previousBalance;
 
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
@@ -516,10 +517,17 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                       <div className="grid grid-cols-2 gap-2"><Label htmlFor="discount" className="text-muted-foreground my-auto">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0.00" /></div>
                       <Separator />
                       <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Bill Total</span><span>LKR {total.toFixed(2)}</span></div>
-                      {previousBalance > 0 && (
+                      {previousBalance !== 0 && selectedCustomer && (
                         <div className="flex justify-between font-semibold">
-                            <span className="text-muted-foreground">Previous Balance</span>
-                            <span className="text-green-600 dark:text-green-500">- LKR {previousBalance.toFixed(2)}</span>
+                            <span className="text-muted-foreground">
+                                Previous Balance
+                                <span className={cn("text-xs ml-1", previousBalance > 0 ? "text-destructive" : "text-green-600")}>
+                                     {previousBalance > 0 ? '(Debit)' : '(Credit)'}
+                                </span>
+                            </span>
+                            <span className={cn(previousBalance > 0 ? "text-destructive" : "text-green-600 dark:text-green-500")}>
+                                LKR {Math.abs(previousBalance).toFixed(2)}
+                            </span>
                         </div>
                       )}
                       <Separator />
@@ -793,3 +801,6 @@ export function PointOfSaleTerminal({ products, initialCustomers }: { products: 
     </Tabs>
   );
 }
+
+
+    
