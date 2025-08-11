@@ -106,6 +106,7 @@ const POSSaleSchema = z.object({
   total_amount: z.number().nonnegative(),
   paymentMethod: z.enum(['cash', 'credit', 'check']),
   amountPaid: z.coerce.number().nonnegative(),
+  creditAmount: z.coerce.number().nonnegative(),
   checkNumber: z.string().optional(),
   previousBalance: z.number(),
 });
@@ -1179,21 +1180,25 @@ export async function fetchDashboardData() {
         let totalSales = 0;
 
         salesSnapshot.forEach(doc => {
-            const sale = doc.data() as Sale;
-            const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
+            const saleData = doc.data();
+            const sale = {
+                ...saleData,
+                sale_date: (saleData.sale_date as Timestamp).toDate(),
+            } as Omit<Sale, 'sale_date'> & { sale_date: Date };
+
             const saleTotal = sale.total_amount || 0;
             const saleCogs = sale.items.reduce((acc, item) => acc + ((item.cost_price || 0) * item.quantity), 0);
             totalSales += saleTotal;
 
-            if (isWithinInterval(saleDate, { start: todayStart, end: todayEnd })) {
+            if (isWithinInterval(sale.sale_date, { start: todayStart, end: todayEnd })) {
                 salesToday += saleTotal;
                 cogsToday += saleCogs;
             }
-            if (isWithinInterval(saleDate, { start: monthStart, end: monthEnd })) {
+            if (isWithinInterval(sale.sale_date, { start: monthStart, end: monthEnd })) {
                 salesThisMonth += saleTotal;
                 cogsThisMonth += saleCogs;
             }
-             if (isWithinInterval(saleDate, { start: yearStart, end: yearEnd })) {
+             if (isWithinInterval(sale.sale_date, { start: yearStart, end: yearEnd })) {
                 salesThisYear += saleTotal;
                 cogsThisYear += saleCogs;
             }
@@ -1205,18 +1210,21 @@ export async function fetchDashboardData() {
         let totalExpenses = 0;
 
         expensesSnapshot.forEach(doc => {
-            const expense = doc.data() as Expense;
-            const expenseDate = (expense.date as unknown as Timestamp).toDate();
+            const expenseData = doc.data();
+            const expense = {
+                ...expenseData,
+                date: (expenseData.date as Timestamp).toDate(),
+            } as Omit<Expense, 'date'> & { date: Date };
             const expenseAmount = expense.amount;
             totalExpenses += expenseAmount;
             
-            if (isWithinInterval(expenseDate, {start: todayStart, end: todayEnd})) {
+            if (isWithinInterval(expense.date, {start: todayStart, end: todayEnd})) {
                 expensesToday += expenseAmount;
             }
-            if (isWithinInterval(expenseDate, {start: monthStart, end: monthEnd})) {
+            if (isWithinInterval(expense.date, {start: monthStart, end: monthEnd})) {
                 expensesThisMonth += expenseAmount;
             }
-             if (isWithinInterval(expenseDate, {start: yearStart, end: yearEnd})) {
+             if (isWithinInterval(expense.date, {start: yearStart, end: yearEnd})) {
                 expensesThisYear += expenseAmount;
             }
         });
@@ -1389,6 +1397,7 @@ interface FinancialActivitiesFilter {
 
 
 export async function fetchProductHistory(productId: string): Promise<ProductTransaction[]> {
+    noStore();
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -1637,11 +1646,10 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     try {
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
 
-        // Applying limit if specified.
         if (filters.limit) {
             q = query(q, limit(filters.limit));
         }
-
+        
         const activitySnapshot = await getDocs(q);
 
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1654,7 +1662,6 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
 
-        // Start with all financial types. We will filter later if needed.
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         let filteredActivities = allActivities.filter(a => financialTypes.includes(a.type));
 
@@ -2203,6 +2210,7 @@ export async function processSalesOrder(orderId: string): Promise<void> {
         total_amount: order.total_amount,
         paymentMethod: 'cash' as const,
         amountPaid: order.total_amount,
+        creditAmount: 0,
         previousBalance: 0, // Assume no previous balance for simplicity
         checkNumber: '',
     };
@@ -2291,5 +2299,6 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
     
+
 
 
