@@ -59,13 +59,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 
 interface AdvancedReportClientProps {
-  initialRecords: RecentActivity[];
+  initialRecords: DetailedRecord[];
   products: ProductSelect[];
   customers: Customer[];
   suppliers: Supplier[];
 }
 
-const getRecordTitle = (record: RecentActivity) => {
+const getRecordTitle = (record: DetailedRecord) => {
     const transaction = record.transaction as any;
     switch (record.type) {
       case 'sale': return `Sale to ${transaction?.customer_name || 'N/A'}`;
@@ -82,7 +82,7 @@ const getRecordTitle = (record: RecentActivity) => {
     }
 };
 
-const getRecordAmount = (record: RecentActivity) => {
+const getRecordAmount = (record: DetailedRecord) => {
     const transaction = record.transaction as any;
     if (typeof transaction?.total_amount === 'number') {
         return `LKR ${transaction.total_amount.toFixed(2)}`;
@@ -105,7 +105,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
   const [partyId, setPartyId] = useState<string>('');
-  const [records, setRecords] = useState<RecentActivity[]>(initialRecords);
+  const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
@@ -117,7 +117,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const handleGenerateReport = () => {
     startTransition(async () => {
       const result = await fetchFinancialActivities({ date, type, productId, partyId, full: true });
-      setRecords(result);
+      setRecords(result as DetailedRecord[]);
       toast({
           title: 'Records Filtered',
           description: `Found ${result.length} matching records.`,
@@ -132,7 +132,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     setPartyId('');
     startTransition(async () => {
       const result = await fetchFinancialActivities({ full: true });
-      setRecords(result);
+      setRecords(result as DetailedRecord[]);
       toast({
           title: 'Filters Cleared',
           description: 'Showing all records.',
@@ -159,7 +159,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 rec.id, 
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 `"${rec.type.replace(/_/g, ' ')}"`,
-                `"${(rec as any).partyName || 'N/A'}"`,
+                `"${rec.partyName || 'N/A'}"`,
             ];
 
             const trans = rec.transaction as any;
@@ -171,7 +171,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                     const itemTotal = (item as any).total_amount || (item as any).total_cost || 0;
 
                     const quantity = (item as any).quantity || (item as any).return_quantity || 0;
-                    const unitPrice = (item as any).price_per_unit || (item as any).cost_price || 0;
+                    const unitPrice = (item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0;
 
                     return [
                         ...commonData,
@@ -368,33 +368,33 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                             {records.map(record => {
                                 const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
                                 return (
-                                <Collapsible asChild key={`${record.type}-${record.id}`}>
-                                    <React.Fragment>
-                                        <TableRow>
-                                            <TableCell>
-                                                {hasItems && (
-                                                <CollapsibleTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 data-[state=open]:rotate-180">
-                                                        <ChevronDown className="h-4 w-4 transition-transform" />
-                                                    </Button>
-                                                </CollapsibleTrigger>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="font-medium">{getRecordTitle(record)}</div>
-                                                <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                            </TableCell>
-                                            <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                            <TableCell>{(record as any).partyName || 'N/A'}</TableCell>
-                                            <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                            <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
-                                        </TableRow>
+                                <Collapsible asChild key={`${record.type}-${record.id}`} className="group">
+                                    <tbody className="border-b">
+                                        <CollapsibleTrigger asChild>
+                                            <TableRow className="cursor-pointer hover:bg-muted/50 data-[state=open]:bg-muted/50 border-b-0">
+                                                <TableCell>
+                                                    {hasItems && (
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="font-medium">{getRecordTitle(record)}</div>
+                                                    <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                                </TableCell>
+                                                <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                                <TableCell>{record.partyName || 'N/A'}</TableCell>
+                                                <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                                <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                                            </TableRow>
+                                        </CollapsibleTrigger>
                                         {hasItems && (
                                             <CollapsibleContent asChild>
-                                                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                <tr className="bg-muted/20 hover:bg-muted/20">
                                                     <TableCell colSpan={6} className="p-0">
                                                     <div className="p-4">
-                                                        <h4 className="font-semibold mb-2">Items</h4>
+                                                        <h4 className="font-semibold mb-2 ml-4">Items</h4>
                                                         <Table>
                                                             <TableHeader>
                                                                 <TableRow>
@@ -424,10 +424,10 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                                         </Table>
                                                     </div>
                                                     </TableCell>
-                                                </TableRow>
+                                                </tr>
                                             </CollapsibleContent>
                                         )}
-                                    </React.Fragment>
+                                    </tbody>
                                 </Collapsible>
                             )})}
                         </TableBody>
@@ -442,3 +442,4 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     </Card>
   );
 }
+
