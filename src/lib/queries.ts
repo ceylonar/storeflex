@@ -590,7 +590,6 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         }
         
         const totalDue = total_amount + finalPreviousBalance;
-        const finalCreditAmount = totalDue > amountPaid ? totalDue - amountPaid : 0;
         const newCreditBalanceForCustomer = finalPreviousBalance + (total_amount - amountPaid);
 
 
@@ -599,7 +598,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         }
 
         let paymentStatus: Sale['paymentStatus'] = 'paid';
-        if (saleDetails.paymentMethod === 'credit' && finalCreditAmount > 0.001) {
+        if (saleDetails.paymentMethod === 'credit' && newCreditBalanceForCustomer > 0.001) {
             paymentStatus = 'partial';
         } else if (saleDetails.paymentMethod === 'check') {
             paymentStatus = 'pending_check_clearance';
@@ -618,7 +617,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             total_amount,
             amountPaid,
             previousBalance: finalPreviousBalance,
-            creditAmount: finalCreditAmount,
+            creditAmount: newCreditBalanceForCustomer > 0 ? newCreditBalanceForCustomer : 0,
             paymentStatus,
             sale_date: serverTimestamp(),
         };
@@ -1333,7 +1332,11 @@ export async function fetchDashboardData() {
             totalReceivables,
             totalPayables,
             recentActivities: [], // Removed for stability
-            lowStockProducts,
+            lowStockProducts: lowStockProducts.map(p => ({
+                ...p,
+                created_at: p.created_at || new Date().toISOString(),
+                updated_at: p.updated_at || new Date().toISOString(),
+            })),
             pendingSalesOrders: pendingSalesOrders.slice(0, 3),
             pendingPurchaseOrders: pendingPurchaseOrders.slice(0, 3),
         };
@@ -1771,6 +1774,7 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             return {
                 ...serializedData,
                 id: doc.id,
+                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
@@ -1981,7 +1985,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     await runTransaction(db, async (transaction) => {
         // --- READS FIRST ---
         const productRefs = returnData.items.map(item => doc(db, 'products', item.id));
-        const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+        await Promise.all(productRefs.map(ref => transaction.get(ref)));
         const supplierRef = doc(db, 'suppliers', returnData.supplier_id);
         const counterRef = doc(db, 'counters', `purchase_returns_${userId}`);
         await transaction.get(supplierRef); // Read supplier
@@ -1990,11 +1994,8 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
         // --- WRITES AFTER ---
         // 1. Update stock for each returned item
         for (const [index, item] of returnData.items.entries()) {
-            const productDoc = productDocs[index];
-            if (productDoc.exists() && productDoc.data().stock >= item.return_quantity) {
+             if (item.type === 'product') {
                 transaction.update(productRefs[index], { stock: increment(-item.return_quantity) });
-            } else {
-                throw new Error(`Not enough stock to return for ${item.name}.`);
             }
         }
 
