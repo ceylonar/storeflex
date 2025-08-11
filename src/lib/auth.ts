@@ -4,6 +4,8 @@
 
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
+import { getFirebaseServices } from './firebase';
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { getFirebaseAdmin } from './firebase-admin';
 import { encrypt, getSession } from './session';
 
@@ -28,20 +30,19 @@ export async function login(prevState: { error: string | undefined } | null, for
   }
 
   try {
-      const { auth } = getFirebaseAdmin();
-      const userRecord = await auth.getUserByEmail(email);
-
-      // IMPORTANT: Firebase Admin SDK does not have a "signInWithEmailAndPassword" method.
-      // Authentication must be handled on the client-side for password verification.
-      // Here, we simulate a successful login for the sake of the backend flow,
-      // but in a real app, you would verify a token sent from the client.
-      // For this project, we'll assume if the user exists, the password is correct.
-      // This is NOT secure for production.
+      const { app } = getFirebaseServices();
+      const auth = getAuth(app);
+      
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Use Firebase Admin to get full user details if needed, or construct from client response
+      const { auth: adminAuth } = getFirebaseAdmin();
+      const adminUserRecord = await adminAuth.getUser(userCredential.user.uid);
 
       const user: User = { 
-          id: userRecord.uid, 
-          name: userRecord.displayName || userRecord.email || 'Admin', 
-          email: userRecord.email!, 
+          id: userCredential.user.uid, 
+          name: adminUserRecord.displayName || adminUserRecord.email || 'Admin', 
+          email: userCredential.user.email!, 
           role: 'admin' 
       };
 
@@ -52,8 +53,8 @@ export async function login(prevState: { error: string | undefined } | null, for
 
       redirect('/dashboard');
   } catch (e: any) {
-      console.error("Firebase Auth Error:", e);
-       if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-email') {
+      console.error("Firebase Auth Error:", e.code, e.message);
+       if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
           return { error: 'Invalid email or password.' };
       }
       return { error: 'An unexpected error occurred during login. Please check server logs.' };
