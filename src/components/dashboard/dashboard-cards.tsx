@@ -274,6 +274,20 @@ export function LowStockCard({ products }: { products: Product[] }) {
 
 
 export function RecentActivityCard({ activities }: { activities: RecentActivity[] }) {
+  if (!activities || activities.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+          <CardDescription>What's been happening in your store.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-48 text-muted-foreground">
+          <p>No recent activity to show.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+  
   return (
     <Card>
       <CardHeader>

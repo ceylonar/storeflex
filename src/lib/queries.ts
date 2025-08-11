@@ -1123,19 +1123,19 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), limit(5));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), limit(5));
 
 
-        const [productsSnapshot, salesSnapshot, activitySnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
+        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot, activitySnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
-            getDocs(activityQuery),
             getDocs(customersQuery),
             getDocs(suppliersQuery),
             getDocs(expensesQuery),
+            getDocs(activityQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1712,7 +1712,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
 }
 
 
-export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number): Promise<{success: boolean, message: string}> {
+export async function settlePayment(transaction: MoneyflowTransaction, status: 'paid' | 'rejected' = 'paid', amount?: number): Promise<{success: boolean; message: string;}> {
     const { db } = getFirebaseServices();
     const userId = await getCurrentUserId();
     if (!userId) return { success: false, message: 'User not authenticated.' };

@@ -7,9 +7,14 @@ import DynamicSalesChart from '@/components/dashboard/dynamic-sales-chart';
 import DynamicTopSellingProductsChart from '@/components/dashboard/dynamic-top-products-chart';
 import { ProfitCard } from '@/components/dashboard/profit-card';
 import { PendingOrdersCard } from '@/components/dashboard/pending-orders-card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Lightbulb } from 'lucide-react';
 
 export default async function DashboardPage() {
   const user = await getUser();
+  if (!user) {
+    redirect('/login');
+  }
 
   // Admin and other roles will see the full dashboard
   const dashboardData = await fetchDashboardData();
@@ -18,6 +23,19 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 md:space-y-8">
+       <Card className="bg-primary/10 border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="h-6 w-6 text-primary" />
+            Welcome to your Dashboard, {user.name}!
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
+            This is your command center. You can get a quick overview of your business's performance, see what needs your attention, and access all of your key modules from the sidebar. Let's get started!
+          </p>
+        </CardContent>
+      </Card>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
         <StatCard 
           title="Inventory Value" 
