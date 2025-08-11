@@ -387,6 +387,22 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
     if (!validatedFields.success) {
         throw new Error("Invalid customer data.");
     }
+    
+    const { phone } = validatedFields.data;
+
+    // Prevent duplicate customers by checking phone number
+    if (phone) {
+        const q = query(collection(db, 'customers'), where('userId', '==', userId), where('phone', '==', phone), limit(1));
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+            const existingCustomer = existing.docs[0].data() as Omit<Customer, 'id'>;
+            return {
+                id: existing.docs[0].id,
+                ...existingCustomer
+            }
+        }
+    }
+
 
     try {
       const newCustomer = await runTransaction(db, async (transaction) => {
@@ -763,6 +779,21 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
         throw new Error("Invalid supplier data.");
     }
     
+    const { phone } = validatedFields.data;
+
+    // Prevent duplicate suppliers by checking phone number
+    if (phone) {
+        const q = query(collection(db, 'suppliers'), where('userId', '==', userId), where('phone', '==', phone), limit(1));
+        const existing = await getDocs(q);
+        if (!existing.empty) {
+            const existingSupplier = existing.docs[0].data() as Omit<Supplier, 'id'>;
+            return {
+                id: existing.docs[0].id,
+                ...existingSupplier
+            }
+        }
+    }
+
     try {
         const newSupplier = await runTransaction(db, async (transaction) => {
           const counterRef = doc(db, 'counters', `suppliers_${userId}`);
@@ -1425,7 +1456,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
         getDocs(purchasesQuery),
-        getDocs(lossQuery)
+        getDocs(lossSnapshot)
     ]);
     
     const transactions: ProductTransaction[] = [];
@@ -1657,11 +1688,6 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     const { db } = getFirebaseServices();
     try {
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
-        
-        // This query was causing index issues. Remove orderBy from the query itself.
-        // if (filters.limit && !filters.date && !filters.type && !filters.productId && !filters.partyId) {
-        //     q = query(q, orderBy('timestamp', 'desc'), limit(filters.limit));
-        // }
         
         const activitySnapshot = await getDocs(q);
 
@@ -2333,3 +2359,4 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
     
 
     
+

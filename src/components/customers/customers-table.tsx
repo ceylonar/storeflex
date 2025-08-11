@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -163,8 +164,10 @@ export function CustomersTable({ customers, onViewHistory, onCustomerCreated, on
                 <TableCell className="font-mono text-sm">{customer.id}</TableCell>
                 <TableCell className="font-medium">{customer.name}</TableCell>
                 <TableCell>{customer.phone}</TableCell>
-                <TableCell className={cn(customer.credit_balance > 0 ? "text-destructive" : "text-muted-foreground")}>
-                    LKR {(customer.credit_balance || 0).toFixed(2)}
+                <TableCell className={cn(
+                    customer.credit_balance > 0 ? "text-destructive" : "text-green-600 dark:text-green-500"
+                )}>
+                    LKR {Math.abs(customer.credit_balance || 0).toFixed(2)}
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
