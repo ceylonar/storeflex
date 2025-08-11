@@ -10,7 +10,7 @@
 
 import { ai, ensureAiIsConfigured } from '@/ai/genkit';
 import { z } from 'zod';
-import { fetchInventoryRecords, fetchDashboardData, fetchCustomers, fetchSuppliers, fetchExpenses, fetchPendingOrders } from '@/lib/queries';
+import { fetchDashboardData, fetchCustomers, fetchSuppliers, fetchExpenses, fetchPendingOrders, fetchFinancialActivities } from '@/lib/queries';
 
 const AiAssistantOutputSchema = z.object({
   answer: z.string().describe('The answer to the user\'s question.'),
@@ -22,7 +22,7 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
 
   // Fetch a comprehensive set of data to provide context to the AI
   const [allTransactions, dashboardData, customers, suppliers, expenses, pendingOrders] = await Promise.all([
-    fetchInventoryRecords({}),
+    fetchFinancialActivities({}),
     fetchDashboardData(),
     fetchCustomers(),
     fetchSuppliers(),
@@ -34,18 +34,18 @@ export async function askAiAssistant(query: string): Promise<AiAssistantOutput> 
   const transactionContext = allTransactions.map(t => {
       let details = `${t.type} on ${new Date(t.timestamp).toLocaleDateString()}: ${t.details}`;
       // For credit settlements and similar activities, ensure the party name is included if available.
-      if ((t.type === 'credit_settled' || t.type.includes('return')) && t.partyName) {
-        details = `${t.type} on ${new Date(t.timestamp).toLocaleDateString()} involving ${t.partyName}: ${t.details}`;
+      if ((t.type === 'credit_settled' || t.type.includes('return')) && (t as any).partyName) {
+        details = `${t.type} on ${new Date(t.timestamp).toLocaleDateString()} involving ${(t as any).partyName}: ${t.details}`;
       }
-      else if (t.items && t.items.length > 0) {
-          details += ` Items: ${t.items.map(i => `${i.name} (Qty: ${(i as any).quantity || (i as any).return_quantity})`).join(', ')}`;
+      else if ((t as any).items && (t as any).items.length > 0) {
+          details += ` Items: ${(t as any).items.map((i: any) => `${i.name} (Qty: ${(i as any).quantity || (i as any).return_quantity})`).join(', ')}`;
       }
       return details;
   }).join('\n');
 
   // Create a detailed breakdown of payables and receivables
   const payables = suppliers.filter(s => s.credit_balance > 0);
-  const receivables = customers.filter(c => c.credit_balance < 0);
+  const receivables = customers.filter(c => c.credit_balance > 0);
   
   const balanceContext = `
 **Detailed Payables (Money you owe):**

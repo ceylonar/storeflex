@@ -569,7 +569,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         const newCreditBalance = totalDue - amountPaid;
 
         if (customerRef) {
-            transaction.update(customerRef, { credit_balance: newCreditBalance });
+            transaction.update(customerRef, { credit_balance: increment(newCreditBalance) });
         }
 
         let paymentStatus: Sale['paymentStatus'] = 'paid';
@@ -1126,16 +1126,13 @@ export async function fetchDashboardData() {
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), limit(5));
-
-
-        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot, activitySnapshot] = await Promise.all([
+        
+        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(customersQuery),
             getDocs(suppliersQuery),
             getDocs(expensesQuery),
-            getDocs(activityQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1238,29 +1235,12 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        let recentActivities = activitySnapshot.docs.map(doc => {
-          const data = doc.data();
-          const activity: RecentActivity = {
-            ...data,
-            id: doc.id,
-            timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-          } as RecentActivity;
-
-          if (activity.type === 'loss' && activity.transaction) {
-              const tx = activity.transaction as Expense;
-              activity.transaction = {
-                  ...tx,
-                  date: (tx.date as any as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-              }
-          }
-          return activity;
-        });
-
-        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const recentActivities = (await fetchFinancialActivities({limit: 5})).map(act => ({
+            ...act,
+            timestamp: act.timestamp || new Date().toISOString(),
+        }));
         
         let totalReceivables = 0;
-        let totalPayables = 0;
-
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
@@ -1268,6 +1248,7 @@ export async function fetchDashboardData() {
             }
         });
 
+        let totalPayables = 0;
         suppliersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
             if (balance > 0) {
@@ -1291,10 +1272,7 @@ export async function fetchDashboardData() {
             profitThisYear,
             totalReceivables,
             totalPayables,
-            recentActivities: recentActivities.map(act => ({
-                ...act,
-                timestamp: act.timestamp || new Date().toISOString(),
-            })),
+            recentActivities,
             lowStockProducts: lowStockProducts.map(p => ({
                 ...p,
                 created_at: p.created_at || new Date().toISOString(),
@@ -1431,106 +1409,12 @@ export async function fetchTopSellingProducts(): Promise<TopSellingProduct[]> {
     }
 }
 
-interface InventoryRecordsFilter {
+interface FinancialActivitiesFilter {
     date?: DateRange;
     type?: string;
     productId?: string;
     partyId?: string;
-}
-
-export async function fetchInventoryRecords(filters: InventoryRecordsFilter): Promise<DetailedRecord[]> {
-    noStore();
-    const userId = await getCurrentUserId();
-    if (!userId) return [];
-
-    const { db } = getFirebaseServices();
-    try {
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
-        
-        const activitySnapshot = await getDocs(activityQuery);
-        let allDocs: RecentActivity[] = activitySnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as RecentActivity);
-
-        let filteredDocs = allDocs.filter(doc => {
-            if (filters.type && doc.type !== filters.type) return false;
-
-            if (filters.productId) {
-                const hasProductId = doc.item_ids?.includes(filters.productId) || doc.product_id === filters.productId;
-                if (!hasProductId) return false;
-            }
-
-            if (filters.partyId) {
-                const [partyType, id] = filters.partyId.split('_');
-                const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-                if ((doc as any)[partyKey] !== id) return false;
-            }
-
-            if (filters.date?.from) {
-                const from = startOfDay(filters.date.from);
-                const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-                const docDate = (doc.timestamp as any as Timestamp)?.toDate();
-                if (!docDate || !isWithinInterval(docDate, { start: from, end: to })) return false;
-            }
-            
-            return true;
-        });
-
-        const toPlainObject = (obj: any): any => {
-            if (!obj) return obj;
-            const newObj: {[key:string]: any} = {};
-            for (const key in obj) {
-                if (obj[key] instanceof Timestamp) {
-                    newObj[key] = obj[key].toDate().toISOString();
-                } else if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                    newObj[key] = toPlainObject(obj[key]);
-                } else if (Array.isArray(obj[key])) {
-                    newObj[key] = obj[key].map(toPlainObject);
-                }
-                else {
-                    newObj[key] = obj[key];
-                }
-            }
-            return newObj;
-        };
-        
-        const detailedRecordsPromises = filteredDocs.map(async (doc): Promise<DetailedRecord> => {
-            const plainDoc = toPlainObject(doc);
-            const timestamp = plainDoc.timestamp || new Date(0).toISOString();
-            
-            let transaction: any = null;
-            let items: any[] = [];
-            let partyName = 'N/A';
-
-            if (['sale', 'purchase', 'sale_return', 'purchase_return'].includes(plainDoc.type)) {
-                const collectionName = `${plainDoc.type}s`;
-                const transactionDoc = await getDoc(doc(db, collectionName, plainDoc.id));
-                if (transactionDoc.exists()) {
-                    transaction = toPlainObject(transactionDoc.data());
-                    items = transaction.items || [];
-                    partyName = transaction.customer_name || transaction.supplier_name;
-                }
-            }
-
-            return {
-                id: plainDoc.id,
-                userId: plainDoc.userId,
-                type: plainDoc.type,
-                timestamp: timestamp,
-                details: plainDoc.details || '',
-                product_id: plainDoc.product_id,
-                product_name: plainDoc.product_name,
-                partyId: plainDoc.customer_id || plainDoc.supplier_id,
-                partyName: partyName,
-                items: items,
-                transaction: transaction,
-            } as DetailedRecord;
-        });
-
-        return await Promise.all(detailedRecordsPromises);
-
-    } catch (error) {
-        console.error('Database Error:', error);
-        throw new Error('Failed to fetch activities.');
-    }
+    limit?: number;
 }
 
 
@@ -1775,7 +1659,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
 }
 
 
-export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
+export async function fetchFinancialActivities(filters: FinancialActivitiesFilter = {}): Promise<RecentActivity[]> {
     noStore();
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -1784,19 +1668,51 @@ export async function fetchFinancialActivities(): Promise<RecentActivity[]> {
     try {
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         
-        const q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes), orderBy('timestamp', 'desc'));
+        let q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
         
         const activitySnapshot = await getDocs(q);
+
         let allActivities = activitySnapshot.docs.map(doc => {
             const data = doc.data();
             return {
-                id: doc.id, // Use Firestore's unique doc ID as the key
+                id: doc.id,
                 ...data,
                 timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-            }
+                partyName: data.customer_name || data.supplier_name || 'N/A'
+            } as DetailedRecord;
         }) as RecentActivity[];
 
-        return allActivities;
+        let filteredActivities = allActivities.filter(doc => {
+            if (filters.type && doc.type !== filters.type) return false;
+
+            if (filters.productId) {
+                const hasProductId = doc.item_ids?.includes(filters.productId) || doc.product_id === filters.productId;
+                if (!hasProductId) return false;
+            }
+
+            if (filters.partyId) {
+                const [partyType, id] = filters.partyId.split('_');
+                const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
+                if ((doc as any)[partyKey] !== id) return false;
+            }
+
+            if (filters.date?.from) {
+                const from = startOfDay(filters.date.from);
+                const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
+                const docDate = new Date(doc.timestamp);
+                if (!docDate || !isWithinInterval(docDate, { start: from, end: to })) return false;
+            }
+            
+            return true;
+        });
+
+        filteredActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        
+        if (filters.limit) {
+            return filteredActivities.slice(0, filters.limit);
+        }
+
+        return filteredActivities;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch financial activities.');

@@ -46,8 +46,8 @@ import {
 } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight, ChevronsUpDown, Check } from 'lucide-react';
-import type { ProductSelect, DetailedRecord, Customer, Supplier } from '@/lib/types';
-import { fetchInventoryRecords } from '@/lib/queries';
+import type { ProductSelect, RecentActivity, Customer, Supplier, DetailedRecord } from '@/lib/types';
+import { fetchFinancialActivities } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { DateRange } from 'react-day-picker';
@@ -60,13 +60,13 @@ import { Separator } from '../ui/separator';
 
 
 interface AdvancedReportClientProps {
-  initialRecords: DetailedRecord[];
+  initialRecords: RecentActivity[];
   products: ProductSelect[];
   customers: Customer[];
   suppliers: Supplier[];
 }
 
-const getRecordTitle = (record: DetailedRecord) => {
+const getRecordTitle = (record: RecentActivity) => {
     switch (record.type) {
       case 'sale': return `Sale to ${record.partyName}`;
       case 'purchase': return `Purchase from ${record.partyName}`;
@@ -82,7 +82,7 @@ const getRecordTitle = (record: DetailedRecord) => {
     }
 };
 
-const getRecordAmount = (record: DetailedRecord) => {
+const getRecordAmount = (record: RecentActivity) => {
     const transaction = record.transaction as any;
     if (transaction?.total_amount) {
         return `LKR ${transaction.total_amount.toFixed(2)}`;
@@ -102,7 +102,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const [type, setType] = useState<string>('');
   const [productId, setProductId] = useState<string>('');
   const [partyId, setPartyId] = useState<string>('');
-  const [records, setRecords] = useState<DetailedRecord[]>(initialRecords);
+  const [records, setRecords] = useState<RecentActivity[]>(initialRecords);
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
@@ -113,7 +113,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
 
   const handleGenerateReport = () => {
     startTransition(async () => {
-      const result = await fetchInventoryRecords({ date, type, productId, partyId });
+      const result = await fetchFinancialActivities({ date, type, productId, partyId });
       setRecords(result);
       toast({
           title: 'Records Filtered',
@@ -128,7 +128,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     setProductId('');
     setPartyId('');
     startTransition(async () => {
-      const result = await fetchInventoryRecords({});
+      const result = await fetchFinancialActivities({});
       setRecords(result);
       toast({
           title: 'Filters Cleared',
@@ -146,7 +146,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     toast({ title: 'Preparing Download', description: 'Generating detailed report for export...' });
 
     try {
-        const detailedRecords = await fetchInventoryRecords({ date, type, productId, partyId });
+        const detailedRecords = await fetchFinancialActivities({ date, type, productId, partyId });
         const headers = [
           'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Item Total (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
         ];
@@ -353,7 +353,6 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                     <Table>
                         <TableHeader className="sticky top-0 bg-card z-10">
                             <TableRow>
-                                <TableHead className="w-[50px]"></TableHead>
                                 <TableHead>Transaction</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Party</TableHead>
@@ -363,64 +362,16 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                         </TableHeader>
                         
                         {records.map(record => (
-                            <Collapsible asChild key={`${record.type}-${record.id}`} className="group">
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell>
-                                            <CollapsibleTrigger asChild>
-                                                <Button variant="ghost" size="icon" disabled={!record.items || record.items.length === 0}>
-                                                    <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-                                                </Button>
-                                            </CollapsibleTrigger>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="font-medium">{getRecordTitle(record)}</div>
-                                            <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                        </TableCell>
-                                        <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                        <TableCell>{record.partyName || 'N/A'}</TableCell>
-                                        <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                        <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
-                                    </TableRow>
-                                    <CollapsibleContent asChild>
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="p-0">
-                                                <div className="p-4 bg-muted/50">
-                                                    <h4 className="font-semibold mb-2 ml-4">Items in Transaction</h4>
-                                                     <Table>
-                                                        <TableHeader>
-                                                            <TableRow>
-                                                                <TableHead>Product</TableHead>
-                                                                <TableHead>SKU</TableHead>
-                                                                <TableHead>Quantity</TableHead>
-                                                                <TableHead>Unit Price</TableHead>
-                                                                <TableHead className="text-right">Total</TableHead>
-                                                            </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {record.items?.map((item, index) => {
-                                                                const quantity = (item as any).quantity || (item as any).return_quantity || 0;
-                                                                const price = (item as any).price_per_unit || (item as any).cost_price || 0;
-                                                                const total = (item as any).total_amount || (item as any).total_cost || (quantity * price);
-                                                                
-                                                                return(
-                                                                    <TableRow key={`${record.id}-${index}`}>
-                                                                        <TableCell>{item.name}</TableCell>
-                                                                        <TableCell>{item.sku || 'N/A'}</TableCell>
-                                                                        <TableCell>{quantity}</TableCell>
-                                                                        <TableCell>LKR {price.toFixed(2)}</TableCell>
-                                                                        <TableCell className="text-right">LKR {total.toFixed(2)}</TableCell>
-                                                                    </TableRow>
-                                                                )
-                                                            })}
-                                                        </TableBody>
-                                                    </Table>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    </CollapsibleContent>
-                                </TableBody>
-                            </Collapsible>
+                             <TableRow key={`${record.type}-${record.id}`}>
+                                <TableCell>
+                                    <div className="font-medium">{getRecordTitle(record)}</div>
+                                    <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                </TableCell>
+                                <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                <TableCell>{(record as any).partyName || 'N/A'}</TableCell>
+                                <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                            </TableRow>
                         ))}
                     </Table>
                 ) : (

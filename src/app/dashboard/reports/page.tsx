@@ -1,9 +1,9 @@
 
 import { AdvancedReportClient } from '@/components/reports/advanced-report-client';
-import { fetchInventoryRecords, fetchProductsForSelect, fetchCustomers, fetchSuppliers } from '@/lib/queries';
+import { fetchFinancialActivities, fetchProductsForSelect, fetchCustomers, fetchSuppliers } from '@/lib/queries';
 
 export default async function ReportsPage() {
-  const initialRecords = await fetchInventoryRecords({});
+  const initialRecords = await fetchFinancialActivities();
   const products = await fetchProductsForSelect();
   const customers = await fetchCustomers();
   const suppliers = await fetchSuppliers();

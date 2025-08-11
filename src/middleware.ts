@@ -1,7 +1,7 @@
 
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, updateSession } from '@/lib/session'
-import type { User } from '@/lib/auth';
 
 export async function middleware(request: NextRequest) {
   const session = await getSession();
@@ -16,8 +16,6 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/dashboard') && !session) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
-
-  // All logged-in users are admins, so no more role-based checks needed
 
   return await updateSession(request) || NextResponse.next()
 }
