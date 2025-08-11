@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronsUpDown, Check, ChevronDown } from 'lucide-react';
-import type { ProductSelect, RecentActivity, Customer, Supplier, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
+import type { ProductSelect, RecentActivity, Customer, Supplier, DetailedRecord, SaleItem, PurchaseItem, Product } from '@/lib/types';
 import { fetchFinancialActivities } from '@/lib/queries';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -410,7 +410,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                                               <TableRow key={idx}>
                                                                   <TableCell className="hidden sm:table-cell">
                                                                       <Avatar className="h-9 w-9">
-                                                                          <AvatarImage src={item.image || ''} alt={item.name} data-ai-hint="product image" />
+                                                                          <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
                                                                           <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
                                                                       </Avatar>
                                                                   </TableCell>
