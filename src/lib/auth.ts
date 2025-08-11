@@ -5,10 +5,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
-import { getFirebaseAdmin } from './firebase-admin';
 
 
 export interface User {
