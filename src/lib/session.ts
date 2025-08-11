@@ -1,5 +1,4 @@
 
-
 'use server'
 
 import { SignJWT, jwtVerify } from 'jose'
@@ -24,8 +23,9 @@ export async function decrypt(input: string): Promise<any> {
     })
     return payload
   } catch (e) {
-      console.log("Decryption failed:", e);
-      return {}
+      console.error("Decryption failed:", e);
+      // Return an empty object instead of null to prevent crashes
+      return {} 
   }
 }
 

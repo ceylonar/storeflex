@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1765,7 +1764,13 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     try {
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
-        const activitySnapshot = await getDocs(q);
+        let activitySnapshot;
+        try {
+            activitySnapshot = await getDocs(q);
+        } catch (e) {
+            console.warn("Could not fetch recent_activity, collection might not exist for new user.", e);
+            return []; // Return empty if collection doesn't exist.
+        }
 
         let allActivities = activitySnapshot.docs.map(doc => {
             const data = doc.data();

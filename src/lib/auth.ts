@@ -1,5 +1,4 @@
 
-
 'use server'
 
 import { cookies } from 'next/headers'
@@ -63,7 +62,7 @@ export async function login(prevState: { error: string | undefined } | null, for
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
       const session = await encrypt({ user, expires })
 
-      cookies().set('session', session, { expires, httpOnly: true })
+      cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
 
       redirect('/dashboard');
   } catch (e: any) {
@@ -108,7 +107,7 @@ export async function signup(prevState: { error: string | undefined } | null, fo
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
     const session = await encrypt({ user, expires })
 
-    cookies().set('session', session, { expires, httpOnly: true })
+    cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
 
     redirect('/dashboard');
   } catch (e: any) {
@@ -129,7 +128,7 @@ export async function createSessionForUser(firebaseUser: any) {
     };
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const session = await encrypt({ user, expires });
-    cookies().set('session', session, { expires, httpOnly: true });
+    cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' });
     redirect('/dashboard');
 }
 
