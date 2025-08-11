@@ -1128,10 +1128,10 @@ export async function fetchDashboardData() {
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
 
-        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
+        const [productsSnapshot, salesSnapshot, customersQuery, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
-            getDocs(customersSnapshot),
+            getDocs(customersQuery),
             getDocs(suppliersQuery),
             getDocs(expensesQuery),
         ]);
@@ -1224,7 +1224,7 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        const totalReceivables = customersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
+        const totalReceivables = customersQuery.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
         const totalPayables = suppliersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
         
         const allPendingOrders = await fetchPendingOrders();
@@ -1634,8 +1634,6 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
 
     const { db } = getFirebaseServices();
     try {
-        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
-        
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
 
         if (filters.limit) {
@@ -1655,6 +1653,8 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
         });
         
         let filteredActivities = allActivities;
+
+        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
 
         // Manual filtering
         if (filters.type) {
@@ -2288,3 +2288,6 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
+
+
+    
