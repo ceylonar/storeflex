@@ -364,12 +364,11 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
-                        {records.map(record => {
+                         {records.map(record => {
                           const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
                           return (
-                            <Collapsible key={`${record.type}-${record.id}`} asChild>
-                              <React.Fragment>
+                            <Collapsible asChild key={`${record.type}-${record.id}`}>
+                              <TableBody>
                                 <TableRow>
                                   <TableCell>
                                     {hasItems && (
@@ -390,9 +389,9 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                   <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
                                 </TableRow>
                                 {hasItems && (
-                                  <CollapsibleContent asChild>
-                                      <tr className="bg-muted/50 hover:bg-muted/50">
-                                          <TableCell colSpan={6} className="p-0">
+                                    <CollapsibleContent asChild>
+                                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                            <TableCell colSpan={6} className="p-0">
                                               <div className="p-4">
                                                   <h4 className="font-semibold mb-2">Items</h4>
                                                   <Table>
@@ -424,13 +423,12 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                                   </Table>
                                               </div>
                                           </TableCell>
-                                      </tr>
-                                  </CollapsibleContent>
+                                        </TableRow>
+                                    </CollapsibleContent>
                                 )}
-                              </React.Fragment>
+                              </TableBody>
                             </Collapsible>
                         )})}
-                        </TableBody>
                     </Table>
                 ) : (
                     <div className="h-48 text-center flex items-center justify-center text-muted-foreground">
@@ -442,3 +440,4 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     </Card>
   );
 }
+
