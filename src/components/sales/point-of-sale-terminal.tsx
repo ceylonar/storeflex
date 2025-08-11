@@ -626,8 +626,13 @@ function ReturnsTerminal() {
         const item = newReturnItems.get(itemId);
         const originalItem = foundSale?.items.find(i => i.id === itemId);
         if (item && originalItem) {
-            item.return_quantity = Math.max(0, Math.min(quantity, originalItem.quantity));
-            newReturnItems.set(itemId, item);
+            const newQuantity = Math.max(0, Math.min(quantity, originalItem.quantity));
+            if(newQuantity > 0) {
+                item.return_quantity = newQuantity;
+                newReturnItems.set(itemId, item);
+            } else {
+                newReturnItems.delete(itemId);
+            }
             setReturnItems(newReturnItems);
         }
     };

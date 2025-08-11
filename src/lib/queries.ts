@@ -1221,7 +1221,7 @@ export async function fetchDashboardData() {
             allProducts.push({
                 ...product,
                 created_at: product.created_at?.toDate().toISOString() || new Date().toISOString(),
-                updated_at: product.updated_at?.toDate().toISOString(),
+                updated_at: product.updated_at?.toDate().toISOString() || new Date().toISOString(),
             });
         });
 
@@ -1918,16 +1918,20 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
     if (!userId) throw new Error("User not authenticated");
 
     await runTransaction(db, async (transaction) => {
-        // First, read all necessary documents
+        // --- READS FIRST ---
         const productRefs = returnData.items.map(item => doc(db, 'products', item.id));
         const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+        
         let customerRef: any = null;
         if(returnData.customer_id) {
             customerRef = doc(db, 'customers', returnData.customer_id);
             await transaction.get(customerRef);
         }
+        
+        const counterRef = doc(db, 'counters', `sale_returns_${userId}`);
+        const counterDoc = await transaction.get(counterRef);
 
-        // Now, perform all writes
+        // --- WRITES AFTER ---
         // 1. Update stock for each returned item
         for (const [index, item] of returnData.items.entries()) {
              if (item.type === 'product') {
@@ -1942,8 +1946,6 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
         }
         
         // 3. Create a new sale return document with a readable ID
-        const counterRef = doc(db, 'counters', `sale_returns_${userId}`);
-        const counterDoc = await transaction.get(counterRef);
         const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
         const formattedId = `ret${String(nextId).padStart(6, '0')}`;
         const returnRef = doc(db, 'sales_returns', formattedId);
