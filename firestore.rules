@@ -2,30 +2,33 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check ownership
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Allow users to read and write their own documents in most collections
-    match /{collection}/{docId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
     
-    // Specifically allow any authenticated user to read/write their own counters
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Rules for collections that store user-specific data
+    match /(products|sales|customers|suppliers|expenses|salesOrders|purchaseOrders|sales_returns|purchase_returns|recent_activity|user_profiles)/{docId} {
+      
+      // Allow read/get access to a document only if the user's ID matches the userId field in the document.
+      allow read: if isSignedIn() && request.auth.uid == resource.data.userId;
+      
+      // Allow list/query access only if the query is filtered by the user's ID.
+      // This is crucial for collection queries to work.
+      allow list: if isSignedIn() && request.query.resource.data.userId == request.auth.uid;
+
+      // Allow creating a document if the new document's userId matches the user's ID.
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+
+      // Allow updating/deleting a document only if the user owns the existing document.
+      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+    }
+
+    // The counters collection is used to generate unique, sequential IDs.
+    // Any authenticated user needs to be able to read and write to this collection to create new items.
+    // This collection does not contain sensitive user data.
     match /counters/{counterId} {
-       allow read, write: if request.auth != null;
-    }
-
-    // User profiles can be read by anyone, but only written by the owner
-    match /user_profiles/{userId} {
-      allow read: if request.auth != null;
-      allow write: if isOwner(userId);
-    }
-
-     // Allow logged-in users to read their own recent_activity
-    match /recent_activity/{activityId} {
-      allow read, write: if isOwner(resource.data.userId);
+      allow read, write: if isSignedIn();
     }
   }
 }
