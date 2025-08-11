@@ -376,34 +376,36 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                 Object.entries(filteredAndGroupedProducts).map(([category, items]) => (
                   <div key={category} className="mb-4">
                     <h3 className="text-sm font-semibold text-muted-foreground px-1 mb-2 sticky top-0 bg-card/95 backdrop-blur-sm z-10 py-1">{category}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+                     <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
                       {items.map((product) => (
-                        <Card key={product.id} className="overflow-hidden cursor-pointer hover:border-primary transition-colors" onClick={() => addToCart(product)}>
-                           <CardHeader className="p-0">
-                                <Avatar className="h-24 w-full rounded-b-none">
-                                    <AvatarImage src={product.image || 'https://placehold.co/200x100.png'} alt={product.name} data-ai-hint="product image" className="aspect-video object-cover" />
-                                    <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                           </CardHeader>
-                           <CardContent className="p-3">
-                              <h4 className="font-semibold text-sm truncate">{product.name}</h4>
-                              <p className="text-xs text-muted-foreground">{product.brand || 'No Brand'}</p>
-                              <div className="flex justify-between items-center mt-2">
-                                <p className="font-bold text-sm">LKR {product.selling_price.toFixed(2)}</p>
-                                {product.type === 'product' ? (
-                                    product.stock > 0 ? (
-                                        <Badge variant="outline">{product.stock} left</Badge>
+                         <li key={product.id}>
+                            <Card className="overflow-hidden cursor-pointer hover:border-primary transition-colors h-full" onClick={() => addToCart(product)}>
+                               <CardHeader className="p-0">
+                                    <Avatar className="h-24 w-full rounded-b-none">
+                                        <AvatarImage src={product.image || 'https://placehold.co/200x100.png'} alt={product.name} data-ai-hint="product image" className="aspect-video object-cover" />
+                                        <AvatarFallback>{product.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                               </CardHeader>
+                               <CardContent className="p-3">
+                                  <h4 className="font-semibold text-sm truncate">{product.name}</h4>
+                                  <p className="text-xs text-muted-foreground">{product.brand || 'No Brand'}</p>
+                                  <div className="flex justify-between items-center mt-2">
+                                    <p className="font-bold text-sm">LKR {product.selling_price.toFixed(2)}</p>
+                                    {product.type === 'product' ? (
+                                        product.stock > 0 ? (
+                                            <Badge variant="outline">{product.stock} left</Badge>
+                                        ) : (
+                                            <Badge variant="destructive">Out</Badge>
+                                        )
                                     ) : (
-                                        <Badge variant="destructive">Out</Badge>
-                                    )
-                                ) : (
-                                    <Badge variant="secondary">Service</Badge>
-                                )}
-                              </div>
-                           </CardContent>
-                        </Card>
+                                        <Badge variant="secondary">Service</Badge>
+                                    )}
+                                  </div>
+                               </CardContent>
+                            </Card>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 ))
               ) : (

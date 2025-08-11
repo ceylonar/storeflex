@@ -1119,14 +1119,15 @@ export async function fetchDashboardData() {
     };
     if (!userId) return defaultData;
 
-    const { db } = getFirebaseServices();
     try {
+        const { db } = getFirebaseServices();
+        
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
-        
+
         const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
@@ -1158,12 +1159,7 @@ export async function fetchDashboardData() {
         const lowStockProducts = allProducts
             .filter(p => p.type === 'product' && p.stock < p.low_stock_threshold)
             .sort((a, b) => a.stock - b.stock)
-            .slice(0, 5)
-            .map(p => ({
-                ...p,
-                created_at: p.created_at || new Date().toISOString(),
-                updated_at: p.updated_at || new Date().toISOString(),
-            }));
+            .slice(0, 5);
 
         const now = new Date();
         const todayStart = startOfDay(now);
@@ -1181,16 +1177,9 @@ export async function fetchDashboardData() {
         let cogsThisYear = 0;
         let totalSales = 0;
 
-        const allSales = salesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                sale_date: (data.sale_date as Timestamp).toDate(),
-            } as Omit<Sale, 'sale_date'> & { sale_date: Date };
-        });
-
-        allSales.forEach(sale => {
-            const saleDate = sale.sale_date;
+        salesSnapshot.forEach(doc => {
+            const sale = doc.data() as Sale;
+            const saleDate = (sale.sale_date as unknown as Timestamp).toDate();
             const saleTotal = sale.total_amount || 0;
             const saleCogs = sale.items.reduce((acc, item) => acc + ((item.cost_price || 0) * item.quantity), 0);
             totalSales += saleTotal;
@@ -1235,22 +1224,9 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        let totalReceivables = 0;
-        customersSnapshot.forEach(doc => {
-            const balance = doc.data().credit_balance || 0;
-            if (balance > 0) {
-                totalReceivables += balance;
-            }
-        });
-
-        let totalPayables = 0;
-        suppliersSnapshot.forEach(doc => {
-            const balance = doc.data().credit_balance || 0;
-            if (balance > 0) {
-                totalPayables += balance;
-            }
-        });
-
+        const totalReceivables = customersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
+        const totalPayables = suppliersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
+        
         const allPendingOrders = await fetchPendingOrders();
         const pendingSalesOrders = allPendingOrders.filter(o => o.type === 'sale') as (SalesOrder & { type: 'sale' })[];
         const pendingPurchaseOrders = allPendingOrders.filter(o => o.type === 'purchase') as (PurchaseOrder & { type: 'purchase' })[];
@@ -1268,19 +1244,17 @@ export async function fetchDashboardData() {
             totalReceivables,
             totalPayables,
             recentActivities: [], // Removed for stability
-            lowStockProducts: lowStockProducts.map(p => ({
-                ...p,
-                created_at: p.created_at || new Date().toISOString(),
-                updated_at: p.updated_at || new Date().toISOString(),
-            })),
+            lowStockProducts,
             pendingSalesOrders: pendingSalesOrders.slice(0, 3),
             pendingPurchaseOrders: pendingPurchaseOrders.slice(0, 3),
         };
     } catch (error) {
-        console.error('Database Error:', error);
-        throw new Error('Failed to fetch dashboard data.');
+        console.error('CRITICAL: Failed to fetch dashboard data.', error);
+        // Return default data on error to prevent crashing the entire dashboard page.
+        return defaultData;
     }
 }
+
 
 export async function fetchSalesData(filter: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly'): Promise<SalesData[]> {
     noStore();
