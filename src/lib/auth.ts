@@ -52,8 +52,8 @@ export async function login(prevState: { error: string | undefined } | null, for
 
       redirect('/dashboard');
   } catch (e: any) {
-      console.error("Firebase Auth Error:", e.code);
-       if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+      console.error("Firebase Auth Error:", e);
+       if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential' || e.code === 'auth/invalid-email') {
           return { error: 'Invalid email or password.' };
       }
       return { error: 'An unexpected error occurred during login. Please check server logs.' };
