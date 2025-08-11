@@ -1,4 +1,5 @@
 
+
 'use client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Logo } from '@/components/icons/logo';
 import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic";
 
-const LoginView = dynamic(() => import('@/components/login/login-view'), {
+const AuthView = dynamic(() => import('@/components/login/auth-view'), {
   ssr: false,
   loading: () => (
      <Card className="mx-auto w-full max-w-sm">
@@ -37,7 +38,7 @@ const LoginView = dynamic(() => import('@/components/login/login-view'), {
 export default function LoginPage() {
     return (
         <main className="flex min-h-screen flex-col items-center justify-center p-4">
-           <LoginView />
+           <AuthView />
         </main>
     );
 }

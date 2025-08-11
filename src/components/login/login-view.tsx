@@ -1,10 +1,10 @@
 
+
 'use client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from '@/components/icons/logo';
 import LoginForm from './login-form';
-
 
 export default function LoginView() {
     return (
