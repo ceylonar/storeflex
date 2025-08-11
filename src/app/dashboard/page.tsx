@@ -105,7 +105,7 @@ export default async function DashboardPage() {
             />
         </div>
         <div className="xl:col-span-1">
-            <RecentActivityCard activities={dashboardData.recentActivities} />
+            <RecentActivityCard />
         </div>
       </div>
     </div>

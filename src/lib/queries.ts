@@ -1126,15 +1126,13 @@ export async function fetchDashboardData() {
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), limit(5));
-
-        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot, activitySnapshot] = await Promise.all([
+        
+        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(customersQuery),
             getDocs(suppliersQuery),
             getDocs(expensesQuery),
-            getDocs(activityQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1237,16 +1235,6 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        let recentActivities = activitySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                ...data,
-                id: doc.id,
-                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
-            }
-        }) as RecentActivity[];
-        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
         let totalReceivables = 0;
         customersSnapshot.forEach(doc => {
             const balance = doc.data().credit_balance || 0;
@@ -1279,7 +1267,7 @@ export async function fetchDashboardData() {
             profitThisYear,
             totalReceivables,
             totalPayables,
-            recentActivities,
+            recentActivities: [], // Removed for stability
             lowStockProducts: lowStockProducts.map(p => ({
                 ...p,
                 created_at: p.created_at || new Date().toISOString(),
