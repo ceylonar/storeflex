@@ -253,7 +253,7 @@ export async function fetchProducts(): Promise<Product[]> {
         created_at: (data.created_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
         updated_at: (data.updated_at as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
       }
-    }) as Product[];
+    }).sort((a,b) => a.name.localeCompare(b.name)) as Product[];
     return products;
   } catch (error) {
     console.error('Database Error:', error);
@@ -1637,6 +1637,7 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     try {
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
 
+        // Applying limit if specified.
         if (filters.limit) {
             q = query(q, limit(filters.limit));
         }
@@ -1652,12 +1653,12 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
-        
-        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
 
-        // Post-fetch filtering
+        // Start with all financial types. We will filter later if needed.
+        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         let filteredActivities = allActivities.filter(a => financialTypes.includes(a.type));
 
+        // Apply filters in code.
         if (filters.type) {
             filteredActivities = filteredActivities.filter(a => a.type === filters.type);
         }
@@ -2290,4 +2291,5 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
     
+
 
