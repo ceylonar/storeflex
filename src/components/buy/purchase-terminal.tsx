@@ -143,13 +143,13 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
   const taxAmount = subtotal * (taxPercentage / 100);
   const totalCost = Math.max(0, subtotal + taxAmount + serviceCharge - discountAmount);
   
-  const previousBalanceDue = Math.abs(selectedSupplier?.credit_balance || 0);
-  const totalPayable = previousBalanceDue + totalCost;
+  const previousBalance = selectedSupplier?.credit_balance || 0;
+  const totalPayable = totalCost + previousBalance;
   const newBalanceDue = Math.max(0, totalPayable - amountPaid);
   
   React.useEffect(() => {
     if (paymentMethod === 'cash' || paymentMethod === 'check') {
-      setAmountPaid(totalPayable);
+        setAmountPaid(totalPayable > 0 ? totalPayable : 0);
     } else if (paymentMethod === 'credit') {
         setAmountPaid(amount => amount > totalPayable ? totalPayable : amount);
     }
@@ -477,10 +477,17 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
                        <div className="grid grid-cols-2 gap-2"><Label htmlFor="discount" className="text-muted-foreground flex-1">Discount (LKR)</Label><Input id="discount" type="number" value={discountAmount} onChange={(e) => setDiscountAmount(Math.max(0, Number(e.target.value)) || 0)} className="h-8 w-full text-right" placeholder="0.00" /></div>
                       <Separator />
                       <div className="flex justify-between font-semibold"><span className="text-muted-foreground">Current Purchase Total</span><span>LKR {totalCost.toFixed(2)}</span></div>
-                      {previousBalanceDue > 0 && (
+                      {previousBalance !== 0 && selectedSupplier && (
                         <div className="flex justify-between font-semibold">
-                            <span className="text-muted-foreground">Previous Balance Due</span>
-                            <span className="text-destructive">LKR {previousBalanceDue.toFixed(2)}</span>
+                            <span className="text-muted-foreground">
+                                Previous Balance
+                                <span className={cn("text-xs ml-1", previousBalance > 0 ? "text-destructive" : "text-green-600")}>
+                                    {previousBalance > 0 ? '(Payable - Owed to Supplier)' : '(Credit - Owed to You)'}
+                                </span>
+                            </span>
+                            <span className={cn(previousBalance > 0 ? "text-destructive" : "text-green-600 dark:text-green-500")}>
+                                LKR {Math.abs(previousBalance).toFixed(2)}
+                            </span>
                         </div>
                       )}
                       <Separator />
@@ -579,8 +586,13 @@ function ReturnsToSupplierTerminal() {
         const item = newReturnItems.get(itemId);
         const originalItem = foundPurchase?.items.find(i => i.id === itemId);
         if (item && originalItem) {
-            item.return_quantity = Math.max(0, Math.min(quantity, originalItem.quantity));
-            newReturnItems.set(itemId, item);
+            const newQuantity = Math.max(0, Math.min(quantity, originalItem.quantity));
+             if(newQuantity > 0) {
+                item.return_quantity = newQuantity;
+                newReturnItems.set(itemId, item);
+            } else {
+                newReturnItems.delete(itemId);
+            }
             setReturnItems(newReturnItems);
         }
     };
@@ -763,4 +775,3 @@ export function PurchaseTerminal({ products: initialProducts, initialSuppliers }
     
 
     
-

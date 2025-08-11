@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -143,7 +144,7 @@ export function SuppliersTable({ suppliers, onViewHistory, onSupplierCreated, on
               <TableHead>Supplier ID</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Phone Number</TableHead>
-              <TableHead>Credit Balance</TableHead>
+              <TableHead>Balance</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
               </TableHead>
@@ -155,8 +156,13 @@ export function SuppliersTable({ suppliers, onViewHistory, onSupplierCreated, on
                 <TableCell className="font-mono text-sm">{supplier.id}</TableCell>
                 <TableCell className="font-medium">{supplier.name}</TableCell>
                 <TableCell>{supplier.phone}</TableCell>
-                <TableCell className={cn(supplier.credit_balance > 0 ? "text-green-600 dark:text-green-500" : "text-muted-foreground")}>
-                    LKR {(supplier.credit_balance || 0).toFixed(2)}
+                <TableCell className={cn(
+                    supplier.credit_balance > 0 ? "text-destructive" :
+                    supplier.credit_balance < 0 ? "text-green-600 dark:text-green-500" :
+                    "text-muted-foreground"
+                )}>
+                    LKR {Math.abs(supplier.credit_balance || 0).toFixed(2)}
+                    {supplier.credit_balance > 0 ? ' (Payable)' : supplier.credit_balance < 0 ? ' (Credit)' : ''}
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-2">
