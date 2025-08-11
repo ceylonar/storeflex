@@ -2007,7 +2007,7 @@ export async function fetchExpenses(): Promise<Expense[]> {
 
   const { db } = getFirebaseServices();
   const expensesCollection = collection(db, 'expenses');
-  const q = query(expensesCollection, where('userId', '==', userId), orderBy('date', 'desc'));
+  const q = query(expensesCollection, where('userId', '==', userId));
   
   try {
     const snapshot = await getDocs(q);
@@ -2019,6 +2019,9 @@ export async function fetchExpenses(): Promise<Expense[]> {
         date: (data.date as Timestamp).toDate().toISOString(),
       } as Expense;
     });
+    
+    expenses.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     return expenses;
   } catch (e) {
       console.error("Firebase query failed for expenses.", e)
@@ -2312,5 +2315,7 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
 
+
+    
 
     
