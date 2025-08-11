@@ -109,10 +109,23 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   const [isPending, startTransition] = useTransition();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
+  const [openCollapsibles, setOpenCollapsibles] = useState<Set<string>>(new Set());
   const { toast } = useToast();
   
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [partySearchOpen, setPartySearchOpen] = useState(false);
+
+  const toggleCollapsible = (id: string) => {
+    setOpenCollapsibles(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        return newSet;
+    });
+  };
 
   const handleGenerateReport = () => {
     startTransition(async () => {
@@ -371,66 +384,63 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                         ) : records.length > 0 ? (
                             records.map(record => {
                                 const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
+                                const isOpen = openCollapsibles.has(record.id);
                                 return (
-                                    <Collapsible asChild key={`${record.type}-${record.id}`}>
-                                        <React.Fragment>
-                                            <CollapsibleTrigger asChild>
-                                                <TableRow className="cursor-pointer hover:bg-muted/50 data-[state=open]:bg-muted/50 border-b">
-                                                    <TableCell>
-                                                        {hasItems && (
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                                <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:-rotate-180" />
-                                                            </Button>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="font-medium">{getRecordTitle(record)}</div>
-                                                        <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                                    </TableCell>
-                                                    <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                                    <TableCell>{record.partyName || 'N/A'}</TableCell>
-                                                    <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                                    <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
-                                                </TableRow>
-                                            </CollapsibleTrigger>
-                                            <CollapsibleContent asChild>
-                                                 <tr className="bg-muted/20 hover:bg-muted/20">
-                                                     <TableCell colSpan={6} className="p-0">
-                                                     <div className="p-4">
-                                                         <h4 className="font-semibold mb-2 ml-4">Items</h4>
-                                                         <Table>
-                                                             <TableHeader>
-                                                                 <TableRow>
-                                                                     <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
-                                                                     <TableHead>Product</TableHead>
-                                                                     <TableHead>Quantity</TableHead>
-                                                                     <TableHead>Unit Price/Cost</TableHead>
-                                                                     <TableHead className="text-right">Total</TableHead>
-                                                                 </TableRow>
-                                                             </TableHeader>
-                                                             <TableBody>
-                                                                 {(hasItems ? (record.transaction as any).items as (SaleItem | PurchaseItem)[] : []).map((item, idx) => (
-                                                                     <TableRow key={idx}>
-                                                                         <TableCell className="hidden sm:table-cell">
-                                                                             <Avatar className="h-9 w-9">
-                                                                                 <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
-                                                                                 <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
-                                                                             </Avatar>
-                                                                         </TableCell>
-                                                                         <TableCell>{item.name}</TableCell>
-                                                                         <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
-                                                                         <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
-                                                                         <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
-                                                                     </TableRow>
-                                                                 ))}
-                                                             </TableBody>
-                                                         </Table>
-                                                     </div>
-                                                     </TableCell>
-                                                 </tr>
-                                            </CollapsibleContent>
-                                        </React.Fragment>
-                                    </Collapsible>
+                                    <React.Fragment key={`${record.type}-${record.id}`}>
+                                        <TableRow className="cursor-pointer hover:bg-muted/50 data-[state=open]:bg-muted/50 border-b">
+                                            <TableCell>
+                                                {hasItems && (
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleCollapsible(record.id)}>
+                                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "-rotate-180")} />
+                                                    </Button>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{getRecordTitle(record)}</div>
+                                                <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                            </TableCell>
+                                            <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                            <TableCell>{record.partyName || 'N/A'}</TableCell>
+                                            <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                            <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                                        </TableRow>
+                                        {isOpen && hasItems && (
+                                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                <TableCell colSpan={6} className="p-0">
+                                                <div className="p-4">
+                                                    <h4 className="font-semibold mb-2 ml-4">Items</h4>
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
+                                                                <TableHead>Product</TableHead>
+                                                                <TableHead>Quantity</TableHead>
+                                                                <TableHead>Unit Price/Cost</TableHead>
+                                                                <TableHead className="text-right">Total</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {(hasItems ? (record.transaction as any).items as (SaleItem | PurchaseItem)[] : []).map((item, idx) => (
+                                                                <TableRow key={idx}>
+                                                                    <TableCell className="hidden sm:table-cell">
+                                                                        <Avatar className="h-9 w-9">
+                                                                            <AvatarImage src={item.image || 'https://placehold.co/40x40.png'} alt={item.name} data-ai-hint="product image" />
+                                                                            <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
+                                                                        </Avatar>
+                                                                    </TableCell>
+                                                                    <TableCell>{item.name}</TableCell>
+                                                                    <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
+                                                                    <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
+                                                                    <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </React.Fragment>
                                 );
                             })
                         ) : (
