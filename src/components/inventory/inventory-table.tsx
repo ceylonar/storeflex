@@ -82,13 +82,14 @@ const initialProductState: Partial<Product> = {
 
 interface InventoryTableProps {
     products: Product[];
+    productType: 'product' | 'service';
     onProductCreated: () => void;
     onProductUpdated: () => void;
     onProductDeleted: (id: string) => void;
     onViewHistory: (product: Product) => void;
 }
 
-export function InventoryTable({ products, onProductCreated, onProductUpdated, onProductDeleted, onViewHistory }: InventoryTableProps) {
+export function InventoryTable({ products, productType, onProductCreated, onProductUpdated, onProductDeleted, onViewHistory }: InventoryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [isFetchingBarcode, setIsFetchingBarcode] = React.useState(false);
   const [formState, setFormState] = React.useState<FormState>('add');
@@ -103,7 +104,8 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
 
   const handleOpenDialog = (state: FormState, product?: Product) => {
     setFormState(state);
-    setSelectedProduct(product || initialProductState);
+    const initialDialogState = product ? product : { ...initialProductState, type: productType };
+    setSelectedProduct(initialDialogState);
     setAiSuggestions(null); // Clear previous suggestions
     setIsDialogOpen(true);
   };
@@ -210,7 +212,7 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
     setIsFetchingBarcode(true);
     setAiSuggestions(null);
     
-    setSelectedProduct({ ...initialProductState, barcode: decodedText });
+    setSelectedProduct({ ...initialProductState, type: 'product', barcode: decodedText });
 
     toast({
         title: 'Scan Successful',
@@ -295,12 +297,12 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
         <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
             <div>
                 <CardTitle>Inventory Items</CardTitle>
-                <CardDescription>A list of all products and services in your inventory.</CardDescription>
+                <CardDescription>A list of all {productType}s in your inventory.</CardDescription>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button size="sm" className="gap-1 w-full" onClick={() => handleOpenDialog('add')}>
                   <PlusCircle className="h-4 w-4" />
-                  Add Item
+                  Add {productType === 'product' ? 'Product' : 'Service'}
                 </Button>
             </div>
         </div>
@@ -314,9 +316,8 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
               </TableHead>
               <TableHead>ID</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
               <TableHead className="hidden md:table-cell">Category</TableHead>
-              <TableHead>Stock</TableHead>
+              {productType === 'product' && <TableHead>Stock</TableHead>}
               <TableHead>Selling Price</TableHead>
               <TableHead>
                 <span className="sr-only">Actions</span>
@@ -334,13 +335,10 @@ export function InventoryTable({ products, onProductCreated, onProductUpdated, o
                 </TableCell>
                 <TableCell className="font-mono text-xs">{product.id}</TableCell>
                 <TableCell className="font-medium">{product.name}</TableCell>
-                <TableCell className="capitalize">
-                    <Badge variant={product.type === 'service' ? 'secondary' : 'outline'}>{product.type}</Badge>
-                </TableCell>
                 <TableCell className="hidden md:table-cell">
                   <Badge variant="outline">{product.category}</Badge>
                 </TableCell>
-                <TableCell>{product.type === 'product' ? product.stock : 'N/A'}</TableCell>
+                {productType === 'product' && <TableCell>{product.stock}</TableCell>}
                 <TableCell>LKR {Number(product.selling_price).toFixed(2)}</TableCell>
                 <TableCell>
                  <div className="flex justify-end gap-2">
