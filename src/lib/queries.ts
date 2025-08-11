@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1652,15 +1653,13 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
         
-        let filteredActivities = allActivities;
-
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
 
-        // Manual filtering
+        // Post-fetch filtering
+        let filteredActivities = allActivities.filter(a => financialTypes.includes(a.type));
+
         if (filters.type) {
             filteredActivities = filteredActivities.filter(a => a.type === filters.type);
-        } else {
-            filteredActivities = filteredActivities.filter(a => financialTypes.includes(a.type));
         }
         
         if (filters.productId) {
@@ -2291,3 +2290,4 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
     
+
