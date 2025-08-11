@@ -5,7 +5,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, updateProfile } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
 import { getFirebaseAdmin } from './firebase-admin';
@@ -71,6 +71,7 @@ export async function login(prevState: { error: string | undefined } | null, for
        if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
           return { error: 'Invalid email or password.' };
       }
+      console.error("Login Error:", e);
       return { error: 'An unexpected error occurred during login. Please try again.' };
   }
 }
@@ -88,14 +89,13 @@ export async function signup(prevState: { error: string | undefined } | null, fo
 
   try {
     const { app } = getFirebaseServices();
-    const clientAuth = getAuth(app);
+    const auth = getAuth(app);
     
     // Create user with client SDK
-    const userCredential = await createUserWithEmailAndPassword(clientAuth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Update user's display name with Admin SDK
-    const { auth: adminAuth } = getFirebaseAdmin();
-    await adminAuth.updateUser(userCredential.user.uid, {
+    // Update user's display name using the client SDK
+    await updateProfile(userCredential.user, {
         displayName: name,
     });
 
@@ -121,38 +121,19 @@ export async function signup(prevState: { error: string | undefined } | null, fo
   }
 }
 
-export async function loginWithGoogle() {
-    const { app } = getFirebaseServices();
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({
-        'prompt': 'select_account'
-    });
-    
-    try {
-        const userCredential = await signInWithPopup(auth, provider);
-        
-        const user: User = { 
-            id: userCredential.user.uid, 
-            name: userCredential.user.displayName || 'Google User', 
-            email: userCredential.user.email!, 
-            role: 'admin' 
-        };
-        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        const session = await encrypt({ user, expires });
-        cookies().set('session', session, { expires, httpOnly: true });
-        redirect('/dashboard');
-    } catch (error: any) {
-        if (error.code === 'auth/account-exists-with-different-credential') {
-            return { error: 'An account already exists with the same email address but different sign-in credentials.' };
-        }
-        if (error.code === 'auth/popup-closed-by-user') {
-            return { error: 'Sign-in window was closed before completing. Please try again.'}
-        }
-        console.error("Google Sign-In Error:", error);
-        return { error: 'An unexpected error occurred during Google sign-in.' };
-    }
+export async function createSessionForUser(firebaseUser: any) {
+    const user: User = { 
+        id: firebaseUser.uid, 
+        name: firebaseUser.displayName || 'Google User', 
+        email: firebaseUser.email!, 
+        role: 'admin' 
+    };
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const session = await encrypt({ user, expires });
+    cookies().set('session', session, { expires, httpOnly: true });
+    redirect('/dashboard');
 }
+
 
 export async function sendPasswordReset(email: string): Promise<{success: boolean, message: string}> {
     if (!email) {
@@ -184,4 +165,3 @@ export async function getUser(): Promise<User | null> {
     }
     return null;
 }
-

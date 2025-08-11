@@ -10,19 +10,34 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { loginWithGoogle } from "@/lib/auth";
+import { getFirebaseServices } from "@/lib/firebase";
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { createSessionForUser } from "@/lib/auth";
 
 
 export default function AuthView() {
     const { toast } = useToast();
 
     const handleGoogleSignIn = async () => {
-        const result = await loginWithGoogle();
-        if (result?.error) {
+        try {
+            const { app } = getFirebaseServices();
+            const auth = getAuth(app);
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ 'prompt': 'select_account' });
+            const result = await signInWithPopup(auth, provider);
+            await createSessionForUser(result.user);
+        } catch (error: any) {
+            console.error("Google Sign-In Error:", error);
+            let message = 'An unexpected error occurred during Google sign-in.';
+            if (error.code === 'auth/popup-closed-by-user') {
+                message = 'Sign-in window was closed. Please try again.';
+            } else if (error.code === 'auth/account-exists-with-different-credential') {
+                message = 'An account already exists with this email using a different sign-in method.';
+            }
              toast({
                 variant: 'destructive',
                 title: 'Google Sign-In Failed',
-                description: result.error,
+                description: message,
             });
         }
     };
