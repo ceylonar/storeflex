@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -360,7 +359,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                 <TableHead className="text-right">Amount</TableHead>
                             </TableRow>
                         </TableHeader>
-                        
+                        <TableBody>
                         {records.map(record => (
                              <TableRow key={`${record.type}-${record.id}`}>
                                 <TableCell>
@@ -373,6 +372,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                 <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
                             </TableRow>
                         ))}
+                        </TableBody>
                     </Table>
                 ) : (
                     <div className="h-48 text-center flex items-center justify-center text-muted-foreground">
