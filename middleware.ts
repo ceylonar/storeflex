@@ -7,7 +7,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // If user is trying to access login page but is already logged in, redirect to dashboard
-  if (pathname === '/login' && session) {
+  if ((pathname === '/login' || pathname === '/') && session) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
@@ -16,28 +16,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // --- Role-based access control ---
-  if (pathname.startsWith('/dashboard') && session) {
-    const userRole = session.user.role;
-    
-    const adminOnlyPaths = [
-      '/dashboard/inventory',
-      '/dashboard/buy',
-      '/dashboard/suppliers',
-      '/dashboard/moneyflow',
-      '/dashboard/reports',
-      '/dashboard/price-optimizer',
-      '/dashboard/account'
-    ];
-    
-    if (userRole === 'sales' && (adminOnlyPaths.some(path => pathname.startsWith(path)) || pathname === '/dashboard')) {
-        // If a sales user tries to access an admin-only page, redirect them to their default page
-        return NextResponse.redirect(new URL('/dashboard/sales', request.url));
-    }
-  }
-
-
-  return NextResponse.next()
+  // For all other cases, just update the session and continue
+  return await updateSession(request);
 }
 
 export const config = {
