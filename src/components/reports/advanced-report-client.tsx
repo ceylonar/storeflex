@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import React, { useState, useTransition } from 'react';
 import {
   Card,
   CardContent,
@@ -377,8 +377,8 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                                   <TableCell>
                                     {hasItems && (
                                       <CollapsibleTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                            <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 data-[state=open]:rotate-180">
+                                            <ChevronDown className="h-4 w-4 transition-transform" />
                                         </Button>
                                       </CollapsibleTrigger>
                                     )}
