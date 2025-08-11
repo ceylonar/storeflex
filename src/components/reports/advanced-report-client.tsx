@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useTransition } from 'react';
@@ -7,7 +6,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -45,7 +43,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronRight, ChevronsUpDown, Check, ChevronDown } from 'lucide-react';
+import { Loader2, Download, Calendar as CalendarIcon, Filter, X, ChevronsUpDown, Check, ChevronDown } from 'lucide-react';
 import type { ProductSelect, RecentActivity, Customer, Supplier, DetailedRecord, SaleItem, PurchaseItem } from '@/lib/types';
 import { fetchFinancialActivities } from '@/lib/queries';
 import { format } from 'date-fns';
@@ -86,16 +84,16 @@ const getRecordTitle = (record: RecentActivity) => {
 
 const getRecordAmount = (record: RecentActivity) => {
     const transaction = record.transaction as any;
-    if (transaction?.total_amount) {
+    if (typeof transaction?.total_amount === 'number') {
         return `LKR ${transaction.total_amount.toFixed(2)}`;
     }
-    if (transaction?.total_refund_amount) {
+    if (typeof transaction?.total_refund_amount === 'number') {
         return `LKR ${transaction.total_refund_amount.toFixed(2)}`;
     }
-     if (transaction?.total_credit_amount) {
+    if (typeof transaction?.total_credit_amount === 'number') {
         return `LKR ${transaction.total_credit_amount.toFixed(2)}`;
     }
-    if(transaction?.amount) {
+    if(typeof transaction?.amount === 'number') {
         return `LKR ${transaction.amount.toFixed(2)}`;
     }
     return 'N/A';
@@ -115,11 +113,10 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
   
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [partySearchOpen, setPartySearchOpen] = useState(false);
-  const [openItems, setOpenItems] = useState<Set<string>>(new Set());
 
   const handleGenerateReport = () => {
     startTransition(async () => {
-      const result = await fetchFinancialActivities({ date, type, productId, partyId });
+      const result = await fetchFinancialActivities({ date, type, productId, partyId, full: true });
       setRecords(result);
       toast({
           title: 'Records Filtered',
@@ -134,7 +131,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     setProductId('');
     setPartyId('');
     startTransition(async () => {
-      const result = await fetchFinancialActivities({});
+      const result = await fetchFinancialActivities({ full: true });
       setRecords(result);
       toast({
           title: 'Filters Cleared',
@@ -152,7 +149,7 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
     toast({ title: 'Preparing Download', description: 'Generating detailed report for export...' });
 
     try {
-        const detailedRecords = await fetchFinancialActivities({ date, type, productId, partyId, full: true });
+        const detailedRecords = records as DetailedRecord[];
         const headers = [
           'Transaction ID', 'Date', 'Type', 'Party', 'Product Name', 'SKU', 'Quantity', 'Unit Price (LKR)', 'Item Total (LKR)', 'Payment Method', 'Amount Paid (LKR)', 'Balance Change (LKR)', 'Details'
         ];
@@ -162,11 +159,11 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                 rec.id, 
                 format(new Date(rec.timestamp), 'yyyy-MM-dd HH:mm:ss'),
                 `"${rec.type.replace(/_/g, ' ')}"`,
-                `"${(rec.transaction as any)?.customer_name || (rec.transaction as any)?.supplier_name || 'N/A'}"`,
+                `"${(rec as any).partyName || 'N/A'}"`,
             ];
 
             const trans = rec.transaction as any;
-             if (trans.items && trans.items.length > 0) {
+             if (trans && trans.items && trans.items.length > 0) {
                 return trans.items.map((item: any) => {
                     const paymentMethod = trans?.paymentMethod || (rec.type.includes('return') ? (trans?.refund_method || 'credit_balance') : 'N/A');
                     const amountPaid = trans?.amountPaid?.toFixed(2) || '0.00';
@@ -371,64 +368,66 @@ export function AdvancedReportClient({ initialRecords, products, customers, supp
                         {records.map(record => {
                           const hasItems = record.transaction && (record.transaction as any).items && (record.transaction as any).items.length > 0;
                           return (
-                            <Collapsible key={`${record.type}-${record.id}`}>
-                              <TableRow>
-                                <TableCell>
-                                  {hasItems && (
-                                    <CollapsibleTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8 data-[state=open]:rotate-180">
-                                          <ChevronDown className="h-4 w-4 transition-transform" />
-                                      </Button>
-                                    </CollapsibleTrigger>
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                    <div className="font-medium">{getRecordTitle(record)}</div>
-                                    <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
-                                </TableCell>
-                                <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
-                                <TableCell>{(record.transaction as any)?.customer_name || (record.transaction as any)?.supplier_name || 'N/A'}</TableCell>
-                                <TableCell className="max-w-xs truncate">{record.details}</TableCell>
-                                <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
-                              </TableRow>
-                              {hasItems && (
-                                <CollapsibleContent asChild>
-                                    <tr className="bg-muted/50 hover:bg-muted/50">
-                                        <TableCell colSpan={6} className="p-0">
-                                            <div className="p-4">
-                                                <h4 className="font-semibold mb-2">Items</h4>
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
-                                                            <TableHead>Product</TableHead>
-                                                            <TableHead>Quantity</TableHead>
-                                                            <TableHead>Unit Price/Cost</TableHead>
-                                                            <TableHead className="text-right">Total</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {((record.transaction as any).items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
-                                                            <TableRow key={idx}>
-                                                                <TableCell className="hidden sm:table-cell">
-                                                                    <Avatar className="h-9 w-9">
-                                                                        <AvatarImage src={item.image || ''} alt={item.name} data-ai-hint="product image" />
-                                                                        <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
-                                                                    </Avatar>
-                                                                </TableCell>
-                                                                <TableCell>{item.name}</TableCell>
-                                                                <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
-                                                                <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
-                                                                <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                        </TableCell>
-                                    </tr>
-                                </CollapsibleContent>
-                              )}
+                            <Collapsible key={`${record.type}-${record.id}`} asChild>
+                              <React.Fragment>
+                                <TableRow>
+                                  <TableCell>
+                                    {hasItems && (
+                                      <CollapsibleTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 data-[state=open]:rotate-180">
+                                            <ChevronDown className="h-4 w-4 transition-transform" />
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                      <div className="font-medium">{getRecordTitle(record)}</div>
+                                      <div className="text-sm text-muted-foreground font-mono">{record.id}</div>
+                                  </TableCell>
+                                  <TableCell><FormattedDate timestamp={record.timestamp} /></TableCell>
+                                  <TableCell>{(record as any).partyName || 'N/A'}</TableCell>
+                                  <TableCell className="max-w-xs truncate">{record.details}</TableCell>
+                                  <TableCell className="text-right font-medium">{getRecordAmount(record)}</TableCell>
+                                </TableRow>
+                                {hasItems && (
+                                  <CollapsibleContent asChild>
+                                      <tr className="bg-muted/50 hover:bg-muted/50">
+                                          <TableCell colSpan={6} className="p-0">
+                                              <div className="p-4">
+                                                  <h4 className="font-semibold mb-2">Items</h4>
+                                                  <Table>
+                                                      <TableHeader>
+                                                          <TableRow>
+                                                              <TableHead className="w-[60px] sm:table-cell">Image</TableHead>
+                                                              <TableHead>Product</TableHead>
+                                                              <TableHead>Quantity</TableHead>
+                                                              <TableHead>Unit Price/Cost</TableHead>
+                                                              <TableHead className="text-right">Total</TableHead>
+                                                          </TableRow>
+                                                      </TableHeader>
+                                                      <TableBody>
+                                                          {((record.transaction as any).items as (SaleItem | PurchaseItem)[]).map((item, idx) => (
+                                                              <TableRow key={idx}>
+                                                                  <TableCell className="hidden sm:table-cell">
+                                                                      <Avatar className="h-9 w-9">
+                                                                          <AvatarImage src={item.image || ''} alt={item.name} data-ai-hint="product image" />
+                                                                          <AvatarFallback>{item.name?.charAt(0).toUpperCase() || 'P'}</AvatarFallback>
+                                                                      </Avatar>
+                                                                  </TableCell>
+                                                                  <TableCell>{item.name}</TableCell>
+                                                                  <TableCell>{(item as any).return_quantity || (item as any).quantity}</TableCell>
+                                                                  <TableCell>LKR {((item as SaleItem).price_per_unit || (item as PurchaseItem).cost_price || 0).toFixed(2)}</TableCell>
+                                                                  <TableCell className="text-right">LKR {((item as SaleItem).total_amount || (item as PurchaseItem).total_cost || 0).toFixed(2)}</TableCell>
+                                                              </TableRow>
+                                                          ))}
+                                                      </TableBody>
+                                                  </Table>
+                                              </div>
+                                          </TableCell>
+                                      </tr>
+                                  </CollapsibleContent>
+                                )}
+                              </React.Fragment>
                             </Collapsible>
                         )})}
                         </TableBody>

@@ -114,6 +114,8 @@ function NewPurchaseTerminal({ products, initialSuppliers, onPurchaseComplete, o
         ]);
         setLastAddedItemId(product.id);
     }
+    setSearchTerm('');
+    searchInputRef.current?.focus();
   };
 
   const updateCartItem = (productId: string, field: 'quantity' | 'cost_price', value: number) => {
