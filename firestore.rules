@@ -2,51 +2,32 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
+    // Helper function to check ownership
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Allow read/write access to counters for any authenticated user
+    // Counters can be read and written by any authenticated user.
+    // This is safe as they only contain non-sensitive sequential numbers.
     match /counters/{counterId} {
       allow read, write: if request.auth != null;
     }
-
-    match /products/{productId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /customers/{customerId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /suppliers/{supplierId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /sales/{saleId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /purchases/{purchaseId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /expenses/{expenseId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /recent_activity/{activityId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-     match /user_profiles/{userId} {
+    
+    // User can only read their own profile, and only write to their own profile.
+    match /user_profiles/{userId} {
       allow read, write: if isOwner(userId);
     }
-    match /salesOrders/{orderId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-     match /purchaseOrders/{orderId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /sales_returns/{returnId} {
-      allow read, write: if isOwner(resource.data.userId);
-    }
-    match /purchase_returns/{returnId} {
-      allow read, write: if isOwner(resource.data.userId);
+
+    // Generic rule for all user-owned data collections.
+    // This rule allows a user to:
+    // 1. list/query documents only if they filter by their own userId.
+    // 2. get/create/update/delete a specific document only if it belongs to them.
+    match /{collection}/{docId} {
+      allow list: if request.auth != null && request.query.resource.data.userId == request.auth.uid;
+      allow get, delete: if request.auth != null && isOwner(get(/databases/$(database)/documents/$(collection)/$(docId)).data.userId);
+      allow create: if request.auth != null && isOwner(request.resource.data.userId);
+      allow update: if request.auth != null && isOwner(get(/databases/$(database)/documents/$(collection)/$(docId)).data.userId);
     }
   }
 }

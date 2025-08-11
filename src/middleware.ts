@@ -16,7 +16,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  return await updateSession(request)
+  // For all other cases, just update the session and continue
+  return await updateSession(request);
 }
 
 export const config = {

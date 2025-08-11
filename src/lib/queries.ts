@@ -1126,13 +1126,15 @@ export async function fetchDashboardData() {
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
-        
-        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), limit(5));
+
+        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot, activitySnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(customersQuery),
             getDocs(suppliersQuery),
             getDocs(expensesQuery),
+            getDocs(activityQuery),
         ]);
         
         let inventoryValue = 0;
@@ -1235,10 +1237,15 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        const recentActivities = (await fetchFinancialActivities({limit: 5})).map(act => ({
-            ...act,
-            timestamp: act.timestamp || new Date().toISOString(),
-        }));
+        let recentActivities = activitySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                ...data,
+                id: doc.id,
+                timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+            }
+        }) as RecentActivity[];
+        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         let totalReceivables = 0;
         customersSnapshot.forEach(doc => {
@@ -1668,8 +1675,36 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     try {
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         
-        let q = query(collection(db, 'recent_activity'), where('userId', '==', userId), where('type', 'in', financialTypes));
+        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+
+        if(filters.type) {
+            q = query(q, where('type', '==', filters.type));
+        } else {
+            q = query(q, where('type', 'in', financialTypes));
+        }
+
+        if(filters.productId) {
+            q = query(q, where('item_ids', 'array-contains', filters.productId));
+        }
+
+        if (filters.partyId) {
+            const [partyType, id] = filters.partyId.split('_');
+            const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
+            q = query(q, where(partyKey, '==', id));
+        }
+
+        if (filters.date?.from) {
+            const from = Timestamp.fromDate(startOfDay(filters.date.from));
+            const to = Timestamp.fromDate(filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from));
+            q = query(q, where('timestamp', '>=', from), where('timestamp', '<=', to));
+        }
         
+        q = query(q, orderBy('timestamp', 'desc'));
+        
+        if (filters.limit) {
+            q = query(q, limit(filters.limit));
+        }
+
         const activitySnapshot = await getDocs(q);
 
         let allActivities = activitySnapshot.docs.map(doc => {
@@ -1679,40 +1714,10 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
                 ...data,
                 timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
                 partyName: data.customer_name || data.supplier_name || 'N/A'
-            } as DetailedRecord;
-        }) as RecentActivity[];
-
-        let filteredActivities = allActivities.filter(doc => {
-            if (filters.type && doc.type !== filters.type) return false;
-
-            if (filters.productId) {
-                const hasProductId = doc.item_ids?.includes(filters.productId) || doc.product_id === filters.productId;
-                if (!hasProductId) return false;
-            }
-
-            if (filters.partyId) {
-                const [partyType, id] = filters.partyId.split('_');
-                const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-                if ((doc as any)[partyKey] !== id) return false;
-            }
-
-            if (filters.date?.from) {
-                const from = startOfDay(filters.date.from);
-                const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-                const docDate = new Date(doc.timestamp);
-                if (!docDate || !isWithinInterval(docDate, { start: from, end: to })) return false;
-            }
-            
-            return true;
+            } as RecentActivity;
         });
 
-        filteredActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        
-        if (filters.limit) {
-            return filteredActivities.slice(0, filters.limit);
-        }
-
-        return filteredActivities;
+        return allActivities;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch financial activities.');
