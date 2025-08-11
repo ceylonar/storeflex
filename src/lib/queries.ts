@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -441,7 +440,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
     const { db } = getFirebaseServices();
     try {
         const customersCollection = collection(db, 'customers');
-        const q = query(customersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(customersCollection, where('userId', '==', userId));
         const snapshot = await getDocs(q);
         let customers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -452,6 +451,8 @@ export async function fetchCustomers(): Promise<Customer[]> {
                 updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
             } as Customer
         });
+        
+        customers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return customers;
     } catch(error) {
@@ -813,7 +814,7 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
     const { db } = getFirebaseServices();
     try {
         const suppliersCollection = collection(db, 'suppliers');
-        const q = query(suppliersCollection, where('userId', '==', userId), orderBy('created_at', 'desc'));
+        const q = query(suppliersCollection, where('userId', '==', userId));
         const snapshot = await getDocs(q);
         let suppliers = snapshot.docs.map(doc => {
             const data = doc.data();
@@ -824,6 +825,8 @@ export async function fetchSuppliers(): Promise<Supplier[]> {
                 updated_at: (data.updated_at as Timestamp)?.toDate().toISOString(),
             } as Supplier
         });
+        
+        suppliers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         
         return suppliers;
 
@@ -1158,7 +1161,7 @@ export async function fetchDashboardData() {
             allProducts.push({
                 ...product,
                 created_at: product.created_at?.toDate().toISOString() || new Date().toISOString(),
-                updated_at: product.updated_at?.toDate().toISOString() || new Date().toISOString(),
+                updated_at: product.updated_at?.toDate().toISOString(),
             });
         });
 
@@ -1417,7 +1420,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
         getDocs(purchasesQuery),
-        getDocs(lossSnapshot)
+        getDocs(lossQuery)
     ]);
     
     const transactions: ProductTransaction[] = [];
@@ -1666,7 +1669,7 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
         
-        // Sort in-memory
+        // Sort in-memory because ordering by timestamp in the query requires an index
         allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         // Apply filters in code
@@ -2308,3 +2311,6 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
 
+
+
+    
