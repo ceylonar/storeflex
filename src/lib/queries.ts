@@ -1637,32 +1637,8 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
     try {
         const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
         
-        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
 
-        if(filters.type) {
-            q = query(q, where('type', '==', filters.type));
-        } else {
-            q = query(q, where('type', 'in', financialTypes));
-        }
-
-        if(filters.productId) {
-            q = query(q, where('item_ids', 'array-contains', filters.productId));
-        }
-
-        if (filters.partyId) {
-            const [partyType, id] = filters.partyId.split('_');
-            const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-            q = query(q, where(partyKey, '==', id));
-        }
-
-        if (filters.date?.from) {
-            const from = Timestamp.fromDate(startOfDay(filters.date.from));
-            const to = Timestamp.fromDate(filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from));
-            q = query(q, where('timestamp', '>=', from), where('timestamp', '<=', to));
-        }
-        
-        q = query(q, orderBy('timestamp', 'desc'));
-        
         if (filters.limit) {
             q = query(q, limit(filters.limit));
         }
@@ -1678,6 +1654,29 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
+        
+        // Manual filtering
+        if (filters.type) {
+            allActivities = allActivities.filter(a => a.type === filters.type);
+        } else {
+             allActivities = allActivities.filter(a => financialTypes.includes(a.type));
+        }
+        
+        if (filters.productId) {
+            allActivities = allActivities.filter(a => a.item_ids?.includes(filters.productId!));
+        }
+
+        if (filters.partyId) {
+            const [partyType, id] = filters.partyId.split('_');
+            const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
+            allActivities = allActivities.filter(a => (a as any)[partyKey] === id);
+        }
+
+        if (filters.date?.from) {
+            const from = startOfDay(filters.date.from);
+            const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
+            allActivities = allActivities.filter(a => isWithinInterval(new Date(a.timestamp), { start: from, end: to }));
+        }
 
         return allActivities;
     } catch (error) {
@@ -2289,3 +2288,5 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
+
+    
