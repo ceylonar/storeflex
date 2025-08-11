@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1124,7 +1123,7 @@ export async function fetchDashboardData() {
     try {
         const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
         const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(5));
+        const activityQuery = query(collection(db, 'recent_activity'), where('userId', '==', userId), limit(5));
         const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
@@ -1256,6 +1255,8 @@ export async function fetchDashboardData() {
           }
           return activity;
         });
+
+        recentActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         let totalReceivables = 0;
         let totalPayables = 0;
@@ -1549,7 +1550,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
         getDocs(purchasesQuery),
-        getDocs(lossSnapshot)
+        getDocs(lossQuery)
     ]);
     
     const transactions: ProductTransaction[] = [];
