@@ -1,3 +1,4 @@
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -24,7 +25,7 @@ import {
   collectionGroup,
   or,
 } from 'firebase/firestore';
-import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturn, SaleReturnItem, PurchaseReturnItem, Expense, ExpenseData, SalesOrder, PurchaseOrder } from './types';
+import type { Product, RecentActivity, SalesData, Store, Sale, ProductSelect, UserProfile, TopSellingProduct, SaleItem, Customer, Supplier, Purchase, PurchaseItem, ProductTransaction, DetailedRecord, SaleReturn, PurchaseReturnItem, SaleReturnItem, Expense, ExpenseData, SalesOrder, PurchaseOrder } from './types';
 import { z } from 'zod';
 import { startOfDay, endOfDay, subMonths, isWithinInterval, startOfWeek, endOfWeek, startOfYear, format, subDays, endOfYear, startOfMonth, endOfMonth } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
@@ -1654,10 +1655,10 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
 
     const { db } = getFirebaseServices();
     try {
-        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
+        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
-        if (filters.limit) {
-            q = query(q, limit(filters.limit));
+        if (filters.limit && !filters.date && !filters.type && !filters.productId && !filters.partyId) {
+            q = query(q, orderBy('timestamp', 'desc'), limit(filters.limit));
         }
         
         const activitySnapshot = await getDocs(q);
@@ -1672,6 +1673,8 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
         
+        allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
         // Apply filters in code
         if (filters.type) {
             allActivities = allActivities.filter(a => a.type === filters.type);
@@ -1691,6 +1694,10 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             const from = startOfDay(filters.date.from);
             const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
             allActivities = allActivities.filter(a => isWithinInterval(new Date(a.timestamp), { start: from, end: to }));
+        }
+
+        if (filters.limit) {
+            return allActivities.slice(0, filters.limit);
         }
 
         return allActivities;
@@ -2315,6 +2322,8 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
 
+
+    
 
     
 
