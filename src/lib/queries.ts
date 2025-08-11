@@ -1417,7 +1417,7 @@ export async function fetchProductHistory(productId: string): Promise<ProductTra
     const [salesSnapshot, purchasesSnapshot, lossSnapshot] = await Promise.all([
         getDocs(salesQuery),
         getDocs(purchasesQuery),
-        getDocs(lossQuery)
+        getDocs(lossSnapshot)
     ]);
     
     const transactions: ProductTransaction[] = [];
@@ -1648,8 +1648,7 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
 
     const { db } = getFirebaseServices();
     try {
-        // More robust query: fetch all user's activities and filter in code
-        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
+        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
         
         if (filters.limit) {
             q = query(q, limit(filters.limit));
@@ -1666,6 +1665,9 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
+        
+        // Sort in-memory
+        allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         // Apply filters in code
         if (filters.type) {
@@ -2301,6 +2303,7 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
     
+
 
 
 
