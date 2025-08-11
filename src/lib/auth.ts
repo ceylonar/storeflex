@@ -23,6 +23,11 @@ export async function login(prevState: { error: string | undefined } | null, for
       return { error: 'Email and password are required.'}
   }
 
+  // Gracefully handle missing Firebase configuration
+  if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID) {
+    return { error: 'Firebase is not configured. Please set up your .env file according to the README.md instructions.' };
+  }
+
   try {
       const { app } = getFirebaseServices();
       const auth = getAuth(app);

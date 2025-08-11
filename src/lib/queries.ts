@@ -1128,7 +1128,7 @@ export async function fetchDashboardData() {
         const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
         const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
 
-        const [productsSnapshot, salesSnapshot, customersQuery, suppliersSnapshot, expensesSnapshot] = await Promise.all([
+        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(customersQuery),
@@ -1224,7 +1224,7 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        const totalReceivables = customersQuery.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
+        const totalReceivables = customersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
         const totalPayables = suppliersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
         
         const allPendingOrders = await fetchPendingOrders();
