@@ -175,6 +175,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                 title: 'Product Added',
                 description: `${product.name} has been added to the bill.`,
             });
+             setSearchTerm('');
         } else {
             toast({
                 variant: 'destructive',
@@ -286,7 +287,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
 
     setIsSubmitting(true);
     try {
-        const finalCreditAmount = totalDue - amountPaid;
+        const finalCreditAmount = totalDue > amountPaid ? totalDue - amountPaid : 0;
         const saleData = {
             items: cart,
             customer_name: selectedCustomer?.name || 'Walk-in Customer',

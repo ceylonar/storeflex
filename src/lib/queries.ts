@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -395,10 +394,13 @@ export async function createCustomer(formData: FormData): Promise<Customer | nul
         const q = query(collection(db, 'customers'), where('userId', '==', userId), where('phone', '==', phone), limit(1));
         const existing = await getDocs(q);
         if (!existing.empty) {
-            const existingCustomer = existing.docs[0].data() as Omit<Customer, 'id'>;
+            const existingCustomerDoc = existing.docs[0];
+            const existingCustomer = existingCustomerDoc.data() as Omit<Customer, 'id' | 'created_at' | 'updated_at'> & { created_at: Timestamp, updated_at: Timestamp };
             return {
                 id: existing.docs[0].id,
-                ...existingCustomer
+                ...existingCustomer,
+                created_at: existingCustomer.created_at.toDate().toISOString(),
+                updated_at: existingCustomer.updated_at.toDate().toISOString(),
             }
         }
     }
@@ -561,7 +563,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         const productRefsAndData = await Promise.all(items.map(async (item) => {
             const productRef = doc(db, 'products', item.id);
             const productDoc = await transaction.get(productRef);
-            return { ref: productRef, doc: productDoc };
+            return { ref: productRef, doc: productDoc, itemData: item };
         }));
 
         const counterRef = doc(db, 'counters', `sales_${userId}`);
@@ -576,26 +578,27 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             finalPreviousBalance = customerDoc.data().credit_balance || 0;
         }
         
-        for (const { doc: productDoc, ref: productRef } of productRefsAndData) {
-            const item = items.find(i => i.id === productDoc.id)!;
-            if (!productDoc.exists() || productDoc.data().userId !== userId) throw new Error(`Product "${item.name}" not found or access denied.`);
+        for (const { doc: productDoc, ref: productRef, itemData } of productRefsAndData) {
+            if (!productDoc.exists() || productDoc.data().userId !== userId) throw new Error(`Product "${itemData.name}" not found or access denied.`);
             
-            if (item.type === 'product') {
+            if (itemData.type === 'product') {
                 const currentStock = productDoc.data().stock || 0;
-                if (currentStock < item.quantity) throw new Error(`Not enough stock for ${item.name}. Only ${currentStock} available.`);
-                transaction.update(productRef, { stock: increment(-item.quantity) });
+                if (currentStock < itemData.quantity) throw new Error(`Not enough stock for ${itemData.name}. Only ${currentStock} available.`);
+                transaction.update(productRef, { stock: increment(-itemData.quantity) });
             }
         }
         
         const totalDue = total_amount - finalPreviousBalance;
-        const newCreditBalanceForCustomer = (finalPreviousBalance + saleDetails.creditAmount) - total_amount + amountPaid;
+        const finalCreditAmount = totalDue > amountPaid ? totalDue - amountPaid : 0;
+        const newCreditBalanceForCustomer = finalPreviousBalance - (amountPaid - total_amount);
+
 
         if (customerRef) {
             transaction.update(customerRef, { credit_balance: newCreditBalanceForCustomer });
         }
 
         let paymentStatus: Sale['paymentStatus'] = 'paid';
-        if (saleDetails.paymentMethod === 'credit' && saleDetails.creditAmount > 0.001) {
+        if (saleDetails.paymentMethod === 'credit' && finalCreditAmount > 0.001) {
             paymentStatus = 'partial';
         } else if (saleDetails.paymentMethod === 'check') {
             paymentStatus = 'pending_check_clearance';
@@ -614,6 +617,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             total_amount,
             amountPaid,
             previousBalance: finalPreviousBalance,
+            creditAmount: finalCreditAmount,
             paymentStatus,
             sale_date: serverTimestamp(),
         });
@@ -643,7 +647,10 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/customers');
     revalidatePath('/dashboard/moneyflow');
     
-    const finalCreditAmount = saleDetails.creditAmount;
+    // Re-calculate for accurate return object
+    const totalDue = total_amount - previousBalance;
+    const finalCreditAmount = totalDue > amountPaid ? totalDue - amountPaid : 0;
+
     let paymentStatus: Sale['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && finalCreditAmount > 0.001) {
         paymentStatus = 'partial';
@@ -662,8 +669,8 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         ...saleDetails,
         total_amount,
         amountPaid,
-        previousBalance: finalPreviousBalance,
-        creditAmount: finalCreditAmount > 0 ? finalCreditAmount : 0,
+        previousBalance: previousBalance,
+        creditAmount: finalCreditAmount,
         paymentStatus,
         sale_date: new Date().toISOString(),
     }
@@ -786,10 +793,13 @@ export async function createSupplier(formData: FormData): Promise<Supplier | nul
         const q = query(collection(db, 'suppliers'), where('userId', '==', userId), where('phone', '==', phone), limit(1));
         const existing = await getDocs(q);
         if (!existing.empty) {
-            const existingSupplier = existing.docs[0].data() as Omit<Supplier, 'id'>;
+            const existingSupplierDoc = existing.docs[0];
+            const existingSupplier = existingSupplierDoc.data() as Omit<Supplier, 'id' | 'created_at' | 'updated_at'> & { created_at: Timestamp, updated_at: Timestamp };
             return {
                 id: existing.docs[0].id,
-                ...existingSupplier
+                ...existingSupplier,
+                created_at: existingSupplier.created_at.toDate().toISOString(),
+                updated_at: existingSupplier.updated_at.toDate().toISOString(),
             }
         }
     }
@@ -1167,26 +1177,34 @@ export async function fetchDashboardData() {
     try {
         const { db } = getFirebaseServices();
         
-        const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
-        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
-        const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
-        const expensesQuery = query(collection(db, 'expenses'), where('userId', '==', userId));
+        let productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot;
 
-        const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
-            getDocs(productsQuery),
-            getDocs(salesQuery),
-            getDocs(customersQuery),
-            getDocs(suppliersQuery),
-            getDocs(expensesQuery),
-        ]);
+        try {
+            productsSnapshot = await getDocs(query(collection(db, 'products'), where('userId', '==', userId)));
+        } catch (e) { console.error("Failed to fetch products", e); productsSnapshot = { docs: [] }; }
+
+        try {
+            salesSnapshot = await getDocs(query(collection(db, 'sales'), where('userId', '==', userId)));
+        } catch (e) { console.error("Failed to fetch sales", e); salesSnapshot = { docs: [] }; }
+
+        try {
+            customersSnapshot = await getDocs(query(collection(db, 'customers'), where('userId', '==', userId)));
+        } catch (e) { console.error("Failed to fetch customers", e); customersSnapshot = { docs: [] }; }
+
+        try {
+            suppliersSnapshot = await getDocs(query(collection(db, 'suppliers'), where('userId', '==', userId)));
+        } catch (e) { console.error("Failed to fetch suppliers", e); suppliersSnapshot = { docs: [] }; }
+
+        try {
+            expensesSnapshot = await getDocs(query(collection(db, 'expenses'), where('userId', '==', userId)));
+        } catch (e) { console.error("Failed to fetch expenses", e); expensesSnapshot = { docs: [] }; }
         
         let inventoryValue = 0;
         let productCount = 0;
         let serviceCount = 0;
         const allProducts: Product[] = [];
 
-        productsSnapshot.forEach(doc => {
+        productsSnapshot.docs.forEach(doc => {
             const product = { id: doc.id, ...doc.data() } as Omit<Product, 'created_at' | 'updated_at'> & { created_at: Timestamp, updated_at: Timestamp };
             if (product.type === 'product') {
                 inventoryValue += (product.stock || 0) * (product.cost_price || 0);
@@ -1222,15 +1240,21 @@ export async function fetchDashboardData() {
         let cogsThisYear = 0;
         let totalSales = 0;
 
-        salesSnapshot.forEach(doc => {
+        salesSnapshot.docs.forEach(doc => {
             const saleData = doc.data();
             const sale = {
                 ...saleData,
                 sale_date: (saleData.sale_date as Timestamp).toDate(),
-            } as Omit<Sale, 'sale_date'> & { sale_date: Date };
+            } as Omit<Sale, 'sale_date' | 'items'> & { sale_date: Date; items: SaleItem[] };
 
             const saleTotal = sale.total_amount || 0;
-            const saleCogs = sale.items.reduce((acc, item) => acc + ((item.cost_price || 0) * item.quantity), 0);
+            const saleCogs = sale.items.reduce((acc, item) => {
+                if(item.type === 'product') {
+                    return acc + ((item.cost_price || 0) * item.quantity);
+                }
+                return acc;
+            }, 0);
+
             totalSales += saleTotal;
 
             if (isWithinInterval(sale.sale_date, { start: todayStart, end: todayEnd })) {
@@ -1252,7 +1276,7 @@ export async function fetchDashboardData() {
         let expensesThisYear = 0;
         let totalExpenses = 0;
 
-        expensesSnapshot.forEach(doc => {
+        expensesSnapshot.docs.forEach(doc => {
             const expenseData = doc.data();
             const expense = {
                 ...expenseData,
@@ -1542,16 +1566,22 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
         let payablesTotal = 0;
         let pendingChecksTotal = 0;
         
-        const customersQuery = query(collection(db, 'customers'), where('userId', '==', userId));
-        const suppliersQuery = query(collection(db, 'suppliers'), where('userId', '==', userId));
-        const salesQuery = query(collection(db, 'sales'), where('userId', '==', userId));
-        const purchasesQuery = query(collection(db, 'purchases'), where('userId', '==', userId));
+        let customersSnapshot, suppliersSnapshot, salesSnapshot, purchasesSnapshot;
 
-        const [customersSnapshot, suppliersSnapshot, salesSnapshot, purchasesSnapshot] = await Promise.all([
-            getDocs(customersQuery), getDocs(suppliersQuery), getDocs(salesQuery), getDocs(purchasesQuery)
-        ]);
+        try { customersSnapshot = await getDocs(query(collection(db, 'customers'), where('userId', '==', userId))); } 
+        catch (e) { console.error("Failed to fetch customers for moneyflow", e); customersSnapshot = { docs: [] }; }
+        
+        try { suppliersSnapshot = await getDocs(query(collection(db, 'suppliers'), where('userId', '==', userId))); }
+        catch (e) { console.error("Failed to fetch suppliers for moneyflow", e); suppliersSnapshot = { docs: [] }; }
+        
+        try { salesSnapshot = await getDocs(query(collection(db, 'sales'), where('userId', '==', userId))); }
+        catch (e) { console.error("Failed to fetch sales for moneyflow", e); salesSnapshot = { docs: [] }; }
+        
+        try { purchasesSnapshot = await getDocs(query(collection(db, 'purchases'), where('userId', '==', userId))); }
+        catch (e) { console.error("Failed to fetch purchases for moneyflow", e); purchasesSnapshot = { docs: [] }; }
 
-        customersSnapshot.forEach(doc => {
+
+        customersSnapshot.docs.forEach(doc => {
             const data = doc.data();
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
@@ -1566,7 +1596,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
 
-        suppliersSnapshot.forEach(doc => {
+        suppliersSnapshot.docs.forEach(doc => {
             const data = doc.data();
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
@@ -1581,7 +1611,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
         
-        salesSnapshot.forEach(doc => {
+        salesSnapshot.docs.forEach(doc => {
             const sale = doc.data() as Sale;
             const saleDate = (sale.sale_date as any)?.toDate();
             if (sale.paymentStatus === 'pending_check_clearance' && saleDate) {
@@ -1594,7 +1624,7 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             }
         });
 
-        purchasesSnapshot.forEach(doc => {
+        purchasesSnapshot.docs.forEach(doc => {
             const purchase = doc.data() as Purchase;
             const purchaseDate = (purchase.purchase_date as any)?.toDate();
             if (purchase.paymentStatus === 'pending_check_clearance' && purchaseDate) {
@@ -2342,21 +2372,3 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
-
-
-    
-
-
-
-
-
-
-
-    
-
-    
-
-    
-
-    
-
