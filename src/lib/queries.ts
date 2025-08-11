@@ -1131,7 +1131,7 @@ export async function fetchDashboardData() {
         const [productsSnapshot, salesSnapshot, customersSnapshot, suppliersSnapshot, expensesSnapshot] = await Promise.all([
             getDocs(productsQuery),
             getDocs(salesQuery),
-            getDocs(customersQuery),
+            getDocs(customersSnapshot),
             getDocs(suppliersQuery),
             getDocs(expensesQuery),
         ]);
@@ -1627,7 +1627,6 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
     }
 }
 
-
 export async function fetchFinancialActivities(filters: FinancialActivitiesFilter = {}): Promise<RecentActivity[]> {
     noStore();
     const userId = await getCurrentUserId();
@@ -1655,36 +1654,37 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
             } as RecentActivity;
         });
         
+        let filteredActivities = allActivities;
+
         // Manual filtering
         if (filters.type) {
-            allActivities = allActivities.filter(a => a.type === filters.type);
+            filteredActivities = filteredActivities.filter(a => a.type === filters.type);
         } else {
-             allActivities = allActivities.filter(a => financialTypes.includes(a.type));
+            filteredActivities = filteredActivities.filter(a => financialTypes.includes(a.type));
         }
         
         if (filters.productId) {
-            allActivities = allActivities.filter(a => a.item_ids?.includes(filters.productId!));
+            filteredActivities = filteredActivities.filter(a => a.item_ids?.includes(filters.productId!));
         }
 
         if (filters.partyId) {
             const [partyType, id] = filters.partyId.split('_');
             const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-            allActivities = allActivities.filter(a => (a as any)[partyKey] === id);
+            filteredActivities = filteredActivities.filter(a => (a as any)[partyKey] === id);
         }
 
         if (filters.date?.from) {
             const from = startOfDay(filters.date.from);
             const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-            allActivities = allActivities.filter(a => isWithinInterval(new Date(a.timestamp), { start: from, end: to }));
+            filteredActivities = filteredActivities.filter(a => isWithinInterval(new Date(a.timestamp), { start: from, end: to }));
         }
 
-        return allActivities;
+        return filteredActivities;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch financial activities.');
     }
 }
-
 
 export async function fetchUserProfile(): Promise<UserProfile | null> {
   noStore();
@@ -2288,5 +2288,3 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
     return combined;
 }
-
-    
