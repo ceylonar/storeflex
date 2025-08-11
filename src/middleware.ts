@@ -1,5 +1,4 @@
 
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession, updateSession } from '@/lib/session'
 
@@ -17,7 +16,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  return await updateSession(request) || NextResponse.next()
+  return await updateSession(request)
 }
 
 export const config = {
