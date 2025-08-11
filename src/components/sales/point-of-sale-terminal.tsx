@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -522,7 +523,7 @@ function SaleTerminalInternal({ initialProducts, initialCustomers, onSaleComplet
                             <span className="text-muted-foreground">
                                 Previous Balance
                                 <span className={cn("text-xs ml-1", previousBalance > 0 ? "text-destructive" : "text-green-600")}>
-                                     {previousBalance > 0 ? '(Debit)' : '(Credit)'}
+                                    {previousBalance > 0 ? '(Debit - Owed by Customer)' : '(Credit - Owed to Customer)'}
                                 </span>
                             </span>
                             <span className={cn(previousBalance > 0 ? "text-destructive" : "text-green-600 dark:text-green-500")}>

@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1913,17 +1914,26 @@ export async function createSaleReturn(returnData: SaleReturn): Promise<void> {
     if (!userId) throw new Error("User not authenticated");
 
     await runTransaction(db, async (transaction) => {
+        // First, read all necessary documents
+        const productRefs = returnData.items.map(item => doc(db, 'products', item.id));
+        const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+        let customerRef: any = null;
+        if(returnData.customer_id) {
+            customerRef = doc(db, 'customers', returnData.customer_id);
+            await transaction.get(customerRef);
+        }
+
+        // Now, perform all writes
         // 1. Update stock for each returned item
-        for (const item of returnData.items) {
+        for (const [index, item] of returnData.items.entries()) {
              if (item.type === 'product') {
-                const productRef = doc(db, 'products', item.id);
+                const productRef = productRefs[index];
                 transaction.update(productRef, { stock: increment(item.return_quantity) });
             }
         }
 
         // 2. Update customer credit balance.
         if (returnData.customer_id && returnData.refund_method === 'credit_balance') {
-            const customerRef = doc(db, 'customers', returnData.customer_id);
             transaction.update(customerRef, { credit_balance: increment(-returnData.total_refund_amount) });
         }
         
@@ -1969,24 +1979,29 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     if (!userId) throw new Error("User not authenticated");
 
     await runTransaction(db, async (transaction) => {
+        // --- READS FIRST ---
+        const productRefs = returnData.items.map(item => doc(db, 'products', item.id));
+        const productDocs = await Promise.all(productRefs.map(ref => transaction.get(ref)));
+        const supplierRef = doc(db, 'suppliers', returnData.supplier_id);
+        const counterRef = doc(db, 'counters', `purchase_returns_${userId}`);
+        await transaction.get(supplierRef); // Read supplier
+        const counterDoc = await transaction.get(counterRef); // Read counter
+
+        // --- WRITES AFTER ---
         // 1. Update stock for each returned item
-        for (const item of returnData.items) {
-            const productRef = doc(db, 'products', item.id);
-            const productDoc = await transaction.get(productRef);
+        for (const [index, item] of returnData.items.entries()) {
+            const productDoc = productDocs[index];
             if (productDoc.exists() && productDoc.data().stock >= item.return_quantity) {
-                transaction.update(productRef, { stock: increment(-item.return_quantity) });
+                transaction.update(productRefs[index], { stock: increment(-item.return_quantity) });
             } else {
                 throw new Error(`Not enough stock to return for ${item.name}.`);
             }
         }
 
         // 2. Update supplier credit balance (reduce what we owe them)
-        const supplierRef = doc(db, 'suppliers', returnData.supplier_id);
         transaction.update(supplierRef, { credit_balance: increment(-returnData.total_credit_amount) });
 
         // 3. Create a new purchase return document with a readable ID
-        const counterRef = doc(db, 'counters', `purchase_returns_${userId}`);
-        const counterDoc = await transaction.get(counterRef);
         const nextId = counterDoc.exists() ? (counterDoc.data().lastId || 0) + 1 : 1;
         const formattedId = `pret${String(nextId).padStart(6, '0')}`;
         const returnRef = doc(db, 'purchase_returns', formattedId);
@@ -2019,6 +2034,7 @@ export async function createPurchaseReturn(returnData: PurchaseReturn): Promise<
     revalidatePath('/dashboard/suppliers');
     revalidatePath('/dashboard/moneyflow');
 }
+
 
 // --- EXPENSE QUERIES ---
 
