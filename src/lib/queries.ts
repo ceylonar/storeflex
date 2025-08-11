@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -1300,8 +1301,14 @@ export async function fetchDashboardData() {
         const profitThisMonth = salesThisMonth - cogsThisMonth - expensesThisMonth;
         const profitThisYear = salesThisYear - cogsThisYear - expensesThisYear;
         
-        const totalReceivables = customersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
-        const totalPayables = suppliersSnapshot.docs.reduce((sum, doc) => sum + (doc.data().credit_balance || 0), 0);
+        const totalReceivables = customersSnapshot.docs.reduce((sum, doc) => {
+            const balance = doc.data().credit_balance || 0;
+            return sum + (balance > 0 ? balance : 0);
+        }, 0);
+        const totalPayables = suppliersSnapshot.docs.reduce((sum, doc) => {
+             const balance = doc.data().credit_balance || 0;
+            return sum + (balance > 0 ? balance : 0);
+        }, 0);
         
         const allPendingOrders = await fetchPendingOrders();
         const pendingSalesOrders = allPendingOrders.filter(o => o.type === 'sale') as (SalesOrder & { type: 'sale' })[];
@@ -1586,12 +1593,17 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance > 0) {
+            if (balance > 0) { // Customer owes the store (debit balance from customer's PoV) -> Receivable
                 receivablesTotal += balance;
                 transactions.push({
                     id: `customer-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
-                    paymentMethod: 'credit', amount: balance,
-                    date,
+                    paymentMethod: 'credit', amount: balance, date,
+                });
+            } else if (balance < 0) { // Store owes the customer (credit balance from customer's PoV) -> Payable
+                payablesTotal += Math.abs(balance);
+                transactions.push({
+                    id: `customer-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: Math.abs(balance), date,
                 });
             }
         });
@@ -1601,12 +1613,17 @@ export async function fetchMoneyflowData(): Promise<MoneyflowData> {
             const balance = data.credit_balance || 0;
             const date = (data.updated_at || data.created_at)?.toDate().toISOString() || new Date().toISOString();
 
-            if (balance > 0) { // We owe supplier (payable)
+            if (balance > 0) { // We owe supplier -> Payable
                 payablesTotal += balance;
                 transactions.push({
                     id: `supplier-payable-${doc.id}`, transactionId: doc.id, type: 'payable', partyName: data.name, partyId: doc.id,
-                    paymentMethod: 'credit', amount: balance,
-                    date,
+                    paymentMethod: 'credit', amount: balance, date,
+                });
+            } else if (balance < 0) { // Supplier owes us -> Receivable
+                receivablesTotal += Math.abs(balance);
+                transactions.push({
+                    id: `supplier-receivable-${doc.id}`, transactionId: doc.id, type: 'receivable', partyName: data.name, partyId: doc.id,
+                    paymentMethod: 'credit', amount: Math.abs(balance), date,
                 });
             }
         });
@@ -1673,7 +1690,7 @@ export async function settlePayment(transaction: MoneyflowTransaction, status: '
               }
               partyRef = doc(db, partyType, transaction.partyId);
               
-              const incrementValue = transaction.type === 'receivable' ? -settlementAmount : -settlementAmount;
+              const incrementValue = transaction.type === 'receivable' ? -settlementAmount : settlementAmount;
               t.update(partyRef, { credit_balance: increment(incrementValue) });
 
               details = `Credit payment of LKR ${settlementAmount.toFixed(2)} ${transaction.type === 'receivable' ? 'from' : 'to'} ${transaction.partyName} settled.`;
