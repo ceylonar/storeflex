@@ -5,29 +5,19 @@ service cloud.firestore {
 
     // Helper function to check ownership
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
-
-    // Counters can be read and written by any authenticated user.
-    // This is safe as they only contain non-sensitive sequential numbers.
+    
+    // Counters collection is readable/writable by any authenticated user to generate new IDs
     match /counters/{counterId} {
       allow read, write: if request.auth != null;
     }
-    
-    // User can only read their own profile, and only write to their own profile.
-    match /user_profiles/{userId} {
-      allow read, write: if isOwner(userId);
-    }
 
-    // Generic rule for all user-owned data collections.
-    // This rule allows a user to:
-    // 1. list/query documents only if they filter by their own userId.
-    // 2. get/create/update/delete a specific document only if it belongs to them.
+    // All other collections can only be read if the query filters by the user's ID.
+    // Individual documents can only be read/written/deleted by their owner.
     match /{collection}/{docId} {
       allow list: if request.auth != null && request.query.resource.data.userId == request.auth.uid;
-      allow get, delete: if request.auth != null && isOwner(get(/databases/$(database)/documents/$(collection)/$(docId)).data.userId);
-      allow create: if request.auth != null && isOwner(request.resource.data.userId);
-      allow update: if request.auth != null && isOwner(get(/databases/$(database)/documents/$(collection)/$(docId)).data.userId);
+      allow read, write, delete: if request.auth != null && isOwner(resource.data.userId);
     }
   }
 }
