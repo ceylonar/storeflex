@@ -1,4 +1,3 @@
-
 'use server';
 
 import { unstable_noStore as noStore, revalidatePath } from 'next/cache';
@@ -700,8 +699,8 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
         const salesCollection = collection(db, 'sales');
         
         const q = customerId === 'walk-in'
-            ? query(salesCollection, where('userId', '==', userId), where('customer_id', '==', null), orderBy('sale_date', 'desc'))
-            : query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId), orderBy('sale_date', 'desc'));
+            ? query(salesCollection, where('userId', '==', userId), where('customer_id', '==', null))
+            : query(salesCollection, where('userId', '==', userId), where('customer_id', '==', customerId));
 
         const querySnapshot = await getDocs(q);
         const sales = querySnapshot.docs.map(doc => {
@@ -712,6 +711,8 @@ export async function fetchSalesByCustomer(customerId: string): Promise<Sale[]> 
                 sale_date: (data.sale_date as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
             } as Sale
         });
+        
+        sales.sort((a, b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
         
         return sales;
     } catch (error) {
@@ -1052,7 +1053,7 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
     const { db } = getFirebaseServices();
     try {
         const purchasesCollection = collection(db, 'purchases');
-        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId), orderBy('purchase_date', 'desc'));
+        const q = query(purchasesCollection, where('userId', '==', userId), where('supplier_id', '==', supplierId));
         const querySnapshot = await getDocs(q);
         const purchases = querySnapshot.docs.map(doc => {
             const data = doc.data();
@@ -1063,6 +1064,8 @@ export async function fetchPurchasesBySupplier(supplierId: string): Promise<Purc
             } as Purchase
         });
         
+        purchases.sort((a,b) => new Date(b.purchase_date).getTime() - new Date(a.purchase_date).getTime());
+
         return purchases;
     } catch (error) {
         console.error('Database Error:', error);
@@ -1651,7 +1654,7 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
 
     const { db } = getFirebaseServices();
     try {
-        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId));
+        let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
         
         if (filters.limit) {
             q = query(q, limit(filters.limit));
@@ -1668,9 +1671,6 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
-        
-        // Sort in-memory because ordering by timestamp in the query requires an index
-        allActivities.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         
         // Apply filters in code
         if (filters.type) {
@@ -2315,6 +2315,8 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
 
+
+    
 
     
 
