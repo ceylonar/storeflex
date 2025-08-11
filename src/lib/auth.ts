@@ -6,7 +6,6 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirebaseAdmin } from './firebase-admin';
 import { encrypt, getSession } from './session';
 
 export interface User {
@@ -35,13 +34,9 @@ export async function login(prevState: { error: string | undefined } | null, for
       
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // Use Firebase Admin to get full user details if needed, or construct from client response
-      const { auth: adminAuth } = getFirebaseAdmin();
-      const adminUserRecord = await adminAuth.getUser(userCredential.user.uid);
-
       const user: User = { 
           id: userCredential.user.uid, 
-          name: adminUserRecord.displayName || adminUserRecord.email || 'Admin', 
+          name: userCredential.user.displayName || userCredential.user.email || 'Admin', 
           email: userCredential.user.email!, 
           role: 'admin' 
       };
