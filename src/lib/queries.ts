@@ -548,12 +548,14 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
 
         const counterRef = doc(db, 'counters', `sales_${userId}`);
         const counterDoc = await transaction.get(counterRef);
-
+        
         let customerRef: any = null;
+        let finalPreviousBalance = 0;
         if (saleDetails.customer_id) {
             customerRef = doc(db, 'customers', saleDetails.customer_id);
             const customerDoc = await transaction.get(customerRef);
             if (!customerDoc.exists()) throw new Error('Customer not found for balance update.');
+            finalPreviousBalance = customerDoc.data().credit_balance || 0;
         }
         
         for (const { doc: productDoc, ref: productRef } of productRefsAndData) {
@@ -567,15 +569,15 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             }
         }
         
-        const totalDue = total_amount - previousBalance;
-        const newCreditBalance = totalDue - amountPaid;
+        const totalDue = total_amount - finalPreviousBalance;
+        const newCreditBalanceForCustomer = (finalPreviousBalance + saleDetails.creditAmount) - total_amount + amountPaid;
 
         if (customerRef) {
-            transaction.update(customerRef, { credit_balance: increment(newCreditBalance) });
+            transaction.update(customerRef, { credit_balance: newCreditBalanceForCustomer });
         }
 
         let paymentStatus: Sale['paymentStatus'] = 'paid';
-        if (saleDetails.paymentMethod === 'credit' && newCreditBalance > 0.001) {
+        if (saleDetails.paymentMethod === 'credit' && saleDetails.creditAmount > 0.001) {
             paymentStatus = 'partial';
         } else if (saleDetails.paymentMethod === 'check') {
             paymentStatus = 'pending_check_clearance';
@@ -593,8 +595,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
             ...saleDetails,
             total_amount,
             amountPaid,
-            previousBalance,
-            creditAmount: newCreditBalance > 0 ? newCreditBalance : 0,
+            previousBalance: finalPreviousBalance,
             paymentStatus,
             sale_date: serverTimestamp(),
         });
@@ -624,13 +625,16 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
     revalidatePath('/dashboard/customers');
     revalidatePath('/dashboard/moneyflow');
     
-    const finalCreditAmount = (total_amount - previousBalance) - amountPaid;
+    const finalCreditAmount = saleDetails.creditAmount;
     let paymentStatus: Sale['paymentStatus'] = 'paid';
     if (validatedFields.data.paymentMethod === 'credit' && finalCreditAmount > 0.001) {
         paymentStatus = 'partial';
     } else if (validatedFields.data.paymentMethod === 'check') {
         paymentStatus = 'pending_check_clearance';
     }
+    
+    const customerDoc = saleDetails.customer_id ? await getDoc(doc(db, 'customers', saleDetails.customer_id)) : null;
+    const finalPreviousBalance = customerDoc?.exists() ? customerDoc.data().credit_balance : 0;
 
     const returnedSale: Sale = {
         id: saleId,
@@ -640,7 +644,7 @@ export async function createSale(saleData: z.infer<typeof POSSaleSchema>): Promi
         ...saleDetails,
         total_amount,
         amountPaid,
-        previousBalance,
+        previousBalance: finalPreviousBalance,
         creditAmount: finalCreditAmount > 0 ? finalCreditAmount : 0,
         paymentStatus,
         sale_date: new Date().toISOString(),
@@ -1644,8 +1648,9 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
 
     const { db } = getFirebaseServices();
     try {
+        // More robust query: fetch all user's activities and filter in code
         let q: Query = query(collection(db, 'recent_activity'), where('userId', '==', userId), orderBy('timestamp', 'desc'));
-
+        
         if (filters.limit) {
             q = query(q, limit(filters.limit));
         }
@@ -1661,32 +1666,29 @@ export async function fetchFinancialActivities(filters: FinancialActivitiesFilte
                 partyName: data.customer_name || data.supplier_name || 'N/A'
             } as RecentActivity;
         });
-
-        const financialTypes: RecentActivity['type'][] = ['sale', 'purchase', 'credit_settled', 'check_cleared', 'check_rejected', 'sale_return', 'purchase_return', 'loss'];
-        let filteredActivities = allActivities.filter(a => financialTypes.includes(a.type));
-
-        // Apply filters in code.
+        
+        // Apply filters in code
         if (filters.type) {
-            filteredActivities = filteredActivities.filter(a => a.type === filters.type);
+            allActivities = allActivities.filter(a => a.type === filters.type);
         }
         
         if (filters.productId) {
-            filteredActivities = filteredActivities.filter(a => a.item_ids?.includes(filters.productId!));
+            allActivities = allActivities.filter(a => a.item_ids?.includes(filters.productId!));
         }
 
         if (filters.partyId) {
             const [partyType, id] = filters.partyId.split('_');
             const partyKey = partyType === 'customer' ? 'customer_id' : 'supplier_id';
-            filteredActivities = filteredActivities.filter(a => (a as any)[partyKey] === id);
+            allActivities = allActivities.filter(a => (a as any)[partyKey] === id);
         }
 
         if (filters.date?.from) {
             const from = startOfDay(filters.date.from);
             const to = filters.date.to ? endOfDay(filters.date.to) : endOfDay(filters.date.from);
-            filteredActivities = filteredActivities.filter(a => isWithinInterval(new Date(a.timestamp), { start: from, end: to }));
+            allActivities = allActivities.filter(a => isWithinInterval(new Date(a.timestamp), { start: from, end: to }));
         }
 
-        return filteredActivities;
+        return allActivities;
     } catch (error) {
         console.error('Database Error:', error);
         throw new Error('Failed to fetch financial activities.');
@@ -2299,6 +2301,7 @@ export async function fetchPendingOrders(): Promise<((SalesOrder & {type: 'sale'
 
 
     
+
 
 
 

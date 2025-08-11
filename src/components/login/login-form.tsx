@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useActionState } from 'react';
@@ -27,14 +28,14 @@ export default function LoginForm() {
   return (
     <form action={formAction} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
+        <Label htmlFor="email">Email</Label>
         <Input
-          id="username"
-          name="username"
-          type="text"
-          placeholder="superadmin"
+          id="email"
+          name="email"
+          type="email"
+          placeholder="admin@example.com"
           required
-          autoComplete="username"
+          autoComplete="email"
         />
       </div>
       <div className="space-y-2">
