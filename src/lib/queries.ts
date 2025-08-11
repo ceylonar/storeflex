@@ -1134,9 +1134,9 @@ export async function fetchDashboardData() {
             getDocs(productsQuery),
             getDocs(salesQuery),
             getDocs(activityQuery),
-            getDocs(customersSnapshot),
-            getDocs(suppliersSnapshot),
-            getDocs(expensesSnapshot),
+            getDocs(customersQuery),
+            getDocs(suppliersQuery),
+            getDocs(expensesQuery),
         ]);
         
         let inventoryValue = 0;
