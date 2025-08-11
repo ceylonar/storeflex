@@ -1,5 +1,4 @@
 
-
 import 'dotenv/config';
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
@@ -16,23 +15,36 @@ const firebaseConfig = {
 
 // Initialize Firebase
 let app: FirebaseApp;
-if (!getApps().length) {
-    if (firebaseConfig.projectId) {
-        app = initializeApp(firebaseConfig);
+let db: any;
+
+function initializeFirebase() {
+    if (!getApps().length) {
+        if (firebaseConfig.projectId) {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        } else {
+            console.error("Firebase project ID is not set. Firebase will not be initialized.");
+            // @ts-ignore
+            app = null;
+            // @ts-ignore
+            db = null;
+        }
     } else {
-        console.error("Firebase project ID is not set. Firebase will not be initialized.");
-        // @ts-ignore
-        app = null;
+        app = getApp();
+        db = getFirestore(app);
     }
-} else {
-    app = getApp();
 }
 
-const db = app ? getFirestore(app) : null;
+// Ensure Firebase is initialized on first load
+initializeFirebase();
 
 function getFirebaseServices() {
     if (!app || !db) {
-        throw new Error('Firebase is not initialized. Please check your environment variables in the .env file.');
+        // This will attempt to re-initialize if it failed on first load.
+        initializeFirebase();
+        if (!app || !db) {
+            throw new Error('Firebase is not initialized. Please check your environment variables in the .env file.');
+        }
     }
     return { app, db };
 }
