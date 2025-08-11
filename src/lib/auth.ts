@@ -88,9 +88,16 @@ export async function signup(prevState: { error: string | undefined } | null, fo
 
   try {
     const { app } = getFirebaseServices();
-    const auth = getAuth(app);
+    const clientAuth = getAuth(app);
     
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    // Create user with client SDK
+    const userCredential = await createUserWithEmailAndPassword(clientAuth, email, password);
+
+    // Update user's display name with Admin SDK
+    const { auth: adminAuth } = getFirebaseAdmin();
+    await adminAuth.updateUser(userCredential.user.uid, {
+        displayName: name,
+    });
 
     const user: User = { 
         id: userCredential.user.uid, 
@@ -109,6 +116,7 @@ export async function signup(prevState: { error: string | undefined } | null, fo
     if (e.code === 'auth/email-already-in-use') {
         return { error: 'This email address is already in use.' };
     }
+    console.error("Signup Error:", e);
     return { error: 'An unexpected error occurred during sign-up. Please try again.' };
   }
 }
@@ -116,14 +124,14 @@ export async function signup(prevState: { error: string | undefined } | null, fo
 export async function loginWithGoogle() {
     const { app } = getFirebaseServices();
     const auth = getAuth(app);
-    auth.tenantId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || null;
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-        'auth_domain': `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseapp.com`
+        'prompt': 'select_account'
     });
     
     try {
         const userCredential = await signInWithPopup(auth, provider);
+        
         const user: User = { 
             id: userCredential.user.uid, 
             name: userCredential.user.displayName || 'Google User', 
@@ -138,6 +146,10 @@ export async function loginWithGoogle() {
         if (error.code === 'auth/account-exists-with-different-credential') {
             return { error: 'An account already exists with the same email address but different sign-in credentials.' };
         }
+        if (error.code === 'auth/popup-closed-by-user') {
+            return { error: 'Sign-in window was closed before completing. Please try again.'}
+        }
+        console.error("Google Sign-In Error:", error);
         return { error: 'An unexpected error occurred during Google sign-in.' };
     }
 }
@@ -172,3 +184,4 @@ export async function getUser(): Promise<User | null> {
     }
     return null;
 }
+
