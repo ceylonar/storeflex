@@ -13,13 +13,15 @@ const firebaseConfig = {
 
 function getFirebaseServices() {
     let app: FirebaseApp;
+
+    // Check if all required config values are present
+    if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
+        console.error("Firebase project ID or API Key is not set in environment variables. See README.md for setup instructions.");
+        throw new Error("Firebase is not configured. Please check your .env file.");
+    }
+
     if (!getApps().length) {
-        if (firebaseConfig.projectId) {
-            app = initializeApp(firebaseConfig);
-        } else {
-            console.warn("Firebase project ID is not set. Client-side Firebase will not be initialized.");
-            throw new Error('Firebase project ID is not configured for the client.');
-        }
+        app = initializeApp(firebaseConfig);
     } else {
         app = getApp();
     }
