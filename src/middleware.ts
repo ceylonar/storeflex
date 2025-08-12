@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -9,12 +10,12 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // If user is trying to access login page but is already logged in, redirect to dashboard
-  if ((pathname === '/login' || pathname === '/') && session) {
+  if ((pathname === '/login' || pathname === '/') && session?.user) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // If user is trying to access a protected dashboard route and is not logged in, redirect to login
-  if (pathname.startsWith('/dashboard') && !session) {
+  if (pathname.startsWith('/dashboard') && !session?.user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

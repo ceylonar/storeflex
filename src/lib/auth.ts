@@ -2,9 +2,8 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { getAuth, type User as FirebaseUser, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, type User as FirebaseUser, createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
 
@@ -25,8 +24,6 @@ export async function createSessionForUser(firebaseUser: {uid: string, email: st
     const session = await encrypt({ user, expires })
 
     cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
-    
-    return { success: true };
 }
 
 
@@ -51,7 +48,6 @@ export async function sendPasswordReset(email: string): Promise<{success: boolea
 
 export async function logout() {
   cookies().set('session', '', { expires: new Date(0) })
-  redirect('/login');
 }
 
 export async function getUser(): Promise<{ id: string; name: string; email: string; role: 'admin'; } | null> {
