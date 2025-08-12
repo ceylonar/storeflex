@@ -25,9 +25,8 @@ export async function decrypt(input: string): Promise<any> {
     })
     return payload
   } catch (e) {
-      console.error("Decryption failed:", e);
-      // Return an empty object instead of null to prevent crashes
-      return {} 
+      // In case of an error (e.g., invalid token), return null
+      return null
   }
 }
 
