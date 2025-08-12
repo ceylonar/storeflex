@@ -6,14 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Logo } from '@/components/icons/logo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "../ui/button";
-import { login, signup, createSessionForUser } from "@/lib/auth";
+import { createSessionForUser } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAuth, onAuthStateChanged, type User } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, type User, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getFirebaseServices } from '@/lib/firebase';
 
 export default function AuthView() {
@@ -22,10 +22,12 @@ export default function AuthView() {
     const [loginError, setLoginError] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [authInitialized, setAuthInitialized] = useState(false);
 
     useEffect(() => {
         const { auth } = getFirebaseServices();
         const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
+            setAuthInitialized(true);
             if (user) {
                 // User is signed in via Firebase on the client.
                 // Now, create the server-side session.
@@ -39,7 +41,7 @@ export default function AuthView() {
                     router.push('/dashboard');
                 } else {
                     // Handle server session creation failure if necessary
-                    setLoginError("Failed to create a secure session. Please try again.");
+                    setLoginError(result.message || "Failed to create a secure session. Please try again.");
                 }
             }
         });
@@ -53,15 +55,24 @@ export default function AuthView() {
         setLoginError(null);
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
-        const result = await login(formData);
+        const email = formData.get('email') as string;
+        const password = formData.get('password') as string;
 
-        if (result?.message) {
-            setLoginError(result.message);
-        } else {
+        try {
+            const { auth } = getFirebaseServices();
+            await signInWithEmailAndPassword(auth, email, password);
             toast({ title: "Login Successful", description: "Redirecting..." });
             // onAuthStateChanged will handle the rest
+        } catch (error: any) {
+            if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+              setLoginError('Invalid email or password.');
+            } else {
+              console.error('Login Error:', error);
+              setLoginError('An unexpected error occurred during login.');
+            }
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
     }
     
     const handleSignupSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -69,7 +80,8 @@ export default function AuthView() {
         setSignupError(null);
         setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
-        
+        const name = formData.get('name') as string;
+        const email = formData.get('email') as string;
         const password = formData.get('password') as string;
         const confirmPassword = formData.get('confirmPassword') as string;
         const signupCode = formData.get('signupCode') as string;
@@ -79,21 +91,36 @@ export default function AuthView() {
             setIsSubmitting(false);
             return;
         }
-        if (signupCode !== "CeylonarStoreFlex") {
+         if (signupCode !== "CeylonarStoreFlex") {
             setSignupError("Invalid Sign-Up Code.");
             setIsSubmitting(false);
             return;
         }
-        
-        const result = await signup(formData);
 
-        if (result?.message) {
-            setSignupError(result.message);
-        } else {
+        try {
+            const { auth } = getFirebaseServices();
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(userCredential.user, { displayName: name });
             toast({ title: "Account Created", description: "Logging you in..." });
             // onAuthStateChanged will handle the rest
+        } catch (error: any) {
+            if (error.code === 'auth/email-already-in-use') {
+                setSignupError('This email address is already in use.');
+            } else {
+                console.error('Signup Error:', error);
+                setSignupError('An unexpected error occurred during sign-up.');
+            }
+        } finally {
+            setIsSubmitting(false);
         }
-        setIsSubmitting(false);
+    }
+    
+    if (!authInitialized) {
+        return (
+            <Card className="mx-auto w-full max-w-sm flex items-center justify-center h-96">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </Card>
+        )
     }
 
     return (
@@ -145,5 +172,5 @@ export default function AuthView() {
                 </Tabs>
             </CardContent>
         </Card>
-    )
+    );
 }

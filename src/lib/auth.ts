@@ -5,14 +5,14 @@ import { cookies } from 'next/headers'
 import { getFirebaseServices } from './firebase';
 import { getAuth, type User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { encrypt, decrypt } from './session';
-import { revalidatePath } from 'next/cache';
 
 export async function createSessionForUser(firebaseUser: { uid: string, email: string | null, displayName: string | null }) {
     if (!firebaseUser.email) {
-        throw new Error("User email not found.");
+      return { success: false, message: "User email not found during session creation." };
     }
     
     // Create a plain, serializable user object for the session.
+    // This is the critical change to prevent serialization errors.
     const user = { 
         id: firebaseUser.uid, 
         name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Admin', 
@@ -26,58 +26,6 @@ export async function createSessionForUser(firebaseUser: { uid: string, email: s
     
     return { success: true };
 }
-
-export async function login(formData: FormData) {
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-
-  if (!email || !password) {
-    return { success: false, message: 'Email and password are required.' };
-  }
-
-  const { auth } = getFirebaseServices();
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    // Session creation is now handled by the client via onAuthStateChanged
-    return { success: true, user: userCredential.user };
-  } catch (error: any) {
-    if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
-      return { success: false, message: 'Invalid email or password.' };
-    }
-    console.error('Login Error:', error);
-    return { success: false, message: 'An unexpected error occurred during login.' };
-  }
-}
-
-export async function signup(formData: FormData) {
-  const name = formData.get('name') as string;
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-
-   if (!name || !email || !password) {
-    return { success: false, message: 'Name, email, and password are required.' };
-  }
-  if (password.length < 6) {
-    return { success: false, message: 'Password must be at least 6 characters.' };
-  }
-
-  const { auth } = getFirebaseServices();
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(userCredential.user, { displayName: name });
-    
-    // Session creation is now handled by the client via onAuthStateChanged
-    return { success: true };
-
-  } catch (error: any) {
-    if (error.code === 'auth/email-already-in-use') {
-      return { success: false, message: 'This email address is already in use.' };
-    }
-    console.error('Signup Error:', error);
-    return { success: false, message: 'An unexpected error occurred during sign-up.' };
-  }
-}
-
 
 export async function logout() {
   cookies().set('session', '', { expires: new Date(0) })
