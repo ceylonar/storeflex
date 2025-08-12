@@ -11,6 +11,7 @@
 import { ai, ensureAiIsConfigured } from '@/ai/genkit';
 import { z } from 'zod';
 import { fetchDashboardData, fetchCustomers, fetchSuppliers, fetchExpenses, fetchPendingOrders, fetchFinancialActivities } from '@/lib/queries';
+import { googleAI } from '@genkit-ai/googleai';
 
 const AiAssistantOutputSchema = z.object({
   answer: z.string().describe('The answer to the user\'s question.'),
@@ -88,6 +89,7 @@ ${receivables.length > 0 ? receivables.map(c => `- Owed by ${c.name}: LKR ${Math
 
 const prompt = ai.definePrompt({
   name: 'aiAssistantPrompt',
+  model: googleAI.model('gemini-1.5-flash-preview'),
   input: {
     schema: z.object({
       query: z.string(),
