@@ -7,7 +7,7 @@ import { getAuth, type User as FirebaseUser, signInWithEmailAndPassword, createU
 import { encrypt, decrypt } from './session';
 import { revalidatePath } from 'next/cache';
 
-export async function createSessionForUser(firebaseUser: FirebaseUser) {
+export async function createSessionForUser(firebaseUser: { uid: string, email: string | null, displayName: string | null }) {
     if (!firebaseUser.email) {
         throw new Error("User email not found.");
     }
@@ -23,6 +23,8 @@ export async function createSessionForUser(firebaseUser: FirebaseUser) {
     const session = await encrypt({ user, expires })
 
     cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
+    
+    return { success: true };
 }
 
 export async function login(formData: FormData) {
@@ -36,8 +38,8 @@ export async function login(formData: FormData) {
   const { auth } = getFirebaseServices();
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    await createSessionForUser(userCredential.user);
-    return { success: true };
+    // Session creation is now handled by the client via onAuthStateChanged
+    return { success: true, user: userCredential.user };
   } catch (error: any) {
     if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
       return { success: false, message: 'Invalid email or password.' };
@@ -64,14 +66,9 @@ export async function signup(formData: FormData) {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(userCredential.user, { displayName: name });
     
-    // Re-fetch user to get updated profile
-    const updatedUser = getAuth(auth.app).currentUser;
-    if (updatedUser) {
-        await createSessionForUser(updatedUser);
-        return { success: true };
-    } else {
-        throw new Error("Could not find updated user after profile update.");
-    }
+    // Session creation is now handled by the client via onAuthStateChanged
+    return { success: true };
+
   } catch (error: any) {
     if (error.code === 'auth/email-already-in-use') {
       return { success: false, message: 'This email address is already in use.' };
@@ -84,7 +81,6 @@ export async function signup(formData: FormData) {
 
 export async function logout() {
   cookies().set('session', '', { expires: new Date(0) })
-  revalidatePath('/login', 'layout');
 }
 
 export async function getUser(): Promise<{ id: string; name: string; email: string; } | null> {

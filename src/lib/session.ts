@@ -3,7 +3,6 @@
 
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
-import type { NextRequest } from 'next/server'
 
 const secretKey = process.env.SESSION_SECRET
 if (!secretKey) {

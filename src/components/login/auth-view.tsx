@@ -1,17 +1,20 @@
+
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from '@/components/icons/logo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "../ui/button";
-import { login, signup } from "@/lib/auth";
+import { login, signup, createSessionForUser } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getAuth, onAuthStateChanged, type User } from 'firebase/auth';
+import { getFirebaseServices } from '@/lib/firebase';
 
 export default function AuthView() {
     const { toast } = useToast();
@@ -19,6 +22,31 @@ export default function AuthView() {
     const [loginError, setLoginError] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        const { auth } = getFirebaseServices();
+        const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
+            if (user) {
+                // User is signed in via Firebase on the client.
+                // Now, create the server-side session.
+                const result = await createSessionForUser({
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName,
+                });
+                
+                if (result.success) {
+                    router.push('/dashboard');
+                } else {
+                    // Handle server session creation failure if necessary
+                    setLoginError("Failed to create a secure session. Please try again.");
+                }
+            }
+        });
+
+        // Cleanup subscription on unmount
+        return () => unsubscribe();
+    }, [router]);
 
     const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -30,8 +58,8 @@ export default function AuthView() {
         if (result?.message) {
             setLoginError(result.message);
         } else {
-            toast({ title: "Login Successful", description: "Welcome back!" });
-            router.push('/dashboard');
+            toast({ title: "Login Successful", description: "Redirecting..." });
+            // onAuthStateChanged will handle the rest
         }
         setIsSubmitting(false);
     }
@@ -62,8 +90,8 @@ export default function AuthView() {
         if (result?.message) {
             setSignupError(result.message);
         } else {
-            toast({ title: "Account Created", description: "Welcome to StoreFlex Lite!" });
-            router.push('/dashboard');
+            toast({ title: "Account Created", description: "Logging you in..." });
+            // onAuthStateChanged will handle the rest
         }
         setIsSubmitting(false);
     }
