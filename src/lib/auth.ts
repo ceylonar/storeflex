@@ -8,22 +8,16 @@ import { getAuth, type User as FirebaseUser, createUserWithEmailAndPassword, upd
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
 
-export interface User {
-    id: string; 
-    name: string;
-    email: string;
-    role: 'admin';
-}
-
 export async function createSessionForUser(firebaseUser: {uid: string, email: string | null, displayName: string | null}) {
     if (!firebaseUser.email) {
         throw new Error("User email not found.");
     }
     
-    const user: User = { 
+    // Create a plain, serializable user object for the session.
+    const user = { 
         id: firebaseUser.uid, 
         name: firebaseUser.displayName || firebaseUser.email || 'Admin', 
-        email: firebaseUser.email!, 
+        email: firebaseUser.email, 
         role: 'admin' 
     };
 
@@ -60,7 +54,7 @@ export async function logout() {
   redirect('/login');
 }
 
-export async function getUser(): Promise<User | null> {
+export async function getUser(): Promise<{ id: string; name: string; email: string; role: 'admin'; } | null> {
     const session = await getSession();
     if (session && session.user) {
         return session.user;
