@@ -2,10 +2,8 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { getFirebaseServices } from './firebase';
-import { getAuth, type User as FirebaseUser, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { encrypt, decrypt } from './session';
 import { getFirebaseAdmin } from './firebase-admin';
+import { encrypt } from './session';
 
 export async function createSessionForUser(token: string) {
     const { auth: adminAuth } = getFirebaseAdmin();
@@ -18,7 +16,12 @@ export async function createSessionForUser(token: string) {
         };
 
         const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-        const session = await encrypt({ user, expires })
+        // Directly use the secret from the environment variable here
+        const secretKey = process.env.SESSION_SECRET;
+        if (!secretKey) {
+            throw new Error('SESSION_SECRET is not set on the server.');
+        }
+        const session = await encrypt({ user, expires }, secretKey);
 
         cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
         
@@ -38,7 +41,13 @@ export async function getUser(): Promise<{ id: string; name: string; email: stri
     const sessionCookie = cookies().get('session')?.value
     if (!sessionCookie) return null
     
-    const session = await decrypt(sessionCookie);
+    // Directly use the secret from the environment variable here
+    const secretKey = process.env.SESSION_SECRET;
+    if (!secretKey) {
+        console.error('SESSION_SECRET is not set on the server for getUser.');
+        return null;
+    }
+    const session = await decrypt(sessionCookie, secretKey);
     if (session && session.user && session.expires && new Date(session.expires) > new Date()) {
         return session.user;
     }

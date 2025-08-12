@@ -4,13 +4,8 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
-const secretKey = process.env.SESSION_SECRET
-if (!secretKey) {
-    throw new Error('SESSION_SECRET environment variable is not set. Please generate a secure key.');
-}
-const key = new TextEncoder().encode(secretKey)
-
-export async function encrypt(payload: any) {
+export async function encrypt(payload: any, secretKey: string) {
+  const key = new TextEncoder().encode(secretKey);
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -18,20 +13,27 @@ export async function encrypt(payload: any) {
     .sign(key)
 }
 
-export async function decrypt(input: string): Promise<any> {
+export async function decrypt(input: string, secretKey: string): Promise<any> {
+  const key = new TextEncoder().encode(secretKey);
   try {
     const { payload } = await jwtVerify(input, key, {
       algorithms: ['HS256'],
     })
     return payload
   } catch (e) {
-      // In case of an error (e.g., invalid token), return null
+      console.error("Decryption failed:", e);
       return null
   }
 }
 
 export async function getSession() {
-  const session = cookies().get('session')?.value
-  if (!session) return null
-  return await decrypt(session)
+  const sessionCookie = cookies().get('session')?.value
+  if (!sessionCookie) return null
+
+  const secretKey = process.env.SESSION_SECRET;
+  if (!secretKey) {
+    console.error('SESSION_SECRET is not set for getSession.');
+    return null;
+  }
+  return await decrypt(sessionCookie, secretKey)
 }
