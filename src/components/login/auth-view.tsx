@@ -1,15 +1,13 @@
 'use client'
 
 import React, { useState } from 'react';
-import { useFormStatus } from 'react-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from '@/components/icons/logo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "../ui/button";
-import { Separator } from "../ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { getFirebaseServices } from "@/lib/firebase";
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { createSessionForUser, sendPasswordReset } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
@@ -17,16 +15,6 @@ import { Label } from '../ui/label';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
-
-function SubmitButton({ children, disabled }: { children: React.ReactNode, disabled?: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button className="w-full" type="submit" disabled={pending || disabled}>
-      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      {children}
-    </Button>
-  );
-}
 
 function ForgotPasswordDialog() {
   const [email, setEmail] = useState('');
@@ -84,29 +72,6 @@ export default function AuthView() {
     const [loginError, setLoginError] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const handleGoogleSignIn = async () => {
-        setIsSubmitting(true);
-        try {
-            const { auth } = getFirebaseServices();
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({ 'prompt': 'select_account' });
-            const result = await signInWithPopup(auth, provider);
-            await createSessionForUser(result.user);
-            router.push('/dashboard');
-        } catch (error: any) {
-            console.error("Google Sign-In Error:", error);
-            let message = 'An unexpected error occurred during Google sign-in.';
-            if (error.code === 'auth/popup-closed-by-user') {
-                message = 'Sign-in window was closed. Please try again.';
-            } else if (error.code === 'auth/unauthorized-domain') {
-                 message = "This domain is not authorized. Please contact support or add it to the Firebase console's authorized domains.";
-            }
-             toast({ variant: 'destructive', title: 'Google Sign-In Failed', description: message });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
 
     const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -221,18 +186,6 @@ export default function AuthView() {
                         </form>
                     </TabsContent>
                 </Tabs>
-                
-                <div className="relative my-4">
-                    <Separator />
-                    <span className="absolute left-1/2 -translate-x-1/2 top-[-10px] bg-background px-2 text-xs text-muted-foreground">OR</span>
-                </div>
-
-                <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 173.4 54.7l-73.2 67.7C309.6 98.4 282.2 88 248 88c-73.2 0-133.1 59.2-133.1 131.5s59.9 131.5 133.1 131.5c82.3 0 115.6-53.4 121.2-80.6H248V261.8h239.8z"></path></svg>
-                    Sign in with Google
-                </Button>
-
             </CardContent>
         </Card>
     );
