@@ -30,18 +30,20 @@ export default function AuthView() {
             setAuthInitialized(true);
             if (user) {
                 // User is signed in via Firebase on the client.
-                // Now, create the server-side session.
-                const result = await createSessionForUser({
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName,
-                });
-                
-                if (result.success) {
-                    router.push('/dashboard');
-                } else {
-                    // Handle server session creation failure if necessary
-                    setLoginError(result.message || "Failed to create a secure session. Please try again.");
+                // Now, get the ID token and create the server-side session.
+                try {
+                    const token = await user.getIdToken();
+                    const result = await createSessionForUser(token);
+                    
+                    if (result.success) {
+                        router.push('/dashboard');
+                    } else {
+                        // Handle server session creation failure if necessary
+                        setLoginError(result.message || "Failed to create a secure session. Please try again.");
+                    }
+                } catch (error) {
+                    console.error("Error getting ID token:", error);
+                    setLoginError("Failed to verify authentication. Please try again.");
                 }
             }
         });
