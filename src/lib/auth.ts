@@ -4,9 +4,10 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
+import { getAuth, type User as FirebaseUser } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
+import { getFirebaseAdmin } from './firebase-admin';
 
 
 export interface User {
@@ -15,11 +16,6 @@ export interface User {
     email: string;
     role: 'admin';
 }
-
-const LoginSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(1, { message: "Password is required." }),
-});
 
 const SignupSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -35,101 +31,34 @@ const SignupSchema = z.object({
 });
 
 
-export async function login(prevState: { error: string | undefined } | null, formData: FormData) {
-  const validatedFields = LoginSchema.safeParse(Object.fromEntries(formData.entries()));
-
-  if (!validatedFields.success) {
-      const errorMessages = validatedFields.error.flatten().fieldErrors;
-      const message = Object.values(errorMessages).flat().join(' ');
-      return { error: message };
-  }
-  
-  const { email, password } = validatedFields.data;
-
-  try {
-      const { app } = getFirebaseServices();
-      const auth = getAuth(app);
-      
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      const user: User = { 
-          id: userCredential.user.uid, 
-          name: userCredential.user.displayName || userCredential.user.email || 'Admin', 
-          email: userCredential.user.email!, 
-          role: 'admin' 
-      };
-
-      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-      const session = await encrypt({ user, expires })
-
-      cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
-
-      redirect('/dashboard');
-  } catch (e: any) {
-       if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' || e.code === 'auth/invalid-email') {
-          return { error: 'Invalid email or password.' };
-      }
-      console.error("Login Error:", e);
-      return { error: 'An unexpected error occurred during login. Please try again.' };
-  }
-}
-
-export async function signup(prevState: { error: string | undefined } | null, formData: FormData) {
-  const validatedFields = SignupSchema.safeParse(Object.fromEntries(formData.entries()));
-
-  if (!validatedFields.success) {
-      const errorMessages = validatedFields.error.flatten().fieldErrors;
-      const message = Object.values(errorMessages).flat().join(' ');
-      return { error: message };
-  }
-
-  const { email, password, name } = validatedFields.data;
-
-  try {
-    const { app } = getFirebaseServices();
-    const auth = getAuth(app);
-    
-    // Create user with client SDK
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-
-    // Update user's display name using the client SDK
-    await updateProfile(userCredential.user, {
-        displayName: name,
-    });
-
-    const user: User = { 
-        id: userCredential.user.uid, 
-        name: name,
-        email: userCredential.user.email!, 
-        role: 'admin' 
-    };
-
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    const session = await encrypt({ user, expires })
-
-    cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
-
-    redirect('/dashboard');
-  } catch (e: any) {
-    if (e.code === 'auth/email-already-in-use') {
-        return { error: 'This email address is already in use.' };
+export async function createSessionForUser(firebaseUser: {uid: string, email: string | null, displayName: string | null}) {
+    if (!firebaseUser.email) {
+        throw new Error("User email not found.");
     }
-    console.error("Signup Error:", e);
-    return { error: 'An unexpected error occurred during sign-up. Please try again.' };
-  }
-}
+    
+    // Check if the user exists in Firebase Auth to ensure it's a valid user
+    const { auth: adminAuth } = getFirebaseAdmin();
+    try {
+        const userRecord = await adminAuth.getUser(firebaseUser.uid);
+        const user: User = { 
+            id: userRecord.uid, 
+            name: userRecord.displayName || userRecord.email || 'Admin', 
+            email: userRecord.email!, 
+            role: 'admin' 
+        };
 
-export async function createSessionForUser(firebaseUser: any) {
-    const user: User = { 
-        id: firebaseUser.uid, 
-        name: firebaseUser.displayName || 'Google User', 
-        email: firebaseUser.email!, 
-        role: 'admin' 
-    };
-    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const session = await encrypt({ user, expires });
-    cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' });
-    redirect('/dashboard');
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        const session = await encrypt({ user, expires })
+
+        cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
+        
+        // No redirect here, let the client handle it.
+        return { success: true };
+
+    } catch (error) {
+        console.error("Session creation error:", error);
+        throw new Error("Failed to create user session.");
+    }
 }
 
 
@@ -140,6 +69,7 @@ export async function sendPasswordReset(email: string): Promise<{success: boolea
     try {
         const { app } = getFirebaseServices();
         const auth = getAuth(app);
+        const { sendPasswordResetEmail } = await import('firebase/auth');
         await sendPasswordResetEmail(auth, email);
         return { success: true, message: 'Password reset email sent successfully. Check your inbox.' };
     } catch(e: any) {
