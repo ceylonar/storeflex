@@ -1,13 +1,11 @@
-
 'use server'
 
 import { cookies } from 'next/headers'
 import { getFirebaseServices } from './firebase';
-import { getAuth, type User as FirebaseUser, createUserWithEmailAndPassword, updateProfile, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, type User as FirebaseUser, sendPasswordResetEmail } from 'firebase/auth';
 import { encrypt, getSession } from './session';
-import { z } from 'zod';
 
-export async function createSessionForUser(firebaseUser: {uid: string, email: string | null, displayName: string | null}) {
+export async function createSessionForUser(firebaseUser: FirebaseUser) {
     if (!firebaseUser.email) {
         throw new Error("User email not found.");
     }
@@ -26,15 +24,12 @@ export async function createSessionForUser(firebaseUser: {uid: string, email: st
     cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
 }
 
-
 export async function sendPasswordReset(email: string): Promise<{success: boolean, message: string}> {
     if (!email) {
         return { success: false, message: 'Email address is required.' };
     }
     try {
-        const { app } = getFirebaseServices();
-        const auth = getAuth(app);
-        const { sendPasswordResetEmail } = await import('firebase/auth');
+        const { auth } = getFirebaseServices();
         await sendPasswordResetEmail(auth, email);
         return { success: true, message: 'Password reset email sent successfully. Check your inbox.' };
     } catch(e: any) {

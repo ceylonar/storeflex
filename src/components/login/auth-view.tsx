@@ -1,4 +1,3 @@
-
 'use client'
 
 import React, { useState } from 'react';
@@ -10,7 +9,7 @@ import { Button } from "../ui/button";
 import { Separator } from "../ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { getFirebaseServices } from "@/lib/firebase";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { createSessionForUser, sendPasswordReset } from "@/lib/auth";
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
@@ -89,8 +88,7 @@ export default function AuthView() {
     const handleGoogleSignIn = async () => {
         setIsSubmitting(true);
         try {
-            const { app } = getFirebaseServices();
-            const auth = getAuth(app);
+            const { auth } = getFirebaseServices();
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ 'prompt': 'select_account' });
             const result = await signInWithPopup(auth, provider);
@@ -101,8 +99,8 @@ export default function AuthView() {
             let message = 'An unexpected error occurred during Google sign-in.';
             if (error.code === 'auth/popup-closed-by-user') {
                 message = 'Sign-in window was closed. Please try again.';
-            } else if (error.code) {
-                message = `Error: ${error.code.replace('auth/', '').replace(/-/g, ' ')}`;
+            } else if (error.code === 'auth/unauthorized-domain') {
+                 message = "This domain is not authorized. Please contact support or add it to the Firebase console's authorized domains.";
             }
              toast({ variant: 'destructive', title: 'Google Sign-In Failed', description: message });
         } finally {
@@ -119,8 +117,7 @@ export default function AuthView() {
         const password = formData.get('password') as string;
 
         try {
-            const { app } = getFirebaseServices();
-            const auth = getAuth(app);
+            const { auth } = getFirebaseServices();
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             await createSessionForUser(userCredential.user);
             router.push('/dashboard');
@@ -158,15 +155,10 @@ export default function AuthView() {
         }
 
         try {
-            const { app } = getFirebaseServices();
-            const auth = getAuth(app);
+            const { auth } = getFirebaseServices();
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(userCredential.user, { displayName: name });
-            await createSessionForUser({
-                uid: userCredential.user.uid,
-                email: userCredential.user.email,
-                displayName: name,
-            });
+            await createSessionForUser(userCredential.user);
             router.push('/dashboard');
         } catch (error: any) {
              if (error.code === 'auth/email-already-in-use') {
