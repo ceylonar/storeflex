@@ -4,11 +4,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation';
 import { getFirebaseServices } from './firebase';
-import { getAuth, type User as FirebaseUser } from 'firebase/auth';
+import { getAuth, type User as FirebaseUser, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { encrypt, getSession } from './session';
 import { z } from 'zod';
-import { getFirebaseAdmin } from './firebase-admin';
-
 
 export interface User {
     id: string; 
@@ -17,48 +15,24 @@ export interface User {
     role: 'admin';
 }
 
-const SignupSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  email: z.string().email({ message: "Please enter a valid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  confirmPassword: z.string(),
-  signupCode: z.string().refine(code => code === "CeylonarStoreFlex", {
-    message: "Invalid Sign-Up Code.",
-  }),
-}).refine(data => data.password === data.confirmPassword, {
-  message: "Passwords do not match.",
-  path: ["confirmPassword"],
-});
-
-
 export async function createSessionForUser(firebaseUser: {uid: string, email: string | null, displayName: string | null}) {
     if (!firebaseUser.email) {
         throw new Error("User email not found.");
     }
     
-    // Check if the user exists in Firebase Auth to ensure it's a valid user
-    const { auth: adminAuth } = getFirebaseAdmin();
-    try {
-        const userRecord = await adminAuth.getUser(firebaseUser.uid);
-        const user: User = { 
-            id: userRecord.uid, 
-            name: userRecord.displayName || userRecord.email || 'Admin', 
-            email: userRecord.email!, 
-            role: 'admin' 
-        };
+    const user: User = { 
+        id: firebaseUser.uid, 
+        name: firebaseUser.displayName || firebaseUser.email || 'Admin', 
+        email: firebaseUser.email!, 
+        role: 'admin' 
+    };
 
-        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
-        const session = await encrypt({ user, expires })
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+    const session = await encrypt({ user, expires })
 
-        cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
-        
-        // No redirect here, let the client handle it.
-        return { success: true };
-
-    } catch (error) {
-        console.error("Session creation error:", error);
-        throw new Error("Failed to create user session.");
-    }
+    cookies().set('session', session, { expires, httpOnly: true, secure: process.env.NODE_ENV === 'production' })
+    
+    return { success: true };
 }
 
 

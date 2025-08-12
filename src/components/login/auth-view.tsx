@@ -2,7 +2,7 @@
 'use client'
 
 import React, { useState } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Logo } from '@/components/icons/logo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,12 +33,14 @@ function ForgotPasswordDialog() {
   const [email, setEmail] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleForgotPassword = async () => {
     if (!email) {
       toast({ variant: 'destructive', title: 'Error', description: 'Please enter your email address.' });
       return;
     }
+    setIsSubmitting(true);
     const result = await sendPasswordReset(email);
     if (result.success) {
       toast({ title: 'Success', description: result.message });
@@ -46,6 +48,7 @@ function ForgotPasswordDialog() {
     } else {
       toast({ variant: 'destructive', title: 'Error', description: result.message });
     }
+    setIsSubmitting(false);
   };
 
   return (
@@ -66,7 +69,10 @@ function ForgotPasswordDialog() {
         </div>
         <DialogFooter>
           <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-          <Button onClick={handleForgotPassword}>Send Reset Link</Button>
+          <Button onClick={handleForgotPassword} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Send Reset Link
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -78,8 +84,10 @@ export default function AuthView() {
     const router = useRouter();
     const [loginError, setLoginError] = useState<string | null>(null);
     const [signupError, setSignupError] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleGoogleSignIn = async () => {
+        setIsSubmitting(true);
         try {
             const { app } = getFirebaseServices();
             const auth = getAuth(app);
@@ -93,14 +101,19 @@ export default function AuthView() {
             let message = 'An unexpected error occurred during Google sign-in.';
             if (error.code === 'auth/popup-closed-by-user') {
                 message = 'Sign-in window was closed. Please try again.';
+            } else if (error.code) {
+                message = `Error: ${error.code.replace('auth/', '').replace(/-/g, ' ')}`;
             }
              toast({ variant: 'destructive', title: 'Google Sign-In Failed', description: message });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setLoginError(null);
+        setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         const email = formData.get('email') as string;
         const password = formData.get('password') as string;
@@ -117,12 +130,15 @@ export default function AuthView() {
             } else {
                 setLoginError('An unexpected error occurred during login.');
             }
+        } finally {
+            setIsSubmitting(false);
         }
     }
     
     const handleSignupSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setSignupError(null);
+        setIsSubmitting(true);
         const formData = new FormData(event.currentTarget);
         const name = formData.get('name') as string;
         const email = formData.get('email') as string;
@@ -132,10 +148,12 @@ export default function AuthView() {
 
         if (password !== confirmPassword) {
             setSignupError("Passwords do not match.");
+            setIsSubmitting(false);
             return;
         }
         if (signupCode !== "CeylonarStoreFlex") {
             setSignupError("Invalid Sign-Up Code.");
+            setIsSubmitting(false);
             return;
         }
 
@@ -156,6 +174,8 @@ export default function AuthView() {
             } else {
                 setSignupError('An unexpected error occurred during sign-up.');
             }
+        } finally {
+            setIsSubmitting(false);
         }
     }
 
@@ -188,7 +208,10 @@ export default function AuthView() {
                                 <Input id="password" name="password" type="password" required autoComplete="current-password"/>
                             </div>
                             {loginError && (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Login Failed</AlertTitle><AlertDescription>{loginError}</AlertDescription></Alert>)}
-                            <SubmitButton>Login</SubmitButton>
+                            <Button className="w-full" type="submit" disabled={isSubmitting}>
+                              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Login
+                            </Button>
                         </form>
                     </TabsContent>
                     <TabsContent value="signup">
@@ -199,7 +222,10 @@ export default function AuthView() {
                             <div className="space-y-2"><Label htmlFor="confirmPassword">Confirm Password</Label><Input id="confirmPassword" name="confirmPassword" type="password" required /></div>
                             <div className="space-y-2"><Label htmlFor="signupCode">Sign-Up Code</Label><Input id="signupCode" name="signupCode" type="password" required /></div>
                             {signupError && (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Sign-up Failed</AlertTitle><AlertDescription>{signupError}</AlertDescription></Alert>)}
-                            <SubmitButton>Create Account</SubmitButton>
+                            <Button className="w-full" type="submit" disabled={isSubmitting}>
+                              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Create Account
+                            </Button>
                         </form>
                     </TabsContent>
                 </Tabs>
@@ -209,7 +235,8 @@ export default function AuthView() {
                     <span className="absolute left-1/2 -translate-x-1/2 top-[-10px] bg-background px-2 text-xs text-muted-foreground">OR</span>
                 </div>
 
-                <Button variant="outline" className="w-full" onClick={handleGoogleSignIn}>
+                <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 173.4 54.7l-73.2 67.7C309.6 98.4 282.2 88 248 88c-73.2 0-133.1 59.2-133.1 131.5s59.9 131.5 133.1 131.5c82.3 0 115.6-53.4 121.2-80.6H248V261.8h239.8z"></path></svg>
                     Sign in with Google
                 </Button>

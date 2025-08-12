@@ -5,7 +5,10 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
 
-const secretKey = process.env.SESSION_SECRET || 'fallback-secret-key-for-session'
+const secretKey = process.env.SESSION_SECRET
+if (!secretKey) {
+    throw new Error('SESSION_SECRET environment variable is not set. Please generate a secure key.');
+}
 const key = new TextEncoder().encode(secretKey)
 
 export async function encrypt(payload: any) {
