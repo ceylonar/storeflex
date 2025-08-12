@@ -22,8 +22,13 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isPending, startTransition] = useTransition();
+  const [isMounted, setIsMounted] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -120,17 +125,24 @@ export function ChatInterface() {
         </div>
       </ScrollArea>
       <div className="p-4 border-t">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <Input
-            value={input}
-            onChange={handleInputChange}
-            placeholder="Ask a question..."
-            disabled={isPending}
-          />
-          <Button type="submit" disabled={isPending || !input.trim()}>
-            Send
-          </Button>
-        </form>
+        {isMounted ? (
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <Input
+                value={input}
+                onChange={handleInputChange}
+                placeholder="Ask a question..."
+                disabled={isPending}
+              />
+              <Button type="submit" disabled={isPending || !input.trim()}>
+                Send
+              </Button>
+            </form>
+        ) : (
+            <div className="flex gap-2">
+                <div className="h-10 bg-muted rounded-md flex-1" />
+                <div className="h-10 bg-muted rounded-md w-[58px]" />
+            </div>
+        )}
       </div>
     </div>
   );
