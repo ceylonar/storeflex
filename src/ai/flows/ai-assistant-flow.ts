@@ -89,7 +89,7 @@ ${receivables.length > 0 ? receivables.map(c => `- Owed by ${c.name}: LKR ${Math
 
 const prompt = ai.definePrompt({
   name: 'aiAssistantPrompt',
-  model: googleAI.model('gemini-1.5-flash-preview'),
+  model: googleAI.model('gemini-1.5-flash'),
   input: {
     schema: z.object({
       query: z.string(),
